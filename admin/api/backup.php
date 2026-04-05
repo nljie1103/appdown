@@ -1,7 +1,8 @@
 <?php
 /**
- * 数据导入导出API — 带密码加密 + 选择性导入导出
- * 使用 AES-256-GCM 加密
+ * 数据导入导出API — ZIP打包 + AES-256-GCM加密
+ * 支持选择性表导出/导入 + uploads/ 文件目录打包
+ * 兼容旧版（纯JSON加密）备份格式
  */
 
 require_once __DIR__ . '/../../includes/init.php';
@@ -10,10 +11,16 @@ csrf_validate();
 require_method('POST');
 
 $pdo = get_db();
-$data = get_json_input();
-$action = $data['action'] ?? '';
 
-// 所有可导出的表及其依赖顺序（删除时先删子表）
+// 检测请求类型：JSON body（导出）或 multipart（导入/预览）
+$isMultipart = !empty($_FILES['file']);
+if ($isMultipart) {
+    $action = $_POST['action'] ?? '';
+} else {
+    $data = get_json_input();
+    $action = $data['action'] ?? '';
+}
+
 $allTables = [
     'site_settings', 'apps', 'app_downloads', 'app_images',
     'feature_categories', 'feature_cards', 'friend_links', 'custom_code',
@@ -26,23 +33,26 @@ $allTables = [
 if ($action === 'export') {
     $password = $data['password'] ?? '';
     $selectedTables = $data['tables'] ?? [];
+    $includeUploads = !empty($data['include_uploads']);
 
-    if (strlen($password) < 4) {
-        json_response(['error' => '加密密码至少4位'], 400);
-    }
-    if (empty($selectedTables)) {
-        json_response(['error' => '请选择要导出的数据'], 400);
+    if (strlen($password) < 4) json_response(['error' => '加密密码至少4位'], 400);
+    if (empty($selectedTables) && !$includeUploads) json_response(['error' => '请选择要导出的数据'], 400);
+    if (!class_exists('ZipArchive')) json_response(['error' => '服务器未安装PHP zip扩展，请联系服务商启用'], 500);
+
+    $tmpZip = tempnam(sys_get_temp_dir(), 'appdown_export_');
+    $zip = new ZipArchive();
+    if ($zip->open($tmpZip, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        json_response(['error' => '创建备份文件失败'], 500);
     }
 
-    // 只导出用户选择的表（过滤非法表名）
+    // 添加 data.json
     $export = [
         'meta' => [
-            'version' => '1.1',
+            'version' => '2.0',
             'exported_at' => date('Y-m-d H:i:s'),
             'app_name' => 'AppDown',
         ],
     ];
-
     foreach ($selectedTables as $table) {
         if (!in_array($table, $allTables, true)) continue;
         try {
@@ -51,71 +61,121 @@ if ($action === 'export') {
             $export[$table] = [];
         }
     }
+    $zip->addFromString('data.json', json_encode($export, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
-    $json = json_encode($export, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    // 添加 uploads/ 目录
+    if ($includeUploads) {
+        $uploadsBase = realpath(__DIR__ . '/../../uploads');
+        if ($uploadsBase && is_dir($uploadsBase)) {
+            addDirToZip($zip, $uploadsBase, 'uploads');
+        }
+    }
 
-    // AES-256-GCM 加密
+    $zip->close();
+
+    // 读取ZIP并加密
+    $zipData = file_get_contents($tmpZip);
+    unlink($tmpZip);
+
     $key = hash('sha256', $password, true);
     $iv = random_bytes(12);
     $tag = '';
-    $encrypted = openssl_encrypt($json, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    $encrypted = openssl_encrypt($zipData, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
 
-    if ($encrypted === false) {
-        json_response(['error' => '加密失败'], 500);
-    }
+    if ($encrypted === false) json_response(['error' => '加密失败'], 500);
 
-    $packed = base64_encode($iv . $tag . $encrypted);
+    $packed = $iv . $tag . $encrypted;
+    $filename = 'appdown_backup_' . date('Ymd_His') . '.enc';
 
-    json_response([
-        'ok' => true,
-        'data' => $packed,
-        'filename' => 'appdown_backup_' . date('Ymd_His') . '.enc'
-    ]);
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . strlen($packed));
+    header('X-Filename: ' . $filename);
+    header('Access-Control-Expose-Headers: X-Filename');
+    echo $packed;
+    exit;
 }
 
-// ========== 解密预览（不导入，只返回备份中有哪些表及记录数） ==========
+// ========== 解密预览 ==========
 if ($action === 'decrypt_preview') {
-    $password = $data['password'] ?? '';
-    $encData = $data['data'] ?? '';
+    $password = $_POST['password'] ?? '';
+    if (!$password) json_response(['error' => '请输入密码'], 400);
+    if (!isset($_FILES['file']['tmp_name'])) json_response(['error' => '未收到文件'], 400);
 
-    if (!$password || !$encData) {
-        json_response(['error' => '请提供加密数据和密码'], 400);
-    }
+    $raw = file_get_contents($_FILES['file']['tmp_name']);
+    $result = decryptAndParse($raw, $password);
+    if ($result === null) return;
 
-    $import = decrypt_backup($encData, $password);
-    if ($import === null) return; // decrypt_backup已输出错误
+    $import = $result['data'];
+    $isZip = $result['is_zip'];
 
-    // 返回每个表的记录数
+    // 统计各表记录数
     $tables = [];
     foreach ($import as $key => $rows) {
         if ($key === 'meta' || !is_array($rows)) continue;
         $tables[$key] = count($rows);
     }
 
+    // 统计 uploads 信息
+    $hasUploads = false;
+    $uploadsCount = 0;
+    $uploadsSize = 0;
+
+    if ($isZip && $result['zip_path']) {
+        $zip = new ZipArchive();
+        if ($zip->open($result['zip_path']) === true) {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                $name = $stat['name'];
+                if (str_starts_with($name, 'uploads/') && !str_ends_with($name, '/')) {
+                    $hasUploads = true;
+                    $uploadsCount++;
+                    $uploadsSize += $stat['size'];
+                }
+            }
+            $zip->close();
+        }
+        unlink($result['zip_path']);
+    }
+
+    $sizeStr = '';
+    if ($uploadsSize >= 1073741824) {
+        $sizeStr = round($uploadsSize / 1073741824, 1) . ' GB';
+    } elseif ($uploadsSize >= 1048576) {
+        $sizeStr = round($uploadsSize / 1048576, 1) . ' MB';
+    } else {
+        $sizeStr = round($uploadsSize / 1024, 1) . ' KB';
+    }
+
     json_response([
         'ok' => true,
         'meta' => $import['meta'] ?? [],
-        'tables' => $tables
+        'tables' => $tables,
+        'has_uploads' => $hasUploads,
+        'uploads_count' => $uploadsCount,
+        'uploads_size' => $sizeStr,
     ]);
 }
 
 // ========== 导入 ==========
 if ($action === 'import') {
-    $password = $data['password'] ?? '';
-    $encData = $data['data'] ?? '';
-    $selectedTables = $data['tables'] ?? [];
+    $password = $_POST['password'] ?? '';
+    $selectedTables = json_decode($_POST['tables'] ?? '[]', true) ?: [];
+    $includeUploads = ($_POST['include_uploads'] ?? '0') === '1';
 
-    if (!$password || !$encData) {
-        json_response(['error' => '请提供加密数据和密码'], 400);
-    }
-    if (empty($selectedTables)) {
-        json_response(['error' => '请选择要导入的数据'], 400);
-    }
+    if (!$password) json_response(['error' => '请输入密码'], 400);
+    if (empty($selectedTables) && !$includeUploads) json_response(['error' => '请选择要导入的数据'], 400);
+    if (!isset($_FILES['file']['tmp_name'])) json_response(['error' => '未收到文件'], 400);
 
-    $import = decrypt_backup($encData, $password);
-    if ($import === null) return;
+    $raw = file_get_contents($_FILES['file']['tmp_name']);
+    $result = decryptAndParse($raw, $password);
+    if ($result === null) return;
 
-    // 按依赖顺序清除（子表先删）
+    $import = $result['data'];
+    $isZip = $result['is_zip'];
+    $zipPath = $result['zip_path'] ?? null;
+
+    // 按依赖顺序清除
     $clearOrder = [
         'app_attachments', 'app_platforms', 'app_images', 'app_downloads',
         'image_library', 'image_categories',
@@ -123,8 +183,6 @@ if ($action === 'import') {
         'friend_links', 'custom_code', 'site_settings',
         'apps', 'admin_users'
     ];
-
-    // 插入顺序（父表先插）
     $insertOrder = [
         'admin_users', 'apps', 'site_settings', 'custom_code', 'friend_links',
         'feature_categories', 'feature_cards',
@@ -134,20 +192,17 @@ if ($action === 'import') {
 
     $pdo->beginTransaction();
     try {
-        // 只清除用户选择的表
         foreach ($clearOrder as $table) {
             if (in_array($table, $selectedTables, true)) {
                 $pdo->exec("DELETE FROM \"$table\"");
             }
         }
 
-        // 只导入用户选择的表
         $imported = 0;
         foreach ($insertOrder as $table) {
             if (!in_array($table, $selectedTables, true)) continue;
             $rows = $import[$table] ?? [];
             if (empty($rows)) continue;
-
             foreach ($rows as $row) {
                 $cols = array_keys($row);
                 $placeholders = implode(',', array_fill(0, count($cols), '?'));
@@ -160,43 +215,135 @@ if ($action === 'import') {
 
         $pdo->commit();
         clear_config_cache();
-
-        $tableCount = count(array_filter($selectedTables, fn($t) => !empty($import[$t])));
-        json_response(['ok' => true, 'message' => "导入成功，共恢复 {$tableCount} 类数据 ({$imported} 条记录)"]);
-
     } catch (\Exception $e) {
         $pdo->rollBack();
+        if ($zipPath && file_exists($zipPath)) unlink($zipPath);
         json_response(['error' => '导入失败: ' . $e->getMessage()], 500);
     }
+
+    // 恢复 uploads 文件
+    $filesRestored = 0;
+    if ($includeUploads && $isZip && $zipPath) {
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) === true) {
+            $uploadsBase = realpath(__DIR__ . '/../../') . '/';
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if (!str_starts_with($name, 'uploads/') || str_ends_with($name, '/')) continue;
+                $destPath = $uploadsBase . $name;
+                $destDir = dirname($destPath);
+                if (!is_dir($destDir)) mkdir($destDir, 0755, true);
+                $content = $zip->getFromIndex($i);
+                if ($content !== false) {
+                    file_put_contents($destPath, $content);
+                    $filesRestored++;
+                }
+            }
+            $zip->close();
+        }
+    }
+
+    if ($zipPath && file_exists($zipPath)) unlink($zipPath);
+
+    $tableCount = count(array_filter($selectedTables, fn($t) => !empty($import[$t])));
+    $msg = "导入成功，共恢复 {$tableCount} 类数据（{$imported} 条记录）";
+    if ($filesRestored > 0) $msg .= "，{$filesRestored} 个上传文件";
+
+    json_response(['ok' => true, 'message' => $msg]);
 }
 
 json_response(['error' => '无效操作'], 400);
 
-// ===== 解密辅助函数 =====
-function decrypt_backup(string $encData, string $password): ?array {
-    $raw = base64_decode($encData);
-    if ($raw === false || strlen($raw) < 28) {
-        json_response(['error' => '数据格式无效'], 400);
-        return null;
+// ===== 辅助函数 =====
+
+/**
+ * 解密备份数据，兼容新版（ZIP）和旧版（纯JSON）格式
+ * 返回 ['data' => array, 'is_zip' => bool, 'zip_path' => ?string]
+ */
+function decryptAndParse(string $raw, string $password): ?array {
+    // 尝试原始二进制格式
+    $decrypted = tryDecrypt($raw, $password);
+
+    // 尝试 base64 编码格式（旧版兼容）
+    if ($decrypted === null) {
+        $decoded = base64_decode($raw, true);
+        if ($decoded !== false && strlen($decoded) >= 28) {
+            $decrypted = tryDecrypt($decoded, $password);
+        }
     }
 
-    $iv = substr($raw, 0, 12);
-    $tag = substr($raw, 12, 16);
-    $ciphertext = substr($raw, 28);
-
-    $key = hash('sha256', $password, true);
-    $json = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
-
-    if ($json === false) {
+    if ($decrypted === null) {
         json_response(['error' => '解密失败：密码错误或数据损坏'], 400);
         return null;
     }
 
-    $import = json_decode($json, true);
-    if (!$import || !isset($import['meta'])) {
-        json_response(['error' => '数据格式无效，不是有效的AppDown备份'], 400);
-        return null;
-    }
+    // 判断是 ZIP 还是纯 JSON
+    if (substr($decrypted, 0, 2) === 'PK') {
+        // ZIP 格式（v2.0）
+        $tmpFile = tempnam(sys_get_temp_dir(), 'appdown_import_');
+        file_put_contents($tmpFile, $decrypted);
 
-    return $import;
+        if (!class_exists('ZipArchive')) {
+            unlink($tmpFile);
+            json_response(['error' => '服务器未安装PHP zip扩展'], 500);
+            return null;
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($tmpFile) !== true) {
+            unlink($tmpFile);
+            json_response(['error' => '备份文件损坏，无法打开ZIP'], 400);
+            return null;
+        }
+
+        $jsonStr = $zip->getFromName('data.json');
+        $zip->close();
+
+        if ($jsonStr === false) {
+            unlink($tmpFile);
+            json_response(['error' => '备份文件中缺少data.json'], 400);
+            return null;
+        }
+
+        $data = json_decode($jsonStr, true);
+        if (!$data || !isset($data['meta'])) {
+            unlink($tmpFile);
+            json_response(['error' => '备份数据格式无效'], 400);
+            return null;
+        }
+
+        return ['data' => $data, 'is_zip' => true, 'zip_path' => $tmpFile];
+    } else {
+        // 纯 JSON 格式（v1.x 旧版）
+        $data = json_decode($decrypted, true);
+        if (!$data || !isset($data['meta'])) {
+            json_response(['error' => '数据格式无效，不是有效的AppDown备份'], 400);
+            return null;
+        }
+        return ['data' => $data, 'is_zip' => false, 'zip_path' => null];
+    }
+}
+
+function tryDecrypt(string $raw, string $password): ?string {
+    if (strlen($raw) < 28) return null;
+    $iv = substr($raw, 0, 12);
+    $tag = substr($raw, 12, 16);
+    $ciphertext = substr($raw, 28);
+    $key = hash('sha256', $password, true);
+    $result = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    return $result === false ? null : $result;
+}
+
+function addDirToZip(ZipArchive $zip, string $dir, string $prefix): void {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ($iterator as $file) {
+        if ($file->isFile()) {
+            $filePath = $file->getRealPath();
+            $relativePath = $prefix . '/' . substr(str_replace('\\', '/', $filePath), strlen(str_replace('\\', '/', $dir)) + 1);
+            $zip->addFile($filePath, $relativePath);
+        }
+    }
 }
