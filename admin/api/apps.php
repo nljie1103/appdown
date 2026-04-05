@@ -81,6 +81,10 @@ if ($method === 'PUT') {
         $fields[] = "is_active = ?";
         $params[] = $data['is_active'] ? 1 : 0;
     }
+    if (isset($data['feature_category_id'])) {
+        $fields[] = "feature_category_id = ?";
+        $params[] = (int)$data['feature_category_id'];
+    }
 
     if (empty($fields)) json_response(['error' => '没有要更新的字段'], 400);
 

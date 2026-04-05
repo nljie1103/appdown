@@ -57,6 +57,7 @@ function init_schema(PDO $pdo): void {
             ios_version     TEXT NOT NULL DEFAULT '',
             ios_size        TEXT NOT NULL DEFAULT '',
             ios_template    TEXT NOT NULL DEFAULT 'modern',
+            feature_category_id INTEGER NOT NULL DEFAULT 0,
             sort_order      INTEGER NOT NULL DEFAULT 0,
             is_active       INTEGER NOT NULL DEFAULT 1,
             created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -97,6 +98,8 @@ function init_schema(PDO $pdo): void {
             title       TEXT NOT NULL,
             description TEXT NOT NULL,
             icon        TEXT NOT NULL DEFAULT '',
+            icon_url    TEXT NOT NULL DEFAULT '',
+            category_id INTEGER NOT NULL DEFAULT 0,
             sort_order  INTEGER NOT NULL DEFAULT 0,
             is_active   INTEGER NOT NULL DEFAULT 1
         );
@@ -161,6 +164,31 @@ function init_schema(PDO $pdo): void {
             sort_order    INTEGER NOT NULL DEFAULT 0,
             created_at    TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS image_categories (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS image_library (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL REFERENCES image_categories(id) ON DELETE CASCADE,
+            file_url    TEXT NOT NULL,
+            filename    TEXT NOT NULL DEFAULT '',
+            file_size   TEXT NOT NULL DEFAULT '',
+            width       INTEGER NOT NULL DEFAULT 0,
+            height      INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS feature_categories (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     ");
 
     // 默认自定义代码位置
@@ -198,6 +226,10 @@ function migrate_schema(PDO $pdo): void {
         $pdo->exec("ALTER TABLE apps ADD COLUMN ios_bundle_id TEXT NOT NULL DEFAULT ''");
     }
 
+    if (!in_array('feature_category_id', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN feature_category_id INTEGER NOT NULL DEFAULT 0");
+    }
+
     // app_downloads 增加 btn_icon 列
     $dlCols = $pdo->query("PRAGMA table_info(app_downloads)")->fetchAll();
     $dlColNames = array_column($dlCols, 'name');
@@ -226,4 +258,42 @@ function migrate_schema(PDO $pdo): void {
             created_at    TEXT NOT NULL DEFAULT (datetime('now'))
         );
     ");
+
+    // 图片库表
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS image_categories (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS image_library (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL REFERENCES image_categories(id) ON DELETE CASCADE,
+            file_url    TEXT NOT NULL,
+            filename    TEXT NOT NULL DEFAULT '',
+            file_size   TEXT NOT NULL DEFAULT '',
+            width       INTEGER NOT NULL DEFAULT 0,
+            height      INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    ");
+
+    // 特色卡片分类表 + feature_cards 新字段
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS feature_categories (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    ");
+    $fcCols = $pdo->query("PRAGMA table_info(feature_cards)")->fetchAll();
+    $fcColNames = array_column($fcCols, 'name');
+    if (!in_array('icon_url', $fcColNames)) {
+        $pdo->exec("ALTER TABLE feature_cards ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('category_id', $fcColNames)) {
+        $pdo->exec("ALTER TABLE feature_cards ADD COLUMN category_id INTEGER NOT NULL DEFAULT 0");
+    }
 }

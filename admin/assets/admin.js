@@ -221,5 +221,116 @@ function explainUploadError(msg) {
     return explanations[code] || `上传错误代码: ${code}`;
 }
 
+// 全局图片选择器
+const ImagePicker = {
+    _overlay: null,
+    _callback: null,
+    _categories: [],
+    _currentCatId: null,
+
+    _ensure() {
+        if (this._overlay) return;
+        const o = document.createElement('div');
+        o.className = 'modal-overlay';
+        o.id = '_imagePicker';
+        o.style.zIndex = '10001';
+        o.innerHTML = `
+            <div class="modal" style="max-width:720px;height:70vh;display:flex;flex-direction:column;padding:0;">
+                <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                    <h3 style="margin:0;">从图片库选择</h3>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="btn btn-primary btn-sm" id="_ipUploadBtn" style="display:none;" onclick="document.getElementById('_ipFileInput').click()"><i class="fas fa-upload"></i> 上传新图片</button>
+                        <button class="btn btn-outline btn-sm" onclick="ImagePicker.close()">✕</button>
+                    </div>
+                </div>
+                <div style="display:flex;flex:1;overflow:hidden;">
+                    <div style="width:180px;border-right:1px solid var(--border);overflow-y:auto;padding:4px;" id="_ipCatList"></div>
+                    <div style="flex:1;overflow-y:auto;padding:12px;" id="_ipImgList">
+                        <div style="text-align:center;color:var(--text-secondary);padding:40px 0;">请先选择左侧分类</div>
+                    </div>
+                </div>
+                <input type="file" id="_ipFileInput" accept="image/*" style="display:none;" onchange="ImagePicker._upload(this)">
+            </div>`;
+        document.body.appendChild(o);
+        this._overlay = o;
+    },
+
+    async open(callback) {
+        this._callback = callback;
+        this._ensure();
+        this._currentCatId = null;
+        document.getElementById('_ipUploadBtn').style.display = 'none';
+        document.getElementById('_ipImgList').innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:40px 0;">请先选择左侧分类</div>';
+        this._overlay.classList.add('active');
+        await this._loadCategories();
+    },
+
+    close() {
+        if (this._overlay) this._overlay.classList.remove('active');
+        this._callback = null;
+    },
+
+    async _loadCategories() {
+        this._categories = await API.get('/admin/api/image-library.php?action=categories');
+        const el = document.getElementById('_ipCatList');
+        if (!this._categories.length) {
+            el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-secondary);font-size:0.85em;">暂无分类<br><small>请先到附件管理中创建图片分类</small></div>';
+            return;
+        }
+        el.innerHTML = this._categories.map(c => `
+            <div class="plat-item ${c.id == this._currentCatId ? 'active' : ''}" onclick="ImagePicker._selectCat(${c.id})" style="font-size:0.85em;">
+                <span>${escapeHTML(c.name)} <small style="opacity:0.6;">(${c.image_count})</small></span>
+            </div>
+        `).join('');
+    },
+
+    async _selectCat(catId) {
+        this._currentCatId = catId;
+        // 重新渲染分类高亮
+        document.querySelectorAll('#_ipCatList .plat-item').forEach(el => el.classList.remove('active'));
+        const items = document.querySelectorAll('#_ipCatList .plat-item');
+        const idx = this._categories.findIndex(c => c.id == catId);
+        if (idx >= 0 && items[idx]) items[idx].classList.add('active');
+
+        document.getElementById('_ipUploadBtn').style.display = '';
+        const images = await API.get(`/admin/api/image-library.php?action=images&category_id=${catId}`);
+        const el = document.getElementById('_ipImgList');
+        if (!images.length) {
+            el.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:40px 0;">该分类暂无图片</div>';
+            return;
+        }
+        el.innerHTML = images.map(img => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:pointer;transition:background 0.15s;"
+                 onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''"
+                 onclick="ImagePicker._pick('${escapeHTML(img.file_url)}')">
+                <img src="/${escapeHTML(img.file_url)}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" loading="lazy">
+                <span style="flex:1;font-size:0.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(img.filename || img.file_url.split('/').pop())}</span>
+                <span style="font-size:0.75em;color:var(--text-secondary);white-space:nowrap;">${img.width && img.height ? img.width + '×' + img.height : ''}</span>
+                <span style="font-size:0.75em;color:var(--text-secondary);white-space:nowrap;">${escapeHTML(img.file_size)}</span>
+            </div>
+        `).join('');
+    },
+
+    _pick(url) {
+        if (this._callback) this._callback(url);
+        this.close();
+    },
+
+    async _upload(input) {
+        if (!input.files[0] || !this._currentCatId) return;
+        const fd = new FormData();
+        fd.append('file', input.files[0]);
+        fd.append('category_id', this._currentCatId);
+        fd.append('_csrf', CSRF_TOKEN);
+        try {
+            await API.upload('/admin/api/image-library.php?action=images', fd);
+            Toast.success('图片已上传');
+            await this._selectCat(this._currentCatId);
+            await this._loadCategories();
+        } catch(e) {}
+        input.value = '';
+    },
+};
+
 // 初始化toast
 Toast.init();

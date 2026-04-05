@@ -46,6 +46,7 @@ admin_header('编辑应用', 'apps');
                 <div style="display:flex;gap:8px;align-items:center;">
                     <img id="iconPreview" src="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid #ddd;display:none;">
                     <button class="btn btn-outline" onclick="document.getElementById('iconUpload').click()"><i class="fas fa-upload"></i> 上传图标</button>
+                    <button class="btn btn-outline" onclick="ImagePicker.open(url => { document.getElementById('appIconUrl').value = url; document.getElementById('iconPreview').src = '/' + url; document.getElementById('iconPreview').style.display = ''; })"><i class="fas fa-images"></i> 图片库</button>
                     <input type="file" id="iconUpload" accept="image/*" style="display:none;" onchange="uploadIcon(this)">
                     <input type="hidden" id="appIconUrl">
                 </div>
@@ -55,6 +56,12 @@ admin_header('编辑应用', 'apps');
             <label>主题色</label>
             <input type="color" class="form-control" id="appColor" style="height:42px;">
         </div>
+    </div>
+    <div class="form-group">
+        <label>特色卡片分类</label>
+        <select class="form-control" id="appFeatureCatId">
+            <option value="0">无（使用全局特色卡片）</option>
+        </select>
     </div>
     <button class="btn btn-primary" onclick="saveApp()"><i class="fas fa-save"></i> 保存基本信息</button>
 </div>
@@ -118,6 +125,7 @@ admin_header('编辑应用', 'apps');
         <h3 style="margin:0;">轮播图</h3>
         <div style="display:flex;gap:8px;">
             <button class="btn btn-outline btn-sm" onclick="Modal.show('addImgUrlModal')"><i class="fas fa-link"></i> 添加URL</button>
+            <button class="btn btn-outline btn-sm" onclick="ImagePicker.open(url => { addImageFromPicker(url); })"><i class="fas fa-images"></i> 从图片库</button>
             <button class="btn btn-primary btn-sm" onclick="document.getElementById('imgUpload').click()"><i class="fas fa-upload"></i> 上传图片</button>
             <input type="file" id="imgUpload" accept="image/*" multiple style="display:none;" onchange="uploadImages(this.files)">
         </div>
@@ -302,6 +310,14 @@ function openAddDlModal() {
 }
 
 async function loadApp() {
+    // 加载特色卡片分类列表
+    try {
+        const cats = await API.get('/admin/api/features.php?action=categories');
+        const sel = document.getElementById('appFeatureCatId');
+        sel.innerHTML = '<option value="0">无（使用全局特色卡片）</option>' +
+            cats.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
+    } catch(e) {}
+
     const app = await API.get(`/admin/api/apps.php?id=${APP_ID}`);
     appSlug = app.slug;
     document.getElementById('pageTitle').textContent = `编辑: ${app.name}`;
@@ -329,6 +345,7 @@ async function loadApp() {
     document.getElementById('iosSize').value = app.ios_size || '';
     document.getElementById('iosDesc').value = app.ios_description || '';
     document.getElementById('iosTemplate').value = app.ios_template || 'modern';
+    document.getElementById('appFeatureCatId').value = app.feature_category_id || 0;
     updatePlistPreview();
 
     renderDownloads(app.downloads);
@@ -357,6 +374,7 @@ async function saveApp() {
         icon: document.getElementById('appIcon').value.trim(),
         icon_url: iconType === 'image' ? document.getElementById('appIconUrl').value.trim() : '',
         theme_color: document.getElementById('appColor').value,
+        feature_category_id: parseInt(document.getElementById('appFeatureCatId').value) || 0,
     });
     AlertModal.success('保存成功', '基本信息已保存');
 }
@@ -535,6 +553,12 @@ async function addImageUrl() {
     await API.post('/admin/api/images.php', { app_id: APP_ID, image_url: url, alt_text: alt });
     Toast.success('添加成功');
     Modal.hide('addImgUrlModal');
+    loadApp();
+}
+
+async function addImageFromPicker(url) {
+    await API.post('/admin/api/images.php', { app_id: APP_ID, image_url: url, alt_text: '' });
+    Toast.success('已添加');
     loadApp();
 }
 

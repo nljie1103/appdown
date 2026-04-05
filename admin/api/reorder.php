@@ -12,7 +12,7 @@ $data = get_json_input();
 $table = $data['table'] ?? '';
 $order = $data['order'] ?? [];
 
-$allowed = ['apps', 'app_downloads', 'app_images', 'feature_cards', 'friend_links'];
+$allowed = ['apps', 'app_downloads', 'app_images', 'feature_cards', 'friend_links', 'image_categories', 'image_library', 'feature_categories'];
 if (!in_array($table, $allowed, true)) {
     json_response(['error' => '不允许排序此表'], 400);
 }

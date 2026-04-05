@@ -65,6 +65,7 @@ admin_header('应用管理', 'apps');
                 <div style="display:flex;gap:8px;align-items:center;">
                     <img id="addIconPreviewImg" src="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid #ddd;display:none;">
                     <button class="btn btn-outline" type="button" onclick="document.getElementById('addIconUpload').click()"><i class="fas fa-upload"></i> 上传图标</button>
+                    <button class="btn btn-outline" type="button" onclick="ImagePicker.open(url => { document.getElementById('addIconUrl').value = url; document.getElementById('addIconPreviewImg').src = '/' + url; document.getElementById('addIconPreviewImg').style.display = ''; })"><i class="fas fa-images"></i> 图片库</button>
                     <input type="file" id="addIconUpload" accept="image/*" style="display:none;" onchange="uploadAddIcon(this)">
                     <input type="hidden" id="addIconUrl">
                 </div>

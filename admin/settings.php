@@ -23,14 +23,16 @@ admin_header('站点设置', 'settings');
             <label>Logo地址</label>
             <div style="display:flex;gap:8px;">
                 <input type="text" class="form-control" id="logo_url" style="flex:1;">
-                <button class="btn btn-outline" onclick="uploadFor('logo_url','image')"><i class="fas fa-upload"></i></button>
+                <button class="btn btn-outline" onclick="uploadFor('logo_url','image')" title="上传"><i class="fas fa-upload"></i></button>
+                <button class="btn btn-outline" onclick="ImagePicker.open(url => { document.getElementById('logo_url').value = url; })" title="从图片库选择"><i class="fas fa-images"></i></button>
             </div>
         </div>
         <div class="form-group">
             <label>Favicon地址</label>
             <div style="display:flex;gap:8px;">
                 <input type="text" class="form-control" id="favicon_url" style="flex:1;">
-                <button class="btn btn-outline" onclick="uploadFor('favicon_url','image')"><i class="fas fa-upload"></i></button>
+                <button class="btn btn-outline" onclick="uploadFor('favicon_url','image')" title="上传"><i class="fas fa-upload"></i></button>
+                <button class="btn btn-outline" onclick="ImagePicker.open(url => { document.getElementById('favicon_url').value = url; })" title="从图片库选择"><i class="fas fa-images"></i></button>
             </div>
         </div>
     </div>
@@ -63,7 +65,8 @@ admin_header('站点设置', 'settings');
             <label>背景图片地址</label>
             <div style="display:flex;gap:8px;">
                 <input type="text" class="form-control" id="bg_image" style="flex:1;" placeholder="如: https://... 或上传图片">
-                <button class="btn btn-outline" onclick="uploadFor('bg_image','image')"><i class="fas fa-upload"></i></button>
+                <button class="btn btn-outline" onclick="uploadFor('bg_image','image')" title="上传"><i class="fas fa-upload"></i></button>
+                <button class="btn btn-outline" onclick="ImagePicker.open(url => { document.getElementById('bg_image').value = url; updateBgPreview(); })" title="从图片库选择"><i class="fas fa-images"></i></button>
             </div>
         </div>
     </div>

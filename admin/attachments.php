@@ -8,9 +8,11 @@ admin_header('附件管理', 'attachments');
 <h2>附件管理</h2>
 <p style="color:var(--text-secondary);margin-bottom:16px;">管理各应用的安装包文件，按平台分类，支持多版本</p>
 
-<!-- 应用切换 -->
+<!-- 顶部切换 -->
 <div class="card" style="padding:12px 16px;">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;" id="appTabs">
+        <button class="btn btn-outline btn-sm" id="imgLibBtn" onclick="showImageLib()" style="border-color:var(--primary);color:var(--primary);"><i class="fas fa-images"></i> 公共图片库</button>
+        <span style="color:var(--border);padding:0 4px;">|</span>
         <span style="color:var(--text-secondary);font-size:0.9em;">选择应用：</span>
     </div>
 </div>
@@ -38,6 +40,32 @@ admin_header('附件管理', 'attachments');
             </div>
         </div>
     </div>
+</div>
+
+<!-- 公共图片库区 -->
+<div id="imageLibArea" style="display:none;">
+    <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;margin-top:16px;">
+        <!-- 左侧：图片分类 -->
+        <div class="card" style="padding:0;align-self:start;">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:0.95em;">图片分类</h3>
+                <button class="btn btn-primary btn-sm" onclick="addImgCategory()"><i class="fas fa-plus"></i></button>
+            </div>
+            <div id="imgCatList" style="padding:4px;"></div>
+        </div>
+
+        <!-- 右侧：图片列表 -->
+        <div class="card" style="padding:0;align-self:start;">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:0.95em;" id="imgListTitle">选择一个分类</h3>
+                <button class="btn btn-primary btn-sm" id="imgUploadBtn" style="display:none;" onclick="document.getElementById('imgFileInput').click()"><i class="fas fa-upload"></i> 上传图片</button>
+            </div>
+            <div id="imgFileList" style="padding:16px;">
+                <div class="empty-state"><i class="fas fa-images"></i><p>请先选择左侧图片分类</p></div>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="imgFileInput" accept="image/*" style="display:none;" onchange="uploadImgFile(this)">
 </div>
 
 <!-- 上传弹窗 -->
@@ -77,6 +105,12 @@ admin_header('附件管理', 'attachments');
 .file-info .meta { font-size: 0.8em; color: var(--text-secondary); margin-top: 2px; }
 .file-info .log { font-size: 0.8em; color: var(--text-secondary); margin-top: 4px; }
 .file-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.img-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.img-row:last-child { border: none; }
+.img-row img { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; border: 1px solid var(--border); flex-shrink: 0; }
+.img-row .img-name { font-size: 0.9em; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.img-row .img-meta { font-size: 0.8em; color: var(--text-secondary); white-space: nowrap; }
+.img-row .img-actions { display: flex; gap: 6px; flex-shrink: 0; }
 </style>
 
 <script>
@@ -111,6 +145,7 @@ async function selectApp(appId, btn) {
     });
     btn.classList.add('btn-primary');
     btn.classList.remove('btn-outline');
+    document.getElementById('imageLibArea').style.display = 'none';
     document.getElementById('mainArea').style.display = '';
     await loadPlatforms();
     document.getElementById('fileTitle').textContent = '选择一个平台';
@@ -265,6 +300,133 @@ async function deleteFile(id) {
 }
 
 function copyLink(url) {
+    const full = location.origin + '/' + url;
+    navigator.clipboard.writeText(full).then(() => Toast.success('链接已复制'));
+}
+
+// ===== 公共图片库 =====
+let imgCategories = [];
+let currentImgCatId = null;
+
+function showImageLib() {
+    // 高亮图片库按钮，取消应用Tab高亮
+    document.querySelectorAll('#appTabs .btn').forEach(b => {
+        b.classList.remove('btn-primary');
+        b.classList.add('btn-outline');
+    });
+    document.getElementById('imgLibBtn').classList.add('btn-primary');
+    document.getElementById('imgLibBtn').classList.remove('btn-outline');
+    document.getElementById('mainArea').style.display = 'none';
+    document.getElementById('imageLibArea').style.display = '';
+    currentAppId = null;
+    loadImgCategories();
+}
+
+async function loadImgCategories() {
+    imgCategories = await API.get('/admin/api/image-library.php?action=categories');
+    renderImgCategories();
+}
+
+function renderImgCategories() {
+    const el = document.getElementById('imgCatList');
+    if (!imgCategories.length) {
+        el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-secondary);font-size:0.85em;">暂无分类，点击 + 添加</div>';
+        return;
+    }
+    el.innerHTML = imgCategories.map(c => `
+        <div class="plat-item ${c.id == currentImgCatId ? 'active' : ''}" onclick="selectImgCategory(${c.id})">
+            <span>${escapeHTML(c.name)} <small style="opacity:0.6;">(${c.image_count})</small></span>
+            <span style="display:flex;gap:2px;">
+                <button class="plat-del" onclick="event.stopPropagation();renameImgCategory(${c.id},'${escapeHTML(c.name)}')" title="重命名">✎</button>
+                <button class="plat-del" onclick="event.stopPropagation();deleteImgCategory(${c.id},'${escapeHTML(c.name)}')" title="删除">✕</button>
+            </span>
+        </div>
+    `).join('');
+}
+
+async function selectImgCategory(catId) {
+    currentImgCatId = catId;
+    renderImgCategories();
+    const cat = imgCategories.find(c => c.id == catId);
+    document.getElementById('imgListTitle').textContent = (cat ? cat.name : '') + ' 图片列表';
+    document.getElementById('imgUploadBtn').style.display = '';
+    await loadImgFiles();
+}
+
+async function loadImgFiles() {
+    const images = await API.get(`/admin/api/image-library.php?action=images&category_id=${currentImgCatId}`);
+    const el = document.getElementById('imgFileList');
+    if (!images.length) {
+        el.innerHTML = '<div class="empty-state"><i class="fas fa-images"></i><p>暂无图片，点击上传</p></div>';
+        return;
+    }
+    el.innerHTML = images.map(img => `
+        <div class="img-row">
+            <img src="/${escapeHTML(img.file_url)}" alt="" loading="lazy">
+            <span class="img-name" title="${escapeHTML(img.filename)}">${escapeHTML(img.filename || img.file_url.split('/').pop())}</span>
+            <span class="img-meta">${img.width && img.height ? img.width + '×' + img.height : ''}</span>
+            <span class="img-meta">${escapeHTML(img.file_size)}</span>
+            <span class="img-actions">
+                <button class="btn btn-outline btn-sm" onclick="copyImgLink('${escapeHTML(img.file_url)}')" title="复制链接"><i class="fas fa-copy"></i></button>
+                <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteImgFile(${img.id})" title="删除"><i class="fas fa-trash"></i></button>
+            </span>
+        </div>
+    `).join('');
+}
+
+async function addImgCategory() {
+    const name = prompt('图片分类名称');
+    if (!name || !name.trim()) return;
+    await API.post('/admin/api/image-library.php?action=categories', { name: name.trim() });
+    Toast.success('分类已添加');
+    await loadImgCategories();
+}
+
+async function renameImgCategory(id, oldName) {
+    const name = prompt('重命名分类', oldName);
+    if (!name || !name.trim() || name.trim() === oldName) return;
+    await API.put('/admin/api/image-library.php?action=categories', { id, name: name.trim() });
+    Toast.success('已重命名');
+    await loadImgCategories();
+}
+
+async function deleteImgCategory(id, name) {
+    if (!confirmAction(`确定删除「${name}」？该分类下所有图片将被永久删除。`)) return;
+    await API.del('/admin/api/image-library.php?action=categories', { id });
+    if (currentImgCatId == id) {
+        currentImgCatId = null;
+        document.getElementById('imgListTitle').textContent = '选择一个分类';
+        document.getElementById('imgUploadBtn').style.display = 'none';
+        document.getElementById('imgFileList').innerHTML = '<div class="empty-state"><i class="fas fa-images"></i><p>请先选择左侧图片分类</p></div>';
+    }
+    Toast.success('已删除');
+    await loadImgCategories();
+}
+
+async function uploadImgFile(input) {
+    if (!input.files[0] || !currentImgCatId) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('category_id', currentImgCatId);
+    fd.append('_csrf', CSRF_TOKEN);
+    try {
+        const res = await API.upload('/admin/api/image-library.php?action=images', fd);
+        AlertModal.success('上传成功', '图片已上传到图片库');
+        await loadImgCategories();
+        await loadImgFiles();
+    } catch(e) {}
+    input.value = '';
+}
+
+async function deleteImgFile(id) {
+    if (!confirmAction('确定删除此图片？')) return;
+    await API.del('/admin/api/image-library.php?action=images', { id });
+    Toast.success('已删除');
+    await loadImgCategories();
+    await loadImgFiles();
+}
+
+function copyImgLink(url) {
     const full = location.origin + '/' + url;
     navigator.clipboard.writeText(full).then(() => Toast.success('链接已复制'));
 }

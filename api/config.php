@@ -36,7 +36,7 @@ foreach ($rows as $r) {
 }
 
 // 应用列表
-$apps = $pdo->query('SELECT id, slug, name, icon, icon_url, theme_color FROM apps WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+$apps = $pdo->query('SELECT id, slug, name, icon, icon_url, theme_color, feature_category_id FROM apps WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 
 foreach ($apps as &$app) {
     // 下载按钮
@@ -49,14 +49,22 @@ foreach ($apps as &$app) {
     $imgStmt->execute([$app['id']]);
     $app['images'] = array_column($imgStmt->fetchAll(), null);
 
+    // 应用关联的特色卡片
+    $fcId = (int)($app['feature_category_id'] ?? 0);
+    if ($fcId > 0) {
+        $fcStmt = $pdo->prepare('SELECT title, description, icon, icon_url FROM feature_cards WHERE category_id = ? AND is_active = 1 ORDER BY sort_order ASC');
+        $fcStmt->execute([$fcId]);
+        $app['features'] = $fcStmt->fetchAll();
+    }
+
     // 输出时用slug做id，移除数据库id
     $app['id'] = $app['slug'];
-    unset($app['slug']);
+    unset($app['slug'], $app['feature_category_id']);
 }
 unset($app);
 
 // 特色卡片
-$features = $pdo->query('SELECT title, description, icon FROM feature_cards WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+$features = $pdo->query('SELECT title, description, icon, icon_url FROM feature_cards WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 
 // 友情链接
 $links = $pdo->query('SELECT name, url FROM friend_links WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();

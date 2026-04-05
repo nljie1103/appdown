@@ -1598,14 +1598,22 @@
 
                 const renderFeatures = withErrorBoundary((features) => {
                     const container = document.getElementById('featureCards');
-                    if (!container || !features?.length) return;
-                    container.innerHTML = features.map(f => `
-                        <div class="feature-card">
-                            <i class="${escapeHTML(f.icon || 'fas fa-star')}" aria-hidden="true"></i>
-                            <h3>${escapeHTML(f.title)}</h3>
-                            <p>${escapeHTML(f.description)}</p>
-                        </div>
-                    `).join('');
+                    if (!container || !features?.length) {
+                        if (container) container.innerHTML = '';
+                        return;
+                    }
+                    container.innerHTML = features.map(f => {
+                        const iconHtml = f.icon_url
+                            ? `<img src="${escapeHTML(f.icon_url)}" alt="" style="width:24px;height:24px;border-radius:4px;object-fit:cover;vertical-align:middle;">`
+                            : `<i class="${escapeHTML(f.icon || 'fas fa-star')}" aria-hidden="true"></i>`;
+                        return `
+                            <div class="feature-card">
+                                ${iconHtml}
+                                <h3>${escapeHTML(f.title)}</h3>
+                                <p>${escapeHTML(f.description)}</p>
+                            </div>
+                        `;
+                    }).join('');
                 }, 'Renderer.renderFeatures');
 
                 const renderFriendLinks = withErrorBoundary((links) => {
@@ -1708,7 +1716,11 @@
                         });
                     }
                     if (SITE_DATA) {
-                        renderFeatures(SITE_DATA.features);
+                        // 如果第一个应用有专属特色卡片，使用它；否则用全局
+                        const firstApp = APP_CONFIG[0];
+                        const features = (firstApp && firstApp.features && firstApp.features.length > 0)
+                            ? firstApp.features : SITE_DATA.features;
+                        renderFeatures(features);
                         renderFriendLinks(SITE_DATA.friend_links);
                     }
                 }, 'Renderer.renderAll');
@@ -1779,6 +1791,7 @@
                                 icon: app.icon || 'fas fa-mobile-alt',
                                 icon_url: app.icon_url || '',
                                 theme_color: app.theme_color || '#333',
+                                features: app.features || [],
                                 downloads: (app.downloads || []).map(d => ({
                                     type: d.btn_type,
                                     icon: d.btn_icon || '',
@@ -1819,6 +1832,17 @@
                                 }
                             });
                         }
+
+                        // Tab切换时更新特色卡片
+                        TabManager.onChange(({ newTab, type }) => {
+                            if (type !== 'after') return;
+                            const app = APP_CONFIG.find(a => a.slug === newTab);
+                            if (app && app.features && app.features.length > 0) {
+                                Renderer.renderFeatures(app.features);
+                            } else if (SITE_DATA) {
+                                Renderer.renderFeatures(SITE_DATA.features);
+                            }
+                        });
 
                         // 事件委托：轮播控制
                         GlobalEventManager.add(document, 'click', (e) => {
