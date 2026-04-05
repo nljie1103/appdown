@@ -122,7 +122,16 @@ admin_header('编辑应用', 'apps');
         </div>
         <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="dlText" placeholder="如: Android"></div>
         <div class="form-group"><label>副标题</label><input type="text" class="form-control" id="dlSubtext" placeholder="如: 点击下载"></div>
-        <div class="form-group"><label>下载链接</label><input type="text" class="form-control" id="dlHref" placeholder="如: android/app.apk 或 https://..."></div>
+        <div class="form-group">
+            <label>下载链接</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" class="form-control" id="dlHref" placeholder="如: android/app.apk 或 https://..." style="flex:1;">
+                <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('dlHref')" title="从附件选择"><i class="fas fa-paperclip"></i> 选择附件</button>
+            </div>
+            <select class="form-control att-picker" id="dlHrefPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'dlHref')">
+                <option value="">-- 选择一个版本 --</option>
+            </select>
+        </div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('addDlModal')">取消</button>
             <button class="btn btn-primary" onclick="addDownload()">添加</button>
@@ -143,8 +152,82 @@ admin_header('编辑应用', 'apps');
     </div>
 </div>
 
+<!-- 编辑下载按钮模态框 -->
+<div class="modal-overlay" id="editDlModal">
+    <div class="modal">
+        <h3>编辑下载按钮</h3>
+        <input type="hidden" id="editDlId">
+        <div class="form-group">
+            <label>平台类型</label>
+            <select class="form-control" id="editDlType">
+                <option value="android">Android</option>
+                <option value="ios">iOS</option>
+                <option value="windows">Windows</option>
+                <option value="web">Web</option>
+                <option value="tv">TV</option>
+            </select>
+        </div>
+        <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="editDlText"></div>
+        <div class="form-group"><label>副标题</label><input type="text" class="form-control" id="editDlSubtext"></div>
+        <div class="form-group">
+            <label>下载链接</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" class="form-control" id="editDlHref" style="flex:1;">
+                <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('editDlHref')" title="从附件选择"><i class="fas fa-paperclip"></i> 选择附件</button>
+            </div>
+            <select class="form-control att-picker" id="editDlHrefPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'editDlHref')">
+                <option value="">-- 选择一个版本 --</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="Modal.hide('editDlModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveEditDownload()">保存</button>
+        </div>
+    </div>
+</div>
+
 <script>
 const APP_ID = <?= $id ?>;
+let attachments = []; // 附件数据缓存
+
+async function loadAttachments() {
+    try {
+        attachments = await API.get(`/admin/api/attachments.php?app_id=${APP_ID}`);
+    } catch(e) { attachments = []; }
+}
+
+function buildAttOptions() {
+    let html = '<option value="">-- 选择一个版本 --</option>';
+    attachments.forEach(plat => {
+        if (!plat.files || !plat.files.length) return;
+        html += `<optgroup label="${escapeHTML(plat.name)}">`;
+        plat.files.forEach(f => {
+            html += `<option value="${escapeHTML(f.file_url)}">${escapeHTML(f.version)} (${escapeHTML(f.file_size)})</option>`;
+        });
+        html += '</optgroup>';
+    });
+    return html;
+}
+
+function showAttPicker(targetId) {
+    const picker = document.getElementById(targetId + 'Picker');
+    if (picker.style.display === 'none') {
+        picker.innerHTML = buildAttOptions();
+        picker.style.display = '';
+        if (!attachments.length || !attachments.some(p => p.files && p.files.length)) {
+            picker.innerHTML = '<option value="">暂无附件，请先在附件管理中上传</option>';
+        }
+    } else {
+        picker.style.display = 'none';
+    }
+}
+
+function pickAttachment(sel, targetId) {
+    if (sel.value) {
+        document.getElementById(targetId).value = sel.value;
+    }
+    sel.style.display = 'none';
+}
 
 async function loadApp() {
     const app = await API.get(`/admin/api/apps.php?id=${APP_ID}`);
@@ -254,16 +337,27 @@ async function addDownload() {
 }
 
 function editDownload(d) {
-    const newText = prompt('按钮文本:', d.btn_text);
-    if (newText === null) return;
-    const newSub = prompt('副标题:', d.btn_subtext);
-    if (newSub === null) return;
-    const newHref = prompt('链接地址:', d.href);
-    if (newHref === null) return;
+    document.getElementById('editDlId').value = d.id;
+    document.getElementById('editDlType').value = d.btn_type;
+    document.getElementById('editDlText').value = d.btn_text;
+    document.getElementById('editDlSubtext').value = d.btn_subtext;
+    document.getElementById('editDlHref').value = d.href;
+    document.getElementById('editDlHrefPicker').style.display = 'none';
+    Modal.show('editDlModal');
+}
 
-    API.put('/admin/api/downloads.php', {
-        id: d.id, btn_type: d.btn_type, btn_text: newText, btn_subtext: newSub, href: newHref, is_active: 1,
-    }).then(() => { Toast.success('已更新'); loadApp(); });
+async function saveEditDownload() {
+    await API.put('/admin/api/downloads.php', {
+        id: parseInt(document.getElementById('editDlId').value),
+        btn_type: document.getElementById('editDlType').value,
+        btn_text: document.getElementById('editDlText').value.trim(),
+        btn_subtext: document.getElementById('editDlSubtext').value.trim(),
+        href: document.getElementById('editDlHref').value.trim(),
+        is_active: 1,
+    });
+    Toast.success('已更新');
+    Modal.hide('editDlModal');
+    loadApp();
 }
 
 async function deleteDownload(id) {
@@ -329,6 +423,7 @@ async function deleteImage(id) {
 }
 
 loadApp();
+loadAttachments();
 </script>
 
 <?php admin_footer(); ?>
