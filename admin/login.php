@@ -5,26 +5,95 @@
 
 require_once __DIR__ . '/../includes/init.php';
 
+// 未安装时跳转到安装页
+$lockFile = __DIR__ . '/../install/install.lock';
+if (!file_exists($lockFile)) {
+    header('Location: /install/');
+    exit;
+}
+
 if (is_logged_in()) {
     header('Location: /admin/dashboard.php');
     exit;
 }
 
-// 读取站点名称
+// 读取站点名称和验证码开关
 $pdo = get_db();
-$siteRow = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key = 'site_title'")->fetch();
-$siteName = $siteRow ? $siteRow['setting_val'] : 'AppDown';
+$settingsRows = $pdo->query("SELECT setting_key, setting_val FROM site_settings WHERE setting_key IN ('site_title','captcha_enabled')")->fetchAll();
+$settings = [];
+foreach ($settingsRows as $r) $settings[$r['setting_key']] = $r['setting_val'];
+$siteName = $settings['site_title'] ?? 'AppDown';
+$captchaEnabled = ($settings['captcha_enabled'] ?? '0') === '1';
 
+// 生成算术验证码
+if ($captchaEnabled) {
+    if (empty($_SESSION['captcha_a']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $a = rand(1, 20);
+        $b = rand(1, 20);
+        $_SESSION['captcha_a'] = $a;
+        $_SESSION['captcha_b'] = $b;
+        $_SESSION['captcha_answer'] = $a + $b;
+    }
+}
+
+// 登录频率限制
+$maxAttempts = 5;
+$lockMinutes = 15;
 $error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
 
-    if (do_login($username, $password)) {
-        header('Location: /admin/dashboard.php');
-        exit;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $attemptKey = 'login_attempts_' . md5($ip);
+    $lockKey = 'login_lock_' . md5($ip);
+
+    // 检查是否被锁定
+    if (isset($_SESSION[$lockKey]) && $_SESSION[$lockKey] > time()) {
+        $remain = ceil(($_SESSION[$lockKey] - time()) / 60);
+        $error = "登录尝试过多，请 {$remain} 分钟后再试";
     } else {
-        $error = '用户名或密码错误';
+        // 验证码校验
+        if ($captchaEnabled) {
+            $userAnswer = (int)($_POST['captcha'] ?? 0);
+            if ($userAnswer !== ($_SESSION['captcha_answer'] ?? -1)) {
+                $error = '验证码错误';
+                // 重新生成
+                $a = rand(1, 20); $b = rand(1, 20);
+                $_SESSION['captcha_a'] = $a;
+                $_SESSION['captcha_b'] = $b;
+                $_SESSION['captcha_answer'] = $a + $b;
+            }
+        }
+
+        if (!$error) {
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
+
+            if (do_login($username, $password)) {
+                // 登录成功，清除计数
+                unset($_SESSION[$attemptKey], $_SESSION[$lockKey]);
+                header('Location: /admin/dashboard.php');
+                exit;
+            } else {
+                // 记录失败次数
+                $_SESSION[$attemptKey] = ($_SESSION[$attemptKey] ?? 0) + 1;
+                if ($_SESSION[$attemptKey] >= $maxAttempts) {
+                    $_SESSION[$lockKey] = time() + $lockMinutes * 60;
+                    $_SESSION[$attemptKey] = 0;
+                    $error = "登录失败次数过多，已锁定 {$lockMinutes} 分钟";
+                } else {
+                    $left = $maxAttempts - $_SESSION[$attemptKey];
+                    $error = "用户名或密码错误（还可尝试 {$left} 次）";
+                }
+
+                // 重新生成验证码
+                if ($captchaEnabled) {
+                    $a = rand(1, 20); $b = rand(1, 20);
+                    $_SESSION['captcha_a'] = $a;
+                    $_SESSION['captcha_b'] = $b;
+                    $_SESSION['captcha_answer'] = $a + $b;
+                }
+            }
+        }
     }
 }
 ?>
@@ -43,6 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         label { display: block; font-weight: 600; margin-bottom: 6px; margin-top: 18px; font-size: 0.9em; color: #333; }
         input { width: 100%; padding: 11px 14px; border: 1.5px solid #e0e0e0; border-radius: 10px; font-size: 1em; transition: border-color 0.2s; }
         input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.15); }
+        .captcha-row { display: flex; gap: 10px; align-items: center; }
+        .captcha-row input { flex: 1; }
+        .captcha-q { background: #f0f0f5; padding: 10px 16px; border-radius: 10px; font-size: 1em; font-weight: 600; color: #333; white-space: nowrap; user-select: none; }
         button { width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 10px; font-size: 1em; font-weight: 600; cursor: pointer; margin-top: 28px; transition: opacity 0.2s; }
         button:hover { opacity: 0.9; }
         .error { color: #e74c3c; text-align: center; margin-top: 14px; font-size: 0.9em; padding: 8px; background: #fef0f0; border-radius: 8px; }
@@ -57,6 +129,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="text" name="username" required autofocus>
             <label>密码</label>
             <input type="password" name="password" required>
+<?php if ($captchaEnabled): ?>
+            <label>验证码</label>
+            <div class="captcha-row">
+                <div class="captcha-q"><?= $_SESSION['captcha_a'] ?? 0 ?> + <?= $_SESSION['captcha_b'] ?? 0 ?> = ?</div>
+                <input type="number" name="captcha" required placeholder="输入计算结果">
+            </div>
+<?php endif; ?>
             <button type="submit">登 录</button>
         </form>
         <?php if ($error): ?>

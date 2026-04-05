@@ -59,6 +59,14 @@ admin_header('站点设置', 'settings');
     <div class="form-group"><label>轮播间隔 (毫秒)</label><input type="number" class="form-control" id="carousel_interval" step="500" min="1000"></div>
 </div>
 
+<div class="card">
+    <h3>安全设置</h3>
+    <div class="form-group">
+        <label>后台登录验证码 <label class="toggle" style="margin-left:8px;"><input type="checkbox" id="captcha_enabled"><span class="toggle-slider"></span></label></label>
+        <p style="color:var(--text-secondary);font-size:0.85em;margin-top:4px;">开启后登录需输入算术验证码，防止暴力破解</p>
+    </div>
+</div>
+
 <div style="margin-top:20px;">
     <button class="btn btn-primary" onclick="saveAll()" style="padding:12px 32px;font-size:1em;"><i class="fas fa-save"></i> 保存所有设置</button>
 </div>
@@ -70,7 +78,7 @@ let uploadTarget = '';
 
 const fields = ['site_title','site_heading','logo_url','favicon_url','copyright',
                 'notice_text','notice_enabled','stats_downloads','stats_rating',
-                'stats_daily_active','carousel_interval'];
+                'stats_daily_active','carousel_interval','captcha_enabled'];
 
 async function load() {
     const s = await API.get('/admin/api/settings.php');

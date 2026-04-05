@@ -87,7 +87,8 @@
         .slider { overflow: hidden; padding: 20px 20px 0; }
         .slider-track { display: flex; transition: transform 0.3s ease; }
         .slider-slide { flex: 0 0 100%; text-align: center; }
-        .slider-slide .text { padding: 16px 0 8px; font-size: 0.9em; line-height: 1.6; color: #333; }
+        .slider-slide img { max-width: 100%; max-height: 340px; object-fit: contain; border-radius: 8px; margin-top: 12px; }
+        .slider-slide .text { padding: 12px 0 8px; font-size: 0.9em; line-height: 1.6; color: #333; }
         .slider-dots { text-align: center; padding: 10px 0; }
         .slider-dots span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #d1d1d6; margin: 0 4px; cursor: pointer; transition: background 0.3s; }
         .slider-dots span.active { background: <?= $themeColor ?>; }
@@ -222,27 +223,25 @@
             <div class="slider">
                 <div class="slider-track" id="sliderTrack">
                     <div class="slider-slide">
-                        <div style="font-size:4em;padding:20px 0;">👆</div>
-                        <div class="text">第一步<br>点击上方「点击安装」按钮</div>
+                        <img src="/ios/static/step1.jpg" alt="点击允许">
+                        <div class="text">第一步<br>点击「点击安装」后，弹出提示框点击<strong>「允许」</strong></div>
                     </div>
                     <div class="slider-slide">
-                        <div style="font-size:4em;padding:20px 0;">🏠</div>
-                        <div class="text">第二步<br>返回桌面等待下载完成<br><small style="color:#86868b;">此时直接打开会提示"未受信任的企业级开发者"</small></div>
+                        <img src="/ios/static/step2.jpg" alt="点击安装">
+                        <div class="text">第二步<br>在安装描述文件页面，点击右上角<strong>「安装」</strong></div>
                     </div>
                     <div class="slider-slide">
-                        <div style="font-size:4em;padding:20px 0;">⚙️</div>
-                        <div class="text">第三步<br>打开 设置 → 通用 → VPN与设备管理</div>
-                    </div>
-<?php if ($certName): ?>
-                    <div class="slider-slide">
-                        <div style="font-size:4em;padding:20px 0;">🔐</div>
-                        <div class="text">第四步<br>在「企业级应用」部分，选择<br><span class="cert-name"><?= $certName ?></span></div>
+                        <img src="/ios/static/step3.jpg" alt="输入密码">
+                        <div class="text">第三步<br>输入您的<strong>iPhone锁屏密码</strong>确认安装</div>
                     </div>
                     <div class="slider-slide">
-                        <div style="font-size:4em;padding:20px 0;">✅</div>
-                        <div class="text">第五步<br>点击信任 → 输入锁屏密码<br>即可正常使用</div>
+                        <img src="/ios/static/step4.webp" alt="未受信任提示">
+                        <div class="text">第四步<br>安装完成后首次打开会提示"未受信任的企业级开发者"<br><small style="color:#86868b;">这是正常现象，需要手动信任证书</small></div>
                     </div>
-<?php endif; ?>
+                    <div class="slider-slide">
+                        <img src="/ios/static/step5.webp" alt="VPN与设备管理">
+                        <div class="text">第五步<br>打开<strong>「设置 → 通用 → VPN与设备管理」</strong><br>在「企业级APP」中选择证书并点击信任</div>
+                    </div>
                 </div>
             </div>
             <div class="slider-dots" id="sliderDots"></div>
