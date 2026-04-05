@@ -59,9 +59,14 @@ async function load() {
     updatePreview();
 
     const container = document.getElementById('builtinFonts');
-    container.innerHTML = builtinFonts.map(f =>
-        `<button class="btn btn-outline" onclick="selectBuiltin('${f.name}')" style="font-family:${f.name};">${f.label}</button>`
-    ).join('');
+    builtinFonts.forEach((f, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-outline';
+        btn.style.fontFamily = f.name;
+        btn.textContent = f.label;
+        btn.addEventListener('click', () => selectBuiltin(f.name));
+        container.appendChild(btn);
+    });
 }
 
 function selectBuiltin(family) {

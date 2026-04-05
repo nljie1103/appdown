@@ -53,6 +53,7 @@ admin_header('特色卡片', 'features');
                 <div style="display:flex;gap:8px;align-items:center;">
                     <i id="fIconPreviewFa" class="fas fa-star" style="font-size:1.4em;width:32px;text-align:center;color:#666;"></i>
                     <input type="text" class="form-control" id="fIcon" placeholder="fas fa-star" oninput="document.getElementById('fIconPreviewFa').className=this.value||'fas fa-star'" style="flex:1;">
+                    <button class="btn btn-outline" type="button" onclick="IconPicker.open(cls => { document.getElementById('fIcon').value=cls; document.getElementById('fIconPreviewFa').className=cls; })"><i class="fas fa-icons"></i> 选择</button>
                 </div>
             </div>
             <div id="fIconImgMode" style="display:none;">

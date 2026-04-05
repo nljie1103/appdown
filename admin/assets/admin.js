@@ -221,6 +221,125 @@ function explainUploadError(msg) {
     return explanations[code] || `上传错误代码: ${code}`;
 }
 
+// 全局FA图标选择器
+const IconPicker = {
+    _overlay: null,
+    _callback: null,
+    _data: null,
+    _filtered: [],
+    _tab: 'solid', // solid | brands
+    _page: 0,
+    _pageSize: 120,
+    _search: '',
+
+    _ensure() {
+        if (this._overlay) return;
+        const o = document.createElement('div');
+        o.className = 'modal-overlay';
+        o.id = '_iconPicker';
+        o.style.zIndex = '10002';
+        o.innerHTML = `
+            <div class="modal" style="max-width:680px;height:70vh;display:flex;flex-direction:column;padding:0;">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;">
+                    <h3 style="margin:0;flex-shrink:0;">选择图标</h3>
+                    <input type="text" class="form-control" id="_ipkSearch" placeholder="搜索图标..." style="flex:1;height:32px;font-size:0.85em;" oninput="IconPicker._onSearch(this.value)">
+                    <button class="btn btn-outline btn-sm" onclick="IconPicker.close()" style="flex-shrink:0;">✕</button>
+                </div>
+                <div style="padding:8px 16px 0;display:flex;gap:6px;">
+                    <button class="btn btn-sm" id="_ipkTabSolid" onclick="IconPicker._switchTab('solid')">Solid (fas)</button>
+                    <button class="btn btn-sm btn-outline" id="_ipkTabBrands" onclick="IconPicker._switchTab('brands')">Brands (fab)</button>
+                    <span style="flex:1;"></span>
+                    <span id="_ipkCount" style="font-size:0.8em;color:var(--text-secondary);align-self:center;"></span>
+                </div>
+                <div id="_ipkGrid" style="flex:1;overflow-y:auto;padding:12px 16px;"></div>
+                <div id="_ipkPager" style="padding:8px 16px;border-top:1px solid var(--border);display:flex;justify-content:center;gap:8px;"></div>
+            </div>`;
+        document.body.appendChild(o);
+        this._overlay = o;
+    },
+
+    async open(callback) {
+        this._callback = callback;
+        this._ensure();
+        this._search = '';
+        this._page = 0;
+        document.getElementById('_ipkSearch').value = '';
+        this._overlay.classList.add('active');
+        if (!this._data) {
+            document.getElementById('_ipkGrid').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-secondary);">加载图标中...</div>';
+            try {
+                const resp = await fetch('/admin/assets/fa-icons.json');
+                this._data = await resp.json();
+            } catch(e) {
+                document.getElementById('_ipkGrid').innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">加载图标数据失败</div>';
+                return;
+            }
+        }
+        this._switchTab(this._tab);
+    },
+
+    close() {
+        if (this._overlay) this._overlay.classList.remove('active');
+        this._callback = null;
+    },
+
+    _switchTab(tab) {
+        this._tab = tab;
+        this._page = 0;
+        document.getElementById('_ipkTabSolid').className = tab === 'solid' ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline';
+        document.getElementById('_ipkTabBrands').className = tab === 'brands' ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline';
+        this._applyFilter();
+    },
+
+    _onSearch(val) {
+        this._search = val.trim().toLowerCase();
+        this._page = 0;
+        this._applyFilter();
+    },
+
+    _applyFilter() {
+        const list = this._data[this._tab] || [];
+        this._filtered = this._search ? list.filter(n => n.includes(this._search)) : list;
+        document.getElementById('_ipkCount').textContent = this._filtered.length + ' 个图标';
+        this._render();
+    },
+
+    _render() {
+        const start = this._page * this._pageSize;
+        const slice = this._filtered.slice(start, start + this._pageSize);
+        const prefix = this._tab === 'brands' ? 'fab' : 'fas';
+        const grid = document.getElementById('_ipkGrid');
+        grid.innerHTML = slice.map(name => {
+            const cls = `${prefix} fa-${name}`;
+            return `<div class="icon-picker-item" onclick="IconPicker._pick('${cls}')" title="${cls}">
+                <i class="${cls}"></i>
+                <span>${name}</span>
+            </div>`;
+        }).join('');
+
+        // Pager
+        const totalPages = Math.ceil(this._filtered.length / this._pageSize);
+        const pager = document.getElementById('_ipkPager');
+        if (totalPages <= 1) { pager.innerHTML = ''; return; }
+        let html = '';
+        if (this._page > 0) html += `<button class="btn btn-outline btn-sm" onclick="IconPicker._goPage(${this._page - 1})">上一页</button>`;
+        html += `<span style="align-self:center;font-size:0.8em;color:var(--text-secondary);">${this._page + 1} / ${totalPages}</span>`;
+        if (this._page < totalPages - 1) html += `<button class="btn btn-outline btn-sm" onclick="IconPicker._goPage(${this._page + 1})">下一页</button>`;
+        pager.innerHTML = html;
+    },
+
+    _goPage(p) {
+        this._page = p;
+        this._render();
+        document.getElementById('_ipkGrid').scrollTop = 0;
+    },
+
+    _pick(cls) {
+        if (this._callback) this._callback(cls);
+        this.close();
+    },
+};
+
 // 全局图片选择器
 const ImagePicker = {
     _overlay: null,

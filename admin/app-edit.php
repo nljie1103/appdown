@@ -40,6 +40,7 @@ admin_header('编辑应用', 'apps');
                 <div style="display:flex;gap:8px;align-items:center;">
                     <i id="appIconPreview" class="fas fa-tv" style="font-size:1.4em;width:32px;text-align:center;color:#666;"></i>
                     <input type="text" class="form-control" id="appIcon" placeholder="fas fa-tv" oninput="document.getElementById('appIconPreview').className=this.value||'fas fa-tv'" style="flex:1;">
+                    <button class="btn btn-outline" type="button" onclick="IconPicker.open(cls => { document.getElementById('appIcon').value=cls; document.getElementById('appIconPreview').className=cls; })"><i class="fas fa-icons"></i> 选择</button>
                 </div>
             </div>
             <div id="iconImgMode" style="display:none;">
@@ -153,6 +154,7 @@ admin_header('编辑应用', 'apps');
             <div style="display:flex;gap:8px;align-items:center;">
                 <i id="dlIconPreview" class="fab fa-android" style="font-size:1.4em;width:28px;text-align:center;"></i>
                 <input type="text" class="form-control" id="dlIcon" placeholder="fab fa-android" oninput="updateIconPreview(this.value,'dlIconPreview')" style="flex:1;">
+                <button class="btn btn-outline" type="button" onclick="IconPicker.open(cls => { document.getElementById('dlIcon').value=cls; updateIconPreview(cls,'dlIconPreview'); })"><i class="fas fa-icons"></i> 选择</button>
             </div>
         </div>
         <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="dlText" placeholder="如: Android"></div>
@@ -195,6 +197,7 @@ admin_header('编辑应用', 'apps');
             <div style="display:flex;gap:8px;align-items:center;">
                 <i id="editDlIconPreview" class="fab fa-android" style="font-size:1.4em;width:28px;text-align:center;"></i>
                 <input type="text" class="form-control" id="editDlIcon" placeholder="fab fa-android" oninput="updateIconPreview(this.value,'editDlIconPreview')" style="flex:1;">
+                <button class="btn btn-outline" type="button" onclick="IconPicker.open(cls => { document.getElementById('editDlIcon').value=cls; updateIconPreview(cls,'editDlIconPreview'); })"><i class="fas fa-icons"></i> 选择</button>
             </div>
         </div>
         <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="editDlText"></div>

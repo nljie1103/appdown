@@ -180,6 +180,7 @@ function init_schema(PDO $pdo): void {
             file_size   TEXT NOT NULL DEFAULT '',
             width       INTEGER NOT NULL DEFAULT 0,
             height      INTEGER NOT NULL DEFAULT 0,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -266,7 +267,9 @@ function migrate_schema(PDO $pdo): void {
             name        TEXT NOT NULL,
             sort_order  INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-        );
+        )
+    ");
+    $pdo->exec("
         CREATE TABLE IF NOT EXISTS image_library (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             category_id INTEGER NOT NULL REFERENCES image_categories(id) ON DELETE CASCADE,
@@ -275,9 +278,16 @@ function migrate_schema(PDO $pdo): void {
             file_size   TEXT NOT NULL DEFAULT '',
             width       INTEGER NOT NULL DEFAULT 0,
             height      INTEGER NOT NULL DEFAULT 0,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-        );
+        )
     ");
+    // 给已有的image_library表补sort_order列
+    $ilCols = $pdo->query("PRAGMA table_info(image_library)")->fetchAll();
+    $ilColNames = array_column($ilCols, 'name');
+    if (!in_array('sort_order', $ilColNames)) {
+        $pdo->exec("ALTER TABLE image_library ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+    }
 
     // 特色卡片分类表 + feature_cards 新字段
     $pdo->exec("

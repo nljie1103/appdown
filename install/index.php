@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fStmt = $pdo->prepare('INSERT INTO feature_cards (title, description, icon, sort_order) VALUES (?, ?, ?, ?)');
         $fStmt->execute(['海量资源', '丰富的内容资源，持续更新', 'fas fa-database', 1]);
         $fStmt->execute(['高清播放', '高清流畅播放，画质清晰', 'fas fa-play-circle', 2]);
-        $fStmt->execute(['多端支持', '支持Android、iOS、Web多平台', 'fas fa-devices', 3]);
+        $fStmt->execute(['多端支持', '支持Android、iOS、Web多平台', 'fas fa-laptop', 3]);
 
         // 示例友情链接
         $lStmt = $pdo->prepare('INSERT INTO friend_links (name, url, sort_order) VALUES (?, ?, ?)');

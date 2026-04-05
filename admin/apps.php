@@ -59,6 +59,7 @@ admin_header('应用管理', 'apps');
                 <div style="display:flex;gap:8px;align-items:center;">
                     <i id="addIconPreviewFa" class="fas fa-tv" style="font-size:1.4em;width:32px;text-align:center;color:#666;"></i>
                     <input type="text" class="form-control" id="addIcon" value="fas fa-tv" placeholder="fas fa-tv" oninput="document.getElementById('addIconPreviewFa').className=this.value||'fas fa-tv'" style="flex:1;">
+                    <button class="btn btn-outline" type="button" onclick="IconPicker.open(cls => { document.getElementById('addIcon').value=cls; document.getElementById('addIconPreviewFa').className=cls; })"><i class="fas fa-icons"></i> 选择</button>
                 </div>
             </div>
             <div id="addIconImgMode" style="display:none;">
