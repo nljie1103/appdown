@@ -1,0 +1,26 @@
+# Database
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/config_cache.json
+
+# Uploads (user content)
+uploads/images/*
+uploads/fonts/*
+uploads/apps/*
+!uploads/**/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+.user.ini
+
+# Install script (should be deleted after use)
+# install.php

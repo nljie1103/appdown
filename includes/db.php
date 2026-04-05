@@ -1,0 +1,151 @@
+<?php
+/**
+ * 数据库连接单例 + Schema初始化
+ */
+
+function get_db(): PDO {
+    static $pdo = null;
+    if ($pdo !== null) return $pdo;
+
+    $db_dir = __DIR__ . '/../data';
+    $db_path = $db_dir . '/app.db';
+
+    if (!is_dir($db_dir)) {
+        mkdir($db_dir, 0750, true);
+    }
+
+    $is_new = !file_exists($db_path);
+
+    $pdo = new PDO('sqlite:' . $db_path);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo->exec('PRAGMA journal_mode=WAL');
+    $pdo->exec('PRAGMA foreign_keys=ON');
+    $pdo->exec('PRAGMA busy_timeout=5000');
+
+    if ($is_new) {
+        init_schema($pdo);
+    }
+
+    return $pdo;
+}
+
+function init_schema(PDO $pdo): void {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            username    TEXT NOT NULL UNIQUE,
+            password    TEXT NOT NULL,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            last_login  TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS apps (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug            TEXT NOT NULL UNIQUE,
+            name            TEXT NOT NULL,
+            icon            TEXT NOT NULL DEFAULT 'fas fa-tv',
+            theme_color     TEXT NOT NULL DEFAULT '#007AFF',
+            ios_plist_url   TEXT NOT NULL DEFAULT '',
+            ios_cert_name   TEXT NOT NULL DEFAULT '',
+            ios_description TEXT NOT NULL DEFAULT '',
+            ios_version     TEXT NOT NULL DEFAULT '',
+            ios_size        TEXT NOT NULL DEFAULT '',
+            sort_order      INTEGER NOT NULL DEFAULT 0,
+            is_active       INTEGER NOT NULL DEFAULT 1,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS app_downloads (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id      INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            btn_type    TEXT NOT NULL DEFAULT 'android',
+            btn_text    TEXT NOT NULL,
+            btn_subtext TEXT NOT NULL DEFAULT '',
+            href        TEXT NOT NULL DEFAULT '#',
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            is_active   INTEGER NOT NULL DEFAULT 1,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS app_images (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id      INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            image_url   TEXT NOT NULL,
+            alt_text    TEXT NOT NULL DEFAULT '',
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS site_settings (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            setting_key TEXT NOT NULL UNIQUE,
+            setting_val TEXT NOT NULL DEFAULT '',
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS feature_cards (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            title       TEXT NOT NULL,
+            description TEXT NOT NULL,
+            icon        TEXT NOT NULL DEFAULT '',
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            is_active   INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS friend_links (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            url         TEXT NOT NULL DEFAULT '#',
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            is_active   INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS custom_code (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            position    TEXT NOT NULL UNIQUE,
+            code        TEXT NOT NULL DEFAULT '',
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS page_visits (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip          TEXT NOT NULL,
+            user_agent  TEXT NOT NULL DEFAULT '',
+            referer     TEXT NOT NULL DEFAULT '',
+            page_url    TEXT NOT NULL DEFAULT '/',
+            visit_date  TEXT NOT NULL,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS download_clicks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_slug    TEXT NOT NULL,
+            btn_type    TEXT NOT NULL,
+            href        TEXT NOT NULL DEFAULT '',
+            ip          TEXT NOT NULL,
+            user_agent  TEXT NOT NULL DEFAULT '',
+            click_date  TEXT NOT NULL,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_visits_date ON page_visits(visit_date);
+        CREATE INDEX IF NOT EXISTS idx_visits_referer ON page_visits(referer);
+        CREATE INDEX IF NOT EXISTS idx_clicks_date ON download_clicks(click_date);
+        CREATE INDEX IF NOT EXISTS idx_clicks_app ON download_clicks(app_slug);
+    ");
+
+    // 默认自定义代码位置
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO custom_code (position, code) VALUES (?, '')");
+    foreach (['head_css', 'head_js', 'footer_css', 'footer_js'] as $pos) {
+        $stmt->execute([$pos]);
+    }
+}
+
+function clear_config_cache(): void {
+    $path = __DIR__ . '/../data/config_cache.json';
+    if (file_exists($path)) {
+        unlink($path);
+    }
+}
