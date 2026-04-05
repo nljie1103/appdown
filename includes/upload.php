@@ -34,7 +34,8 @@ function handle_upload(string $field, string $category, string $custom_name = ''
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
-        $allowed_mimes = ['image/webp', 'image/png', 'image/jpeg', 'image/gif'];
+        $allowed_mimes = ['image/webp', 'image/png', 'image/jpeg', 'image/gif',
+                          'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml'];
         if (!in_array($mime, $allowed_mimes, true)) {
             return ['ok' => false, 'error' => "文件MIME类型不合法: $mime"];
         }
