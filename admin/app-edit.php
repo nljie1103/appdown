@@ -70,7 +70,7 @@ admin_header('编辑应用', 'apps');
 <!-- iOS安装页配置 -->
 <div class="card">
     <h3>iOS安装页配置</h3>
-    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后系统自动生成plist文件，用户可通过 <code>/ios/?app=应用标识</code> 访问iOS安装引导页</p>
+    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后系统自动生成plist文件，用户可通过 <code style="color:#e53e3e;font-weight:700;">/ios/?app=应用标识</code> 访问iOS安装引导页</p>
     <div class="form-row">
         <div class="form-group">
             <label>IPA文件地址</label>
@@ -168,6 +168,7 @@ admin_header('编辑应用', 'apps');
             <select class="form-control att-picker" id="dlHrefPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'dlHref')">
                 <option value="">-- 选择一个版本 --</option>
             </select>
+            <p id="dlHrefAutoHint" style="display:none;margin-top:6px;font-size:0.85em;color:var(--success, #38a169);"><i class="fas fa-check-circle"></i> 已为您自动填写iOS安装页地址</p>
         </div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('addDlModal')">取消</button>
@@ -299,6 +300,18 @@ function onDlTypeChange(typeId, iconId, previewId) {
     const defaultIcon = TYPE_ICON_MAP[type] || 'fas fa-download';
     document.getElementById(iconId).value = defaultIcon;
     updateIconPreview(defaultIcon, previewId);
+    // iOS类型自动填充安装页地址（仅添加模态框，编辑时不覆盖已有值）
+    const isAddModal = typeId === 'dlType';
+    if (isAddModal) {
+        const hrefInput = document.getElementById('dlHref');
+        const hint = document.getElementById('dlHrefAutoHint');
+        if (type === 'ios' && appSlug && (!hrefInput.value || hrefInput.value === '')) {
+            hrefInput.value = '/ios/?app=' + appSlug;
+            if (hint) hint.style.display = '';
+        } else {
+            if (hint) hint.style.display = 'none';
+        }
+    }
 }
 
 function openAddDlModal() {
@@ -308,6 +321,8 @@ function openAddDlModal() {
     document.getElementById('dlSubtext').value = '';
     document.getElementById('dlHref').value = '';
     document.getElementById('dlHrefPicker').style.display = 'none';
+    const hint = document.getElementById('dlHrefAutoHint');
+    if (hint) hint.style.display = 'none';
     updateIconPreview('fab fa-android', 'dlIconPreview');
     Modal.show('addDlModal');
 }
