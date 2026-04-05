@@ -37,7 +37,10 @@ admin_header('编辑应用', 'apps');
                 <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="iconType" value="image" onchange="toggleIconMode()"> 自定义图片</label>
             </div>
             <div id="iconFaMode">
-                <input type="text" class="form-control" id="appIcon" placeholder="fas fa-tv">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <i id="appIconPreview" class="fas fa-tv" style="font-size:1.4em;width:32px;text-align:center;color:#666;"></i>
+                    <input type="text" class="form-control" id="appIcon" placeholder="fas fa-tv" oninput="document.getElementById('appIconPreview').className=this.value||'fas fa-tv'" style="flex:1;">
+                </div>
             </div>
             <div id="iconImgMode" style="display:none;">
                 <div style="display:flex;gap:8px;align-items:center;">
@@ -305,6 +308,7 @@ async function loadApp() {
     document.getElementById('appSlug').value = app.slug;
     document.getElementById('appName').value = app.name;
     document.getElementById('appIcon').value = app.icon;
+    document.getElementById('appIconPreview').className = app.icon || 'fas fa-tv';
     document.getElementById('appColor').value = app.theme_color;
 
     // 图标模式

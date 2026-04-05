@@ -29,7 +29,7 @@ if ($method === 'POST') {
 
     $allowed = ['site_title','site_heading','logo_url','favicon_url','notice_text','notice_enabled',
                 'copyright','carousel_interval','stats_downloads','stats_rating','stats_daily_active',
-                'font_url','font_family'];
+                'font_url','font_family','captcha_enabled'];
 
     foreach ($settings as $key => $val) {
         if (in_array($key, $allowed, true)) {
