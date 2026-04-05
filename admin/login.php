@@ -10,6 +10,11 @@ if (is_logged_in()) {
     exit;
 }
 
+// 读取站点名称
+$pdo = get_db();
+$siteRow = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key = 'site_title'")->fetch();
+$siteName = $siteRow ? $siteRow['setting_val'] : 'AppDown';
+
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
@@ -28,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>后台登录</title>
+    <title><?= htmlspecialchars($siteName) ?> - 后台登录</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -46,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="card">
         <h1>后台管理</h1>
-        <p class="sub">杰哩杰哩影视APP管理系统</p>
+        <p class="sub"><?= htmlspecialchars($siteName) ?> 管理系统</p>
         <form method="POST">
             <label>用户名</label>
             <input type="text" name="username" required autofocus>

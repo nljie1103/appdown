@@ -7,6 +7,16 @@
 require_once __DIR__ . '/../includes/init.php';
 require_method('GET');
 
+// 检测是否已安装
+$lock = __DIR__ . '/../install/install.lock';
+$db_file = __DIR__ . '/../data/app.db';
+if (!file_exists($lock) || !file_exists($db_file)) {
+    http_response_code(503);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['error' => 'not_installed']);
+    exit;
+}
+
 // 文件缓存 (5分钟)
 $cache_path = __DIR__ . '/../data/config_cache.json';
 if (file_exists($cache_path) && (time() - filemtime($cache_path)) < 300) {
@@ -62,8 +72,8 @@ $config = [
     'site' => [
         'title'             => $settings['site_title'] ?? '',
         'heading'           => $settings['site_heading'] ?? '',
-        'logo_url'          => $settings['logo_url'] ?? 'img/logo.png',
-        'favicon_url'       => $settings['favicon_url'] ?? 'img/favicon.ico',
+        'logo_url'          => $settings['logo_url'] ?? '',
+        'favicon_url'       => $settings['favicon_url'] ?? '',
         'notice_text'       => $settings['notice_text'] ?? '',
         'notice_enabled'    => (bool)($settings['notice_enabled'] ?? true),
         'copyright'         => $settings['copyright'] ?? '',

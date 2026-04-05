@@ -97,6 +97,14 @@ if ($method === 'PUT') {
 if ($method === 'DELETE') {
     $data = get_json_input();
     $id = $data['id'] ?? 0;
+
+    // 删除关联的上传图片文件
+    $imgs = $pdo->prepare('SELECT image_url FROM app_images WHERE app_id = ?');
+    $imgs->execute([$id]);
+    foreach ($imgs->fetchAll() as $img) {
+        delete_upload($img['image_url']);
+    }
+
     $pdo->prepare('DELETE FROM apps WHERE id = ?')->execute([$id]);
     clear_config_cache();
     json_response(['ok' => true]);

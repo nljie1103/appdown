@@ -29,7 +29,7 @@ admin_header('字体管理', 'fonts');
         </div>
     </div>
     <div id="fontPreview" style="margin:16px 0;padding:20px;background:#f9f9f9;border-radius:8px;font-size:1.5em;">
-        字体预览: 杰哩杰哩影视APP ABCDEFG 1234567890
+        字体预览: AppDown ABCDEFG abcdefg 1234567890
     </div>
     <button class="btn btn-primary" onclick="save()"><i class="fas fa-save"></i> 保存</button>
 </div>

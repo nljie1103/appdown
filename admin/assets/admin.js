@@ -4,6 +4,13 @@
 
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
+// 防XSS: HTML转义
+function escapeHTML(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
 const API = {
     async request(url, options = {}) {
         const defaults = {

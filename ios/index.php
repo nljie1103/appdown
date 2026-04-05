@@ -39,7 +39,7 @@ $description = htmlspecialchars($app['ios_description']);
 $version = htmlspecialchars($app['ios_version']);
 $size = htmlspecialchars($app['ios_size']);
 $themeColor = htmlspecialchars($app['theme_color'] ?? '#017afe');
-$logoUrl = htmlspecialchars($settings['logo_url'] ?? 'static/logo.png');
+$logoUrl = htmlspecialchars($settings['logo_url'] ?? '');
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -161,7 +161,11 @@ $logoUrl = htmlspecialchars($settings['logo_url'] ?? 'static/logo.png');
     <div class="container">
         <div class="app-card">
             <div class="app-header">
+                <?php if ($logoUrl): ?>
                 <img src="/<?= $logoUrl ?>" alt="<?= $appName ?>" class="app-icon">
+                <?php else: ?>
+                <div class="app-icon" style="background:<?= $themeColor ?>;display:flex;align-items:center;justify-content:center;font-size:2em;color:#fff;border-radius:22%;"><i class="fas fa-mobile-alt"></i></div>
+                <?php endif; ?>
                 <div class="app-meta">
                     <h1><?= $appName ?></h1>
                     <p>iOS版 · <?= $version ?: '最新版' ?></p>

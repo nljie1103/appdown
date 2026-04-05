@@ -31,6 +31,10 @@ function admin_header(string $title, string $currentPage = ''): void {
     <script src="/admin/assets/admin.js"></script>
 </head>
 <body>
+    <button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open');this.classList.toggle('active')" aria-label="菜单">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');document.querySelector('.sidebar-toggle').classList.remove('active')"></div>
     <nav class="sidebar">
         <div class="sidebar-header">
             <h2><?= htmlspecialchars($siteTitle) ?></h2>

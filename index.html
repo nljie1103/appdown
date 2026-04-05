@@ -3,43 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>杰哩杰哩影视APP - 官方下载</title>
-    
-    <link rel="preload" href="img/logo.png" as="image">
-    <link rel="icon" href="img/favicon.ico">
+    <title>APP下载中心</title>
+
+    <link rel="icon" id="dynamicFavicon" href="">
     <meta name="theme-color" content="#ffffff">
-    
+
     <link rel="stylesheet" href="static/fontawesome-free-7.1.0-web/css/all.min.css">
 
     <style>
         :root {
             --primary: #333;
             --secondary: #666;
+            --accent: #007AFF;
             --transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
             --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
             --shadow-md: 0 4px 15px rgba(0, 0, 0, 0.1);
             --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
-            
-            --theme-sk: #3DDC84;
-            --theme-get: #007AFF;
-            --theme-qianyue: #FF69B4;
-            --theme-lecai: #9B59B6;
-            --theme-lvdou: #F1C40F;
-            --theme-tvbox: #1A1A1A;
-            --theme-accent-get: #0066e0;
-            
-            /* 统一的字体变量 */
-            --font-primary: 'CustomFont', system-ui, -apple-system, sans-serif;
-        }
 
-        /* 字体fallback和完整属性 */
-        @font-face {
-            font-family: 'CustomFont';
-            src: url('img/1.ttf') format('truetype');
-            font-display: swap;
-            font-weight: 400;
-            font-style: normal;
-            ascent-override: 95%;
+            /* 统一的字体变量 */
+            --font-primary: system-ui, -apple-system, sans-serif;
         }
 
         * {
@@ -201,13 +183,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .app-tab.active[data-tab="sk"] { border-color: var(--theme-sk); color: var(--theme-sk); background: rgba(61, 220, 132, 0.1); }
-        .app-tab.active[data-tab="get"] { border-color: var(--theme-get); color: var(--theme-get); background: rgba(0, 122, 255, 0.1); }
-        .app-tab.active[data-tab="qianyue"] { border-color: var(--theme-qianyue); color: var(--theme-qianyue); background: rgba(255, 105, 180, 0.1); }
-        .app-tab.active[data-tab="lecai"] { border-color: var(--theme-lecai); color: var(--theme-lecai); background: rgba(155, 89, 182, 0.1); }
-        .app-tab.active[data-tab="lvdou"] { border-color: var(--theme-lvdou); color: var(--theme-lvdou); background: rgba(241, 196, 15, 0.1); }
-        .app-tab.active[data-tab="tvbox"] { border-color: var(--theme-tvbox); color: var(--theme-tvbox); background: rgba(26, 26, 26, 0.1); }
-
         .app-tab:hover {
             background: rgba(255, 255, 255, 0.95);
             transform: translateY(-2px);
@@ -250,12 +225,7 @@
             gap: 10px;
         }
 
-        .app-section[data-theme="sk"] h2 { border-color: var(--theme-sk); color: var(--theme-sk); }
-        .app-section[data-theme="get"] h2 { border-color: var(--theme-get); color: var(--theme-get); }
-        .app-section[data-theme="qianyue"] h2 { border-color: var(--theme-qianyue); color: var(--theme-qianyue); }
-        .app-section[data-theme="lecai"] h2 { border-color: var(--theme-lecai); color: var(--theme-lecai); }
-        .app-section[data-theme="lvdou"] h2 { border-color: var(--theme-lvdou); color: var(--theme-lvdou); }
-        .app-section[data-theme="tvbox"] h2 { border-color: var(--theme-tvbox); color: var(--theme-tvbox); }
+        .app-section[data-theme] h2 { border-color: currentColor; }
 
         .download-group {
             display: flex;
@@ -299,31 +269,6 @@
             outline: 3px solid #007AFF;
             outline-offset: 2px;
         }
-
-        /* 修复变量作用域：在[data-theme]下定义变量 */
-        .app-section[data-theme="sk"] { --theme-accent: #3DDC84; --theme-secondary: #21c971; }
-        .app-section[data-theme="sk"] .download-button.ios { --theme-accent: #00BCD4; --theme-secondary: #00a8c0; }
-        .app-section[data-theme="sk"] .download-button.web { --theme-accent: #FF9800; --theme-secondary: #e68900; }
-
-        .app-section[data-theme="get"] { --theme-accent: #007AFF; --theme-secondary: var(--theme-accent-get); }
-        .app-section[data-theme="get"] .download-button.ios { --theme-accent: #5AC8FA; --theme-secondary: #4aa7e0; }
-        .app-section[data-theme="get"] .download-button.windows { --theme-accent: #FF3B30; --theme-secondary: #e0342a; }
-
-        .app-section[data-theme="qianyue"] { --theme-accent: #FF69B4; --theme-secondary: #ff4da6; }
-        .app-section[data-theme="qianyue"] .download-button.ios { --theme-accent: #FF1493; --theme-secondary: #ff0066; }
-        .app-section[data-theme="qianyue"] .download-button.web { --theme-accent: #FFB6C1; --theme-secondary: #FF69B4; }
-
-        .app-section[data-theme="lecai"] { --theme-accent: #9B59B6; --theme-secondary: #8e44ad; }
-        .app-section[data-theme="lecai"] .download-button.ios { --theme-accent: #8E44AD; --theme-secondary: #7d3c98; }
-        .app-section[data-theme="lecai"] .download-button.web { --theme-accent: #DDA0DD; --theme-secondary: #9B59B6; }
-
-        .app-section[data-theme="lvdou"] { --theme-accent: #F1C40F; --theme-secondary: #f0d432; }
-        .app-section[data-theme="lvdou"] .download-button.ios { --theme-accent: #F39C12; --theme-secondary: #e67e22; }
-        .app-section[data-theme="lvdou"] .download-button.web { --theme-accent: #FFD700; --theme-secondary: #F1C40F; }
-
-        .app-section[data-theme="tvbox"] { --theme-accent: #1A1A1A; --theme-secondary: #000000; }
-        .app-section[data-theme="tvbox"] .download-button.ios { --theme-accent: #2C3E50; --theme-secondary: #34495e; }
-        .app-section[data-theme="tvbox"] .download-button.tv { --theme-accent: #2C3E50; --theme-secondary: #1A1A1A; }
 
         .download-stats {
             display: flex;
@@ -539,13 +484,6 @@
             transform: scale(1.2);
         }
 
-        .app-section[data-theme="sk"] .carousel-dot.active { background: var(--theme-sk); }
-        .app-section[data-theme="get"] .carousel-dot.active { background: var(--theme-get); }
-        .app-section[data-theme="qianyue"] .carousel-dot.active { background: var(--theme-qianyue); }
-        .app-section[data-theme="lecai"] .carousel-dot.active { background: var(--theme-lecai); }
-        .app-section[data-theme="lvdou"] .carousel-dot.active { background: var(--theme-lvdou); }
-        .app-section[data-theme="tvbox"] .carousel-dot.active { background: var(--theme-tvbox); }
-
         .partners-section {
             margin: 20px 0 40px;
             padding: 0 20px;
@@ -583,7 +521,7 @@
         .friend-link-card:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
-            color: var(--theme-get);
+            color: var(--accent);
         }
 
         footer {
@@ -610,8 +548,7 @@
         }
 
         .footer-link:hover {
-            color: var(--theme-get);
-            text-decoration: underline;
+            color: var(--accent);
         }
 
         .back-to-top {
@@ -627,7 +564,7 @@
             transition: var(--transition);
             z-index: 1000;
             border: none;
-            background: linear-gradient(135deg, #3DDC84, #21c971);
+            background: var(--accent);
             color: white;
             box-shadow: var(--shadow-md);
         }
@@ -798,12 +735,12 @@
     </div>
 
     <div class="container">
-        <img src="img/logo.png" alt="" class="logo" id="siteLogo" width="100" height="100" loading="eager">
+        <img src="" alt="" class="logo" id="siteLogo" width="100" height="100" loading="eager">
         <h1 id="siteHeading">加载中...</h1>
 
         <div class="download-notice" id="noticeBar" style="display:none;"></div>
 
-        <nav class="app-tabs-container" role="tablist" aria-label="影视应用选择">
+        <nav class="app-tabs-container" role="tablist" aria-label="应用选择">
             <div class="app-tabs" id="appTabs"></div>
         </nav>
 
@@ -892,7 +829,7 @@
                         .app-section[data-theme="${app.slug}"] .download-button { background: linear-gradient(135deg, ${c}, ${c}dd); }
                         .app-section[data-theme="${app.slug}"] .download-button:hover { background: linear-gradient(135deg, ${c}dd, ${c}bb); }
                         .app-section[data-theme="${app.slug}"] .carousel-dot.active { background: ${c}; }
-                        .app-tab[data-tab="${app.slug}"].active { border-color: ${c}; color: ${c}; }
+                        .app-tab[data-tab="${app.slug}"].active { border-color: ${c}; color: ${c}; background: ${c}1a; }
                     `;
                 });
                 const style = document.createElement('style');
@@ -948,12 +885,25 @@
                 const s = data.site || {};
                 // 站点标题
                 const heading = document.getElementById('siteHeading');
-                if (heading) heading.textContent = s.heading || s.title || '影视APP下载中心';
-                document.title = s.title || '影视APP下载中心';
+                if (heading) heading.textContent = s.heading || s.title || 'APP下载中心';
+                document.title = s.title || 'APP下载中心';
 
                 // Logo
                 const logo = document.getElementById('siteLogo');
-                if (logo && s.logo_url) logo.src = s.logo_url;
+                if (logo && s.logo_url) {
+                    logo.src = s.logo_url;
+                } else if (logo) {
+                    logo.style.display = 'none';
+                }
+
+                // Favicon
+                const favicon = document.getElementById('dynamicFavicon');
+                if (favicon && s.favicon_url) favicon.href = s.favicon_url;
+
+                // 主题强调色（取第一个应用的主题色，或默认蓝色）
+                const firstApp = (data.apps || [])[0];
+                const accent = (firstApp && firstApp.theme_color) || '#007AFF';
+                document.documentElement.style.setProperty('--accent', accent);
 
                 // 公告
                 const notice = document.getElementById('noticeBar');

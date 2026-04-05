@@ -126,7 +126,7 @@ admin_header('仪表盘', 'dashboard');
         } else {
             refDiv.innerHTML = data.top_referers.map((r, i) =>
                 `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-                    <span>${i + 1}. ${r.referer}</span>
+                    <span>${i + 1}. ${escapeHTML(r.referer)}</span>
                     <span style="font-weight:600;">${r.count}</span>
                 </div>`
             ).join('');
