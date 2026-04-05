@@ -1553,7 +1553,8 @@
 
             // ==================== 渲染器（添加缓存） ====================
             const Renderer = (() => {
-                const getIconClass = (type) => {
+                const getIconClass = (type, customIcon) => {
+                    if (customIcon) return customIcon;
                     const map = {
                         android: 'fab fa-android',
                         ios: 'fab fa-apple',
@@ -1633,7 +1634,7 @@
                                aria-label="${ariaLabel}"
                                data-app="${app.slug}"
                                data-type="${dlType}">
-                                <i class="${getIconClass(dlType)}" aria-hidden="true"></i>
+                                <i class="${getIconClass(dlType, btn.icon)}" aria-hidden="true"></i>
                                 <span class="button-text">
                                     <small>${safeText}</small>
                                     <strong>${safeSubtext}</strong>
@@ -1769,6 +1770,7 @@
                                 theme_color: app.theme_color || '#333',
                                 downloads: (app.downloads || []).map(d => ({
                                     type: d.btn_type,
+                                    icon: d.btn_icon || '',
                                     url: d.href,
                                     label: d.btn_text,
                                     sub_label: d.btn_subtext

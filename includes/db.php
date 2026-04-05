@@ -50,6 +50,8 @@ function init_schema(PDO $pdo): void {
             icon_url        TEXT NOT NULL DEFAULT '',
             theme_color     TEXT NOT NULL DEFAULT '#007AFF',
             ios_plist_url   TEXT NOT NULL DEFAULT '',
+            ios_ipa_url     TEXT NOT NULL DEFAULT '',
+            ios_bundle_id   TEXT NOT NULL DEFAULT '',
             ios_cert_name   TEXT NOT NULL DEFAULT '',
             ios_description TEXT NOT NULL DEFAULT '',
             ios_version     TEXT NOT NULL DEFAULT '',
@@ -65,6 +67,7 @@ function init_schema(PDO $pdo): void {
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             app_id      INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
             btn_type    TEXT NOT NULL DEFAULT 'android',
+            btn_icon    TEXT NOT NULL DEFAULT '',
             btn_text    TEXT NOT NULL,
             btn_subtext TEXT NOT NULL DEFAULT '',
             href        TEXT NOT NULL DEFAULT '#',
@@ -187,6 +190,19 @@ function migrate_schema(PDO $pdo): void {
     }
     if (!in_array('ios_template', $colNames)) {
         $pdo->exec("ALTER TABLE apps ADD COLUMN ios_template TEXT NOT NULL DEFAULT 'modern'");
+    }
+    if (!in_array('ios_ipa_url', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN ios_ipa_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('ios_bundle_id', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN ios_bundle_id TEXT NOT NULL DEFAULT ''");
+    }
+
+    // app_downloads 增加 btn_icon 列
+    $dlCols = $pdo->query("PRAGMA table_info(app_downloads)")->fetchAll();
+    $dlColNames = array_column($dlCols, 'name');
+    if (!in_array('btn_icon', $dlColNames)) {
+        $pdo->exec("ALTER TABLE app_downloads ADD COLUMN btn_icon TEXT NOT NULL DEFAULT ''");
     }
 
     // 新增附件管理表

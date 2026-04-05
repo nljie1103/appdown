@@ -71,7 +71,7 @@ if ($method === 'PUT') {
 
     $fields = [];
     $params = [];
-    foreach (['name', 'icon', 'icon_url', 'theme_color', 'ios_plist_url', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size', 'ios_template'] as $f) {
+    foreach (['name', 'icon', 'icon_url', 'theme_color', 'ios_plist_url', 'ios_ipa_url', 'ios_bundle_id', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size', 'ios_template'] as $f) {
         if (isset($data[$f])) {
             $fields[] = "$f = ?";
             $params[] = trim($data[$f]);

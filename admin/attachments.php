@@ -105,7 +105,10 @@ async function init() {
 async function selectApp(appId, btn) {
     currentAppId = appId;
     currentPlatId = null;
-    document.querySelectorAll('#appTabs .btn').forEach(b => b.classList.remove('btn-primary'));
+    document.querySelectorAll('#appTabs .btn').forEach(b => {
+        b.classList.remove('btn-primary');
+        b.classList.add('btn-outline');
+    });
     btn.classList.add('btn-primary');
     btn.classList.remove('btn-outline');
     document.getElementById('mainArea').style.display = '';
@@ -166,11 +169,14 @@ function renderFiles(files) {
 }
 
 async function addPlatform() {
+    if (!currentAppId) { Toast.error('请先选择一个应用'); return; }
     const name = prompt('平台名称（如: Android, iOS, PC, TV）');
     if (!name || !name.trim()) return;
-    await API.post('/admin/api/attachments.php', { app_id: currentAppId, name: name.trim() });
-    await loadPlatforms();
-    Toast.success('已添加');
+    try {
+        await API.post('/admin/api/attachments.php', { app_id: currentAppId, name: name.trim() });
+        Toast.success('分类已添加');
+        await loadPlatforms();
+    } catch(e) { /* error already toasted by API */ }
 }
 
 async function deletePlatform(id, name) {

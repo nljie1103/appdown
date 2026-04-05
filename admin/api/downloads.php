@@ -25,10 +25,11 @@ if ($method === 'POST') {
     $max->execute([$app_id]);
     $order = (int)$max->fetch()['m'] + 1;
 
-    $stmt = $pdo->prepare('INSERT INTO app_downloads (app_id, btn_type, btn_text, btn_subtext, href, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT INTO app_downloads (app_id, btn_type, btn_icon, btn_text, btn_subtext, href, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
         $app_id,
         $data['btn_type'] ?? 'android',
+        trim($data['btn_icon'] ?? ''),
         trim($data['btn_text'] ?? ''),
         trim($data['btn_subtext'] ?? ''),
         trim($data['href'] ?? '#'),
@@ -42,9 +43,10 @@ if ($method === 'POST') {
 if ($method === 'PUT') {
     $data = get_json_input();
     $id = $data['id'] ?? 0;
-    $stmt = $pdo->prepare('UPDATE app_downloads SET btn_type=?, btn_text=?, btn_subtext=?, href=?, is_active=? WHERE id=?');
+    $stmt = $pdo->prepare('UPDATE app_downloads SET btn_type=?, btn_icon=?, btn_text=?, btn_subtext=?, href=?, is_active=? WHERE id=?');
     $stmt->execute([
         $data['btn_type'] ?? 'android',
+        trim($data['btn_icon'] ?? ''),
         trim($data['btn_text'] ?? ''),
         trim($data['btn_subtext'] ?? ''),
         trim($data['href'] ?? '#'),

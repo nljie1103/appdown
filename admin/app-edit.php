@@ -59,35 +59,51 @@ admin_header('编辑应用', 'apps');
 <!-- iOS安装页配置 -->
 <div class="card">
     <h3>iOS安装页配置</h3>
-    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后用户可通过 <code>/ios/?app=应用标识</code> 访问iOS安装引导页</p>
+    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后系统自动生成plist文件，用户可通过 <code>/ios/?app=应用标识</code> 访问iOS安装引导页</p>
     <div class="form-row">
-        <div class="form-group"><label>plist安装链接</label><input type="text" class="form-control" id="iosPlist" placeholder="itms-services://?action=download-manifest&url=https://..."></div>
-        <div class="form-group"><label>证书名称</label><input type="text" class="form-control" id="iosCert" placeholder="如: Etisalat - Emirates..."></div>
+        <div class="form-group">
+            <label>IPA文件地址</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" class="form-control" id="iosIpaUrl" placeholder="如: https://example.com/app.ipa 或选择附件" style="flex:1;">
+                <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('iosIpaUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
+            </div>
+            <select class="form-control att-picker" id="iosIpaUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'iosIpaUrl')">
+                <option value="">-- 选择一个版本 --</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Bundle ID</label><input type="text" class="form-control" id="iosBundleId" placeholder="如: com.example.app"></div>
     </div>
     <div class="form-row">
+        <div class="form-group"><label>证书名称</label><input type="text" class="form-control" id="iosCert" placeholder="如: Etisalat - Emirates..."></div>
         <div class="form-group"><label>应用版本</label><input type="text" class="form-control" id="iosVersion" placeholder="如: 7.2.3"></div>
+    </div>
+    <div class="form-row">
         <div class="form-group"><label>应用大小</label><input type="text" class="form-control" id="iosSize" placeholder="如: 4.5 MB"></div>
+        <div class="form-group">
+            <label>安装页模板</label>
+            <select class="form-control" id="iosTemplate">
+                <option value="modern">现代风格（毛玻璃）</option>
+                <option value="classic">经典风格（仿App Store）</option>
+            </select>
+        </div>
     </div>
     <div class="form-group"><label>应用简介</label><textarea class="form-control" id="iosDesc" rows="3" placeholder="iOS安装页展示的应用描述"></textarea></div>
-    <div class="form-group">
-        <label>安装页模板</label>
-        <select class="form-control" id="iosTemplate">
-            <option value="modern">现代风格（毛玻璃）</option>
-            <option value="classic">经典风格（仿App Store）</option>
-        </select>
+    <div id="plistPreview" style="display:none;margin-bottom:12px;">
+        <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的安装链接：</label>
+        <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="plistUrlDisplay"></div>
     </div>
-    <button class="btn btn-primary" onclick="saveApp()"><i class="fas fa-save"></i> 保存iOS配置</button>
+    <button class="btn btn-primary" onclick="saveIosConfig()"><i class="fas fa-save"></i> 保存iOS配置</button>
 </div>
 
 <!-- 下载按钮 -->
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h3 style="margin:0;">下载按钮</h3>
-        <button class="btn btn-primary btn-sm" onclick="Modal.show('addDlModal')"><i class="fas fa-plus"></i> 添加</button>
+        <button class="btn btn-primary btn-sm" onclick="openAddDlModal()"><i class="fas fa-plus"></i> 添加</button>
     </div>
     <div class="table-wrapper">
         <table>
-            <thead><tr><th></th><th>类型</th><th>按钮文本</th><th>副标题</th><th>链接</th><th>操作</th></tr></thead>
+            <thead><tr><th></th><th>图标</th><th>类型</th><th>按钮文本</th><th>副标题</th><th>链接</th><th>操作</th></tr></thead>
             <tbody id="dlList"></tbody>
         </table>
     </div>
@@ -112,13 +128,21 @@ admin_header('编辑应用', 'apps');
         <h3>添加下载按钮</h3>
         <div class="form-group">
             <label>平台类型</label>
-            <select class="form-control" id="dlType">
+            <select class="form-control" id="dlType" onchange="onDlTypeChange('dlType','dlIcon','dlIconPreview')">
                 <option value="android">Android</option>
                 <option value="ios">iOS</option>
                 <option value="windows">Windows</option>
                 <option value="web">Web</option>
                 <option value="tv">TV</option>
+                <option value="other">其他</option>
             </select>
+        </div>
+        <div class="form-group">
+            <label>按钮图标 <small style="color:var(--text-secondary);">FA图标类名</small></label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <i id="dlIconPreview" class="fab fa-android" style="font-size:1.4em;width:28px;text-align:center;"></i>
+                <input type="text" class="form-control" id="dlIcon" placeholder="fab fa-android" oninput="updateIconPreview(this.value,'dlIconPreview')" style="flex:1;">
+            </div>
         </div>
         <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="dlText" placeholder="如: Android"></div>
         <div class="form-group"><label>副标题</label><input type="text" class="form-control" id="dlSubtext" placeholder="如: 点击下载"></div>
@@ -139,19 +163,6 @@ admin_header('编辑应用', 'apps');
     </div>
 </div>
 
-<!-- 添加图片URL模态框 -->
-<div class="modal-overlay" id="addImgUrlModal">
-    <div class="modal">
-        <h3>添加图片 (URL)</h3>
-        <div class="form-group"><label>图片地址</label><input type="text" class="form-control" id="imgUrl" placeholder="如: img/app/1.webp 或 https://..."></div>
-        <div class="form-group"><label>描述文本</label><input type="text" class="form-control" id="imgAlt" placeholder="如: 首页界面"></div>
-        <div class="modal-actions">
-            <button class="btn btn-outline" onclick="Modal.hide('addImgUrlModal')">取消</button>
-            <button class="btn btn-primary" onclick="addImageUrl()">添加</button>
-        </div>
-    </div>
-</div>
-
 <!-- 编辑下载按钮模态框 -->
 <div class="modal-overlay" id="editDlModal">
     <div class="modal">
@@ -159,13 +170,21 @@ admin_header('编辑应用', 'apps');
         <input type="hidden" id="editDlId">
         <div class="form-group">
             <label>平台类型</label>
-            <select class="form-control" id="editDlType">
+            <select class="form-control" id="editDlType" onchange="onDlTypeChange('editDlType','editDlIcon','editDlIconPreview')">
                 <option value="android">Android</option>
                 <option value="ios">iOS</option>
                 <option value="windows">Windows</option>
                 <option value="web">Web</option>
                 <option value="tv">TV</option>
+                <option value="other">其他</option>
             </select>
+        </div>
+        <div class="form-group">
+            <label>按钮图标 <small style="color:var(--text-secondary);">FA图标类名</small></label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <i id="editDlIconPreview" class="fab fa-android" style="font-size:1.4em;width:28px;text-align:center;"></i>
+                <input type="text" class="form-control" id="editDlIcon" placeholder="fab fa-android" oninput="updateIconPreview(this.value,'editDlIconPreview')" style="flex:1;">
+            </div>
         </div>
         <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="editDlText"></div>
         <div class="form-group"><label>副标题</label><input type="text" class="form-control" id="editDlSubtext"></div>
@@ -186,9 +205,33 @@ admin_header('编辑应用', 'apps');
     </div>
 </div>
 
+<!-- 添加图片URL模态框 -->
+<div class="modal-overlay" id="addImgUrlModal">
+    <div class="modal">
+        <h3>添加图片 (URL)</h3>
+        <div class="form-group"><label>图片地址</label><input type="text" class="form-control" id="imgUrl" placeholder="如: img/app/1.webp 或 https://..."></div>
+        <div class="form-group"><label>描述文本</label><input type="text" class="form-control" id="imgAlt" placeholder="如: 首页界面"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="Modal.hide('addImgUrlModal')">取消</button>
+            <button class="btn btn-primary" onclick="addImageUrl()">添加</button>
+        </div>
+    </div>
+</div>
+
 <script>
 const APP_ID = <?= $id ?>;
-let attachments = []; // 附件数据缓存
+let attachments = [];
+let appSlug = '';
+
+// 预定义类型→图标映射
+const TYPE_ICON_MAP = {
+    android: 'fab fa-android',
+    ios: 'fab fa-apple',
+    windows: 'fab fa-windows',
+    web: 'fas fa-globe',
+    tv: 'fas fa-tv',
+    other: 'fas fa-download'
+};
 
 async function loadAttachments() {
     try {
@@ -229,8 +272,35 @@ function pickAttachment(sel, targetId) {
     sel.style.display = 'none';
 }
 
+function updateIconPreview(val, previewId) {
+    const el = document.getElementById(previewId);
+    el.className = val || 'fas fa-download';
+    el.style.fontSize = '1.4em';
+    el.style.width = '28px';
+    el.style.textAlign = 'center';
+}
+
+function onDlTypeChange(typeId, iconId, previewId) {
+    const type = document.getElementById(typeId).value;
+    const defaultIcon = TYPE_ICON_MAP[type] || 'fas fa-download';
+    document.getElementById(iconId).value = defaultIcon;
+    updateIconPreview(defaultIcon, previewId);
+}
+
+function openAddDlModal() {
+    document.getElementById('dlType').value = 'android';
+    document.getElementById('dlIcon').value = 'fab fa-android';
+    document.getElementById('dlText').value = '';
+    document.getElementById('dlSubtext').value = '';
+    document.getElementById('dlHref').value = '';
+    document.getElementById('dlHrefPicker').style.display = 'none';
+    updateIconPreview('fab fa-android', 'dlIconPreview');
+    Modal.show('addDlModal');
+}
+
 async function loadApp() {
     const app = await API.get(`/admin/api/apps.php?id=${APP_ID}`);
+    appSlug = app.slug;
     document.getElementById('pageTitle').textContent = `编辑: ${app.name}`;
     document.getElementById('appSlug').value = app.slug;
     document.getElementById('appName').value = app.name;
@@ -247,15 +317,32 @@ async function loadApp() {
         document.getElementById('iconPreview').style.display = '';
     }
 
-    document.getElementById('iosPlist').value = app.ios_plist_url || '';
+    // iOS配置
+    document.getElementById('iosIpaUrl').value = app.ios_ipa_url || '';
+    document.getElementById('iosBundleId').value = app.ios_bundle_id || '';
     document.getElementById('iosCert').value = app.ios_cert_name || '';
     document.getElementById('iosVersion').value = app.ios_version || '';
     document.getElementById('iosSize').value = app.ios_size || '';
     document.getElementById('iosDesc').value = app.ios_description || '';
     document.getElementById('iosTemplate').value = app.ios_template || 'modern';
+    updatePlistPreview();
 
     renderDownloads(app.downloads);
     renderImages(app.images);
+}
+
+function updatePlistPreview() {
+    const ipaUrl = document.getElementById('iosIpaUrl').value.trim();
+    const previewDiv = document.getElementById('plistPreview');
+    const urlDisplay = document.getElementById('plistUrlDisplay');
+    if (ipaUrl && appSlug) {
+        const plistUrl = location.origin + '/api/plist.php?app=' + appSlug;
+        const installUrl = 'itms-services://?action=download-manifest&url=' + encodeURIComponent(plistUrl);
+        urlDisplay.textContent = installUrl;
+        previewDiv.style.display = '';
+    } else {
+        previewDiv.style.display = 'none';
+    }
 }
 
 async function saveApp() {
@@ -266,14 +353,30 @@ async function saveApp() {
         icon: document.getElementById('appIcon').value.trim(),
         icon_url: iconType === 'image' ? document.getElementById('appIconUrl').value.trim() : '',
         theme_color: document.getElementById('appColor').value,
-        ios_plist_url: document.getElementById('iosPlist').value.trim(),
+    });
+    Toast.success('基本信息已保存');
+}
+
+async function saveIosConfig() {
+    const ipaUrl = document.getElementById('iosIpaUrl').value.trim();
+    // 自动生成plist链接
+    let plistUrl = '';
+    if (ipaUrl && appSlug) {
+        plistUrl = 'itms-services://?action=download-manifest&url=' + encodeURIComponent(location.origin + '/api/plist.php?app=' + appSlug);
+    }
+    await API.put('/admin/api/apps.php', {
+        id: APP_ID,
+        ios_ipa_url: ipaUrl,
+        ios_bundle_id: document.getElementById('iosBundleId').value.trim(),
+        ios_plist_url: plistUrl,
         ios_cert_name: document.getElementById('iosCert').value.trim(),
         ios_version: document.getElementById('iosVersion').value.trim(),
         ios_size: document.getElementById('iosSize').value.trim(),
         ios_description: document.getElementById('iosDesc').value.trim(),
         ios_template: document.getElementById('iosTemplate').value,
     });
-    Toast.success('已保存');
+    Toast.success('iOS配置已保存');
+    updatePlistPreview();
 }
 
 function toggleIconMode() {
@@ -300,22 +403,26 @@ async function uploadIcon(input) {
 function renderDownloads(list) {
     const body = document.getElementById('dlList');
     if (list.length === 0) {
-        body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);">暂无下载按钮</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);">暂无下载按钮</td></tr>';
         return;
     }
-    body.innerHTML = list.map(d => `
+    body.innerHTML = list.map(d => {
+        const icon = d.btn_icon || TYPE_ICON_MAP[d.btn_type] || 'fas fa-download';
+        return `
         <tr data-id="${d.id}" draggable="true">
             <td><span class="drag-handle"><i class="fas fa-grip-vertical"></i></span></td>
-            <td>${d.btn_type}</td>
-            <td>${d.btn_text}</td>
-            <td>${d.btn_subtext}</td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.href}</td>
+            <td><i class="${escapeHTML(icon)}" style="font-size:1.2em;"></i></td>
+            <td>${escapeHTML(d.btn_type)}</td>
+            <td>${escapeHTML(d.btn_text)}</td>
+            <td>${escapeHTML(d.btn_subtext)}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHTML(d.href)}">${escapeHTML(d.href)}</td>
             <td>
                 <button class="btn btn-outline btn-sm" onclick='editDownload(${JSON.stringify(d)})'><i class="fas fa-edit"></i></button>
                 <button class="btn btn-danger btn-sm" onclick="deleteDownload(${d.id})"><i class="fas fa-trash"></i></button>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 
     initSortable(body, async (ids) => {
         await API.post('/admin/api/reorder.php', { table: 'app_downloads', order: ids });
@@ -324,9 +431,12 @@ function renderDownloads(list) {
 }
 
 async function addDownload() {
+    const btnType = document.getElementById('dlType').value;
+    const btnIcon = document.getElementById('dlIcon').value.trim();
     await API.post('/admin/api/downloads.php', {
         app_id: APP_ID,
-        btn_type: document.getElementById('dlType').value,
+        btn_type: btnType,
+        btn_icon: btnIcon,
         btn_text: document.getElementById('dlText').value.trim(),
         btn_subtext: document.getElementById('dlSubtext').value.trim(),
         href: document.getElementById('dlHref').value.trim() || '#',
@@ -338,7 +448,15 @@ async function addDownload() {
 
 function editDownload(d) {
     document.getElementById('editDlId').value = d.id;
-    document.getElementById('editDlType').value = d.btn_type;
+    // 如果btn_type不在预定义列表中，设为other
+    const typeSelect = document.getElementById('editDlType');
+    const knownTypes = [...typeSelect.options].map(o => o.value);
+    typeSelect.value = knownTypes.includes(d.btn_type) ? d.btn_type : 'other';
+
+    const icon = d.btn_icon || TYPE_ICON_MAP[d.btn_type] || 'fas fa-download';
+    document.getElementById('editDlIcon').value = icon;
+    updateIconPreview(icon, 'editDlIconPreview');
+
     document.getElementById('editDlText').value = d.btn_text;
     document.getElementById('editDlSubtext').value = d.btn_subtext;
     document.getElementById('editDlHref').value = d.href;
@@ -350,6 +468,7 @@ async function saveEditDownload() {
     await API.put('/admin/api/downloads.php', {
         id: parseInt(document.getElementById('editDlId').value),
         btn_type: document.getElementById('editDlType').value,
+        btn_icon: document.getElementById('editDlIcon').value.trim(),
         btn_text: document.getElementById('editDlText').value.trim(),
         btn_subtext: document.getElementById('editDlSubtext').value.trim(),
         href: document.getElementById('editDlHref').value.trim(),
@@ -376,7 +495,7 @@ function renderImages(list) {
     }
     grid.innerHTML = list.map(img => `
         <div class="image-item" data-id="${img.id}">
-            <img src="/${img.image_url}" alt="${img.alt_text}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjM1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PC9zdmc+'">
+            <img src="/${escapeHTML(img.image_url)}" alt="${escapeHTML(img.alt_text)}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjM1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PC9zdmc+'">
             <div class="actions">
                 <button onclick="deleteImage(${img.id})" title="删除"><i class="fas fa-trash"></i></button>
             </div>

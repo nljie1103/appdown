@@ -40,7 +40,7 @@ $apps = $pdo->query('SELECT id, slug, name, icon, icon_url, theme_color FROM app
 
 foreach ($apps as &$app) {
     // 下载按钮
-    $dlStmt = $pdo->prepare('SELECT btn_type, btn_text, btn_subtext, href FROM app_downloads WHERE app_id = ? AND is_active = 1 ORDER BY sort_order ASC');
+    $dlStmt = $pdo->prepare('SELECT btn_type, btn_icon, btn_text, btn_subtext, href FROM app_downloads WHERE app_id = ? AND is_active = 1 ORDER BY sort_order ASC');
     $dlStmt->execute([$app['id']]);
     $app['downloads'] = $dlStmt->fetchAll();
 
