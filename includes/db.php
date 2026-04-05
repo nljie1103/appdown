@@ -108,6 +108,9 @@ function init_schema(PDO $pdo): void {
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             name        TEXT NOT NULL,
             url         TEXT NOT NULL DEFAULT '#',
+            icon        TEXT NOT NULL DEFAULT '',
+            icon_url    TEXT NOT NULL DEFAULT '',
+            show_icon   INTEGER NOT NULL DEFAULT 0,
             sort_order  INTEGER NOT NULL DEFAULT 0,
             is_active   INTEGER NOT NULL DEFAULT 1
         );
@@ -309,5 +312,18 @@ function migrate_schema(PDO $pdo): void {
     }
     if (!in_array('category_id', $fcColNames)) {
         $pdo->exec("ALTER TABLE feature_cards ADD COLUMN category_id INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // 友情链接新增图标字段
+    $flCols = $pdo->query("PRAGMA table_info(friend_links)")->fetchAll();
+    $flColNames = array_column($flCols, 'name');
+    if (!in_array('icon', $flColNames)) {
+        $pdo->exec("ALTER TABLE friend_links ADD COLUMN icon TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('icon_url', $flColNames)) {
+        $pdo->exec("ALTER TABLE friend_links ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('show_icon', $flColNames)) {
+        $pdo->exec("ALTER TABLE friend_links ADD COLUMN show_icon INTEGER NOT NULL DEFAULT 0");
     }
 }

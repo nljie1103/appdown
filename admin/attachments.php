@@ -231,7 +231,7 @@ function renderFiles(files) {
                 ${f.changelog ? `<div class="log">${escapeHTML(f.changelog)}</div>` : ''}
             </div>
             <div class="file-actions">
-                <button class="btn btn-outline btn-sm" onclick="copyLink('${escapeHTML(f.file_url)}')" title="复制链接"><i class="fas fa-copy"></i></button>
+                <button class="btn btn-outline btn-sm copy-btn" onclick="copyLink(this)" data-url="${escapeHTML(f.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
                 <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteFile(${f.id})" title="删除"><i class="fas fa-trash"></i></button>
             </div>
         </div>
@@ -344,9 +344,21 @@ async function deleteFile(id) {
     Toast.success('已删除');
 }
 
-function copyLink(url) {
+function copyLink(btn) {
+    const url = btn.dataset.url;
     const full = location.origin + '/' + url;
-    navigator.clipboard.writeText(full).then(() => Toast.success('链接已复制'));
+    const ta = document.createElement('textarea');
+    ta.value = full;
+    ta.style.cssText = 'position:fixed;left:-9999px;';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+    btn.style.color = '#27ae60';
+    btn.style.borderColor = '#27ae60';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 1500);
 }
 
 // ===== 公共图片库 =====
@@ -413,7 +425,7 @@ async function loadImgFiles() {
             <span class="img-meta">${img.width && img.height ? img.width + '×' + img.height : ''}</span>
             <span class="img-meta">${escapeHTML(img.file_size)}</span>
             <span class="img-actions">
-                <button class="btn btn-outline btn-sm" onclick="copyImgLink(this.dataset.url)" data-url="${escapeHTML(img.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
+                <button class="btn btn-outline btn-sm copy-btn" onclick="copyLink(this)" data-url="${escapeHTML(img.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
                 <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteImgFile(${img.id})" title="删除"><i class="fas fa-trash"></i></button>
             </span>
         </div>
@@ -514,11 +526,6 @@ async function deleteImgFile(id) {
     Toast.success('已删除');
     await loadImgCategories();
     await loadImgFiles();
-}
-
-function copyImgLink(url) {
-    const full = location.origin + '/' + url;
-    navigator.clipboard.writeText(full).then(() => Toast.success('链接已复制'));
 }
 
 // ===== 拖拽上传初始化 =====

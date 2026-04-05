@@ -507,6 +507,9 @@
         }
 
         .friend-link-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
             padding: 12px 24px;
             background: rgba(255, 255, 255, 0.9);
             border-radius: 8px;
@@ -516,6 +519,19 @@
             transition: var(--transition);
             box-shadow: var(--shadow-sm);
             border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .friend-link-card .fl-icon {
+            font-size: 1.1em;
+            flex-shrink: 0;
+        }
+
+        .friend-link-card .fl-icon img {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            object-fit: cover;
+            vertical-align: middle;
         }
 
         .friend-link-card:hover {
@@ -1720,12 +1736,21 @@
                         if (section) section.style.display = 'none';
                         return;
                     }
-                    container.innerHTML = links.map(l => `
+                    container.innerHTML = links.map(l => {
+                        let iconHtml = '';
+                        if (l.show_icon) {
+                            if (l.icon_url) {
+                                iconHtml = `<span class="fl-icon"><img src="/${escapeHTML(l.icon_url)}" alt=""></span>`;
+                            } else if (l.icon) {
+                                iconHtml = `<span class="fl-icon"><i class="${escapeHTML(l.icon)}"></i></span>`;
+                            }
+                        }
+                        return `
                         <a href="${escapeHTML(l.url || '#')}" class="friend-link-card"
                            target="_blank" rel="noopener noreferrer">
-                            ${escapeHTML(l.name)}
-                        </a>
-                    `).join('');
+                            ${iconHtml}${escapeHTML(l.name)}
+                        </a>`;
+                    }).join('');
                 }, 'Renderer.renderFriendLinks');
 
                 const renderAppSection = withErrorBoundary((app, isFirst) => {

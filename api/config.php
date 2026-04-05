@@ -67,7 +67,7 @@ unset($app);
 $features = $pdo->query('SELECT title, description, icon, icon_url FROM feature_cards WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 
 // 友情链接
-$links = $pdo->query('SELECT name, url FROM friend_links WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+$links = $pdo->query('SELECT name, url, icon, icon_url, show_icon FROM friend_links WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 
 // 自定义代码
 $custom = [];
