@@ -1,206 +1,203 @@
-# AppDown - App Download Center
+# AppDown - APP下载中心
 
-A self-hosted, fully configurable app download page with admin panel. Built with PHP + SQLite, zero external dependencies.
+自托管、全后台可配置的APP下载落地页，带完整管理后台。基于 PHP + SQLite 构建，零外部依赖，开箱即用。
 
-**Live Demo**: Deploy it in 5 minutes on any PHP server.
+## 功能特性
 
-## Features
+- **全后台管理** — 所有内容通过管理面板配置，无需修改代码
+- **多应用支持** — 可添加无限个应用，每个应用独立配置图标、主题色、下载按钮、轮播截图
+- **iOS 安装引导** — 自动生成 iOS 企业证书安装引导页（支持微信/QQ打开Safari提示）
+- **访问统计** — 页面访问量、各应用/平台下载次数、来源追踪、7天趋势图表
+- **自定义代码** — 通过后台注入统计脚本、自定义 CSS/JS
+- **字体管理** — 上传自定义字体或使用系统内置字体
+- **特色卡片 & 友情链接** — 拖拽排序的内容模块
+- **响应式设计** — 移动端优先，适配所有设备
+- **安全防护** — CSRF保护、预处理语句、文件上传校验、输入过滤
 
-- **Dynamic Configuration** — All content managed through admin panel, no code editing needed
-- **Multi-App Support** — Add unlimited apps with custom icons, theme colors, download buttons, and carousel screenshots
-- **iOS Install Guide** — Auto-generated iOS enterprise certificate install page per app
-- **Real-time Statistics** — Page views, download counts per app/platform, traffic source tracking, 7-day trends
-- **Custom Code Injection** — Add analytics scripts, custom CSS/JS via admin panel
-- **Font Management** — Upload custom fonts or use built-in system fonts
-- **Feature Cards & Friend Links** — Drag-sortable content blocks
-- **Responsive Design** — Mobile-first, works on all devices
-- **Security** — CSRF protection, prepared statements, file upload validation, input sanitization
+## 技术栈
 
-## Tech Stack
+| 组件 | 技术 |
+|------|------|
+| 后端 | PHP 8.0+（无框架、无 Composer） |
+| 数据库 | SQLite（单文件，零配置） |
+| 前端 | 原生 JS + CSS（无构建步骤） |
+| 管理面板 | 自定义 CSS + Chart.js (CDN) |
+| 图标 | Font Awesome 7.1.0（本地） |
 
-| Component | Technology |
-|-----------|-----------|
-| Backend | PHP 8.0+ (no framework, no Composer) |
-| Database | SQLite (single file, zero config) |
-| Frontend | Vanilla JS + CSS (no build step) |
-| Admin UI | Custom CSS + Chart.js (CDN) |
-| Icons | Font Awesome 7.1.0 (local) |
-
-## Project Structure
+## 项目结构
 
 ```
 appdown/
-├── index.html              # Main download page (loads config from API)
-├── privacy.php             # Privacy policy (dynamic site name)
-├── terms.php               # Terms of service (dynamic site name)
-├── style.css               # Shared styles for policy pages
-├── install.php             # One-time installer (delete after setup)
+├── index.html              # 前端主页（通过API动态加载配置）
+├── privacy.php             # 隐私政策（动态读取站点名称）
+├── terms.php               # 用户协议（动态读取站点名称）
+├── style.css               # 协议页面公共样式
+├── install.php             # 一次性安装脚本（安装后请删除）
 │
-├── api/                    # Public APIs
-│   ├── config.php          # GET: Full site config JSON (cached)
-│   └── track.php           # POST: Visit/download event tracking
+├── api/                    # 公共API
+│   ├── config.php          # GET: 返回完整站点配置JSON（带缓存）
+│   └── track.php           # POST: 访问/下载事件追踪
 │
 ├── ios/
-│   └── index.php           # Dynamic iOS install guide (/ios/?app=slug)
+│   └── index.php           # iOS安装引导页（/ios/?app=应用标识）
 │
-├── includes/               # PHP libraries (not web-accessible)
-│   ├── db.php              # SQLite connection + schema
-│   ├── auth.php            # Session authentication
-│   ├── csrf.php            # CSRF token validation
-│   ├── helpers.php         # Utility functions
-│   ├── upload.php          # File upload handler
-│   ├── init.php            # Bootstrap
-│   └── layout.php          # Admin page layout
+├── includes/               # PHP公共库（禁止Web访问）
+│   ├── db.php              # SQLite连接 + 建表
+│   ├── auth.php            # 会话认证
+│   ├── csrf.php            # CSRF令牌校验
+│   ├── helpers.php         # 工具函数
+│   ├── upload.php          # 文件上传处理
+│   ├── init.php            # 引导文件
+│   └── layout.php          # 后台页面布局
 │
-├── admin/                  # Admin panel
-│   ├── login.php           # Login page
-│   ├── dashboard.php       # Statistics dashboard
-│   ├── apps.php            # App list management
-│   ├── app-edit.php        # Single app editor (downloads + images + iOS config)
-│   ├── settings.php        # Site settings
-│   ├── features.php        # Feature cards
-│   ├── links.php           # Friend links
-│   ├── fonts.php           # Font management
-│   ├── custom-code.php     # Custom CSS/JS injection
-│   ├── api/                # Admin AJAX endpoints
-│   └── assets/             # Admin CSS/JS
+├── admin/                  # 管理后台
+│   ├── login.php           # 登录页
+│   ├── dashboard.php       # 统计仪表盘
+│   ├── apps.php            # 应用列表管理
+│   ├── app-edit.php        # 应用编辑（下载按钮+轮播���+iOS配置）
+│   ├── settings.php        # 站点设置
+│   ├── features.php        # 特色卡片
+│   ├── links.php           # 友情链接
+│   ├── fonts.php           # 字体管理
+│   ├── custom-code.php     # 自定义代码注入
+│   ├── api/                # 后台AJAX接口
+│   └── assets/             # 后台CSS/JS资源
 │
-├── static/                 # Static assets
+├── static/                 # 静态资源
 │   └── fontawesome-free-7.1.0-web/
 │
-├── data/                   # SQLite database (auto-created)
+├── data/                   # SQLite数据库（自动创建）
 │   └── app.db
 │
-└── uploads/                # User-uploaded files
+└── uploads/                # 用户上传文件
     ├── images/
     ├── fonts/
     └── apps/
 ```
 
-## Quick Start
+## 快速开始
 
-### Requirements
+### 环境要求
 
-- PHP 8.0+ with `pdo_sqlite` and `fileinfo` extensions
-- Nginx or Apache
-- No MySQL, no Composer, no Node.js needed
+- PHP 8.0+ 且启用 `pdo_sqlite` 和 `fileinfo` 扩展
+- Nginx 或 Apache
+- **无需** MySQL、Composer、Node.js
 
-### Installation
+### 安装步骤
 
-1. **Upload** the project to your web server root
+1. **上传**项目文件到服务器网站根目录
 
-2. **Create directories** (if not exists):
+2. **创建必要目录**（如不存在）：
    ```bash
    mkdir -p data uploads/images uploads/fonts uploads/apps
    chmod 755 data uploads
    ```
 
-3. **Run installer** — visit `https://yourdomain.com/install.php` in your browser
-   - Creates the database and seeds default data
-   - Generates an admin account (username: `admin`)
-   - **Save the displayed password!**
+3. **运行安装程序** — 浏览器访问 `https://你的域名/install.php`
+   - 自动创建数据库并导入示例数据
+   - 设置管理员账号和站点名称
 
-4. **Delete install.php** immediately after setup:
+4. **安装完成后立即删除安装脚本**：
    ```bash
    rm install.php
    ```
 
-5. **Login** at `https://yourdomain.com/admin/`
+5. **登录后台** — 访问 `https://你的域名/admin/`
 
-### Nginx Security Rules
+### Nginx 安全规则
 
-Add these to your Nginx server block:
+在 Nginx 配置的 server 块中添加：
 
 ```nginx
-# Block access to database and includes
+# 禁止访问数据库和公共库目录
 location ~* ^/(data|includes)/ {
     deny all;
     return 404;
 }
 
-# Block hidden files
+# 禁止访问隐藏文件
 location ~ /\. {
     deny all;
     return 404;
 }
 
-# Prevent PHP execution in uploads
+# 禁止在上传目录执行PHP
 location ~* ^/uploads/.*\.php$ {
     deny all;
     return 404;
 }
 ```
 
-### BT Panel (宝塔面板) Users
+### 宝塔面板用户
 
-See [DEPLOY.md](DEPLOY.md) for step-by-step Chinese instructions.
+详见 [DEPLOY.md](DEPLOY.md) 宝塔面板部署教程。
 
-## Admin Panel
+## 后台功能
 
-| Page | Function |
-|------|----------|
-| Dashboard | Today's visits/downloads, 7-day trend chart, traffic sources |
-| Apps | Add/edit/delete/sort apps, manage download buttons and carousel images per app |
-| App Edit | Configure downloads, screenshots, and iOS install page settings |
-| Settings | Site title, logo, notice, stats display numbers, carousel interval |
-| Features | Manage feature highlight cards (drag-sortable) |
-| Links | Manage footer friend links (drag-sortable) |
-| Fonts | Upload custom fonts or select built-in system fonts |
-| Custom Code | Inject custom CSS/JS in head or footer (e.g., analytics scripts) |
+| 页面 | 功能 |
+|------|------|
+| 仪表盘 | 今日访问/下载量、7天趋势图、来源TOP10 |
+| 应用管理 | 添加/编辑/删除/排序应用，管理下载按钮和轮播截图 |
+| 应用编辑 | 配置下载链接、截图、iOS安装引导页 |
+| 站点设置 | 站点名称、Logo、公告、统计数字、轮播间隔 |
+| 特色卡片 | 管理首页特色亮点卡片（拖拽排序） |
+| 友情链接 | 管理页脚友情链接（拖拽排序） |
+| 字体管理 | 上传自定义字体或选择系统字体 |
+| 自定义代码 | 在 head 或 footer 注入自定义 CSS/JS（如统计脚本） |
 
-## API Reference
+## API 接口
 
-### Public
+### 公共接口
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/config.php` | Returns full site configuration JSON |
-| POST | `/api/track.php` | Records visit/download events |
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/config.php` | 返回完整站点配置JSON |
+| POST | `/api/track.php` | 记录访问/下载事件 |
 
-### Admin (requires login + CSRF token)
+### 后台接口（需登录 + CSRF令牌）
 
-| Endpoint | Methods | Description |
-|----------|---------|-------------|
-| `/admin/api/apps.php` | GET/POST/PUT/DELETE | App CRUD |
-| `/admin/api/downloads.php` | GET/POST/PUT/DELETE | Download button CRUD |
-| `/admin/api/images.php` | GET/POST/DELETE | Carousel image CRUD |
-| `/admin/api/settings.php` | GET/POST | Site settings read/write |
-| `/admin/api/features.php` | GET/POST/PUT/DELETE | Feature card CRUD |
-| `/admin/api/links.php` | GET/POST/PUT/DELETE | Friend link CRUD |
-| `/admin/api/custom-code.php` | GET/POST | Custom code read/write |
-| `/admin/api/upload.php` | POST | File upload (image/font/app) |
-| `/admin/api/reorder.php` | POST | Drag-sort ordering |
-| `/admin/api/dashboard.php` | GET | Dashboard statistics |
+| 路径 | 方法 | 说明 |
+|------|------|------|
+| `/admin/api/apps.php` | GET/POST/PUT/DELETE | 应用增删改查 |
+| `/admin/api/downloads.php` | GET/POST/PUT/DELETE | 下载按钮增删改查 |
+| `/admin/api/images.php` | GET/POST/DELETE | 轮播图增删改查 |
+| `/admin/api/settings.php` | GET/POST | 站点设置读写 |
+| `/admin/api/features.php` | GET/POST/PUT/DELETE | 特色卡片增删改查 |
+| `/admin/api/links.php` | GET/POST/PUT/DELETE | 友情链接增删改查 |
+| `/admin/api/custom-code.php` | GET/POST | 自定义代码读写 |
+| `/admin/api/upload.php` | POST | 文件上传（图片/字体/安装包） |
+| `/admin/api/reorder.php` | POST | 拖拽排序 |
+| `/admin/api/dashboard.php` | GET | 仪表盘统计数据 |
 
-## Local Development
+## 本地开发
 
-Since the project uses PHP, you need a local PHP environment:
+项目基于 PHP，本地开发需要 PHP 环境：
 
-**Option 1: VS Code + PHP Server extension**
-1. Install [PHP](https://www.php.net/downloads) on your system
-2. Install the [PHP Server](https://marketplace.visualstudio.com/items?itemName=brapifra.phpserver) VS Code extension
-3. Right-click `index.html` → "PHP Server: Serve Project"
-
-**Option 2: PHP built-in server** (recommended)
+**方式一：PHP 内置服务器**（推荐）
 ```bash
 cd /path/to/appdown
 php -S localhost:8000
 ```
-Then visit `http://localhost:8000`
+然后访问 `http://localhost:8000`
 
-**Option 3: Docker**
+**方式二：VS Code + PHP Server 扩展**
+1. 安装 [PHP](https://www.php.net/downloads)
+2. 安装 [PHP Server](https://marketplace.visualstudio.com/items?itemName=brapifra.phpserver) VS Code 扩展
+3. 右键 `index.html` → "PHP Server: Serve Project"
+
+**方式三：Docker**
 ```bash
 docker run -d -p 8080:80 -v $(pwd):/var/www/html php:8.2-apache
 ```
 
-## Upload Limits
+## 上传限制
 
-| Category | Max Size | Allowed Types |
-|----------|----------|---------------|
-| Image | 5 MB | jpg, jpeg, png, gif, webp, svg, ico |
-| Font | 10 MB | ttf, woff, woff2, otf |
-| App | 200 MB | apk, ipa, exe, dmg, zip |
+| 类型 | 大小限制 | 允许格式 |
+|------|---------|---------|
+| 图片 | 5 MB | jpg, jpeg, png, gif, webp, svg, ico |
+| 字体 | 10 MB | ttf, woff, woff2, otf |
+| 安装包 | 200 MB | apk, ipa, exe, dmg, zip |
 
-## License
+## 开源协议
 
 [MIT](LICENSE)
