@@ -46,7 +46,13 @@ function handle_upload(string $field, string $category, string $custom_name = ''
         $clean = preg_replace('/[^\w\x{4e00}-\x{9fff}.\-]/u', '_', $custom_name);
         $safe_name = $clean . '.' . $ext;
     } else {
-        $safe_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        // 保留原始文件名，清理非法字符
+        $original = pathinfo($file['name'], PATHINFO_FILENAME);
+        $clean = preg_replace('/[^\w\x{4e00}-\x{9fff}.\-]/u', '_', $original);
+        if ($clean === '' || $clean === '_') {
+            $clean = time() . '_' . bin2hex(random_bytes(4));
+        }
+        $safe_name = $clean . '.' . $ext;
     }
     $dest_dir = __DIR__ . '/../uploads/' . $category . 's';
 

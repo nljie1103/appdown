@@ -361,6 +361,31 @@ function copyLink(btn) {
     setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 1500);
 }
 
+// ===== 图片预览灯箱 =====
+function previewImg(src) {
+    let overlay = document.getElementById('imgLightbox');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'imgLightbox';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;cursor:zoom-out;opacity:0;transition:opacity .2s;';
+        overlay.innerHTML = '<img style="max-width:90%;max-height:90%;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);object-fit:contain;transition:transform .2s;" id="imgLightboxImg">';
+        overlay.addEventListener('click', () => {
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 200);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && overlay.style.display === 'flex') {
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.style.display = 'none', 200);
+            }
+        });
+        document.body.appendChild(overlay);
+    }
+    document.getElementById('imgLightboxImg').src = src;
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => overlay.style.opacity = '1');
+}
+
 // ===== 公共图片库 =====
 let imgCategories = [];
 let currentImgCatId = null;
@@ -425,6 +450,7 @@ async function loadImgFiles() {
             <span class="img-meta">${img.width && img.height ? img.width + '×' + img.height : ''}</span>
             <span class="img-meta">${escapeHTML(img.file_size)}</span>
             <span class="img-actions">
+                <button class="btn btn-outline btn-sm" onclick="previewImg('/${escapeHTML(img.file_url)}')" title="预览"><i class="fas fa-eye"></i></button>
                 <button class="btn btn-outline btn-sm copy-btn" onclick="copyLink(this)" data-url="${escapeHTML(img.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
                 <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteImgFile(${img.id})" title="删除"><i class="fas fa-trash"></i></button>
             </span>
