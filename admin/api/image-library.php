@@ -92,7 +92,10 @@ if ($action === 'images') {
         $categoryId = (int)($_POST['category_id'] ?? 0);
         if (!$categoryId) json_response(['error' => '请选择图片分类'], 400);
 
-        $result = handle_upload('file', 'image');
+        $customName = trim($_POST['rename'] ?? '');
+        $remark = trim($_POST['remark'] ?? '');
+
+        $result = handle_upload('file', 'image', $customName);
         if (!$result['ok']) {
             json_response(['ok' => false, 'error' => $result['error']], 400);
         }
@@ -114,11 +117,11 @@ if ($action === 'images') {
             }
         }
 
-        $originalName = $_FILES['file']['name'] ?? '';
+        $originalName = $customName !== '' ? ($customName . '.' . pathinfo($_FILES['file']['name'] ?? '', PATHINFO_EXTENSION)) : ($_FILES['file']['name'] ?? '');
 
         $max = $pdo->query("SELECT COALESCE(MAX(sort_order),0) FROM image_library WHERE category_id = $categoryId")->fetchColumn();
-        $stmt = $pdo->prepare("INSERT INTO image_library (category_id, file_url, filename, file_size, width, height, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$categoryId, $result['url'], $originalName, $fileSizeStr, $width, $height, $max + 1]);
+        $stmt = $pdo->prepare("INSERT INTO image_library (category_id, file_url, filename, file_size, width, height, sort_order, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$categoryId, $result['url'], $originalName, $fileSizeStr, $width, $height, $max + 1, $remark]);
 
         json_response([
             'ok' => true,

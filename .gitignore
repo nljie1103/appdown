@@ -25,3 +25,4 @@ desktop.ini
 # Install lock & log (generated after installation)
 install/install.lock
 install/access.log
+static/fontawesome-free-7.1.0-web/metadata/fa-icons-list.txt

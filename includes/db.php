@@ -180,6 +180,7 @@ function init_schema(PDO $pdo): void {
             file_size   TEXT NOT NULL DEFAULT '',
             width       INTEGER NOT NULL DEFAULT 0,
             height      INTEGER NOT NULL DEFAULT 0,
+            remark      TEXT NOT NULL DEFAULT '',
             sort_order  INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -287,6 +288,9 @@ function migrate_schema(PDO $pdo): void {
     $ilColNames = array_column($ilCols, 'name');
     if (!in_array('sort_order', $ilColNames)) {
         $pdo->exec("ALTER TABLE image_library ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+    }
+    if (!in_array('remark', $ilColNames)) {
+        $pdo->exec("ALTER TABLE image_library ADD COLUMN remark TEXT NOT NULL DEFAULT ''");
     }
 
     // 特色卡片分类表 + feature_cards 新字段

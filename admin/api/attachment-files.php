@@ -22,7 +22,13 @@ if ($method === 'POST') {
         json_response(['error' => '应用ID、平台ID、版本号不能为空'], 400);
     }
 
-    $upload = handle_upload('file', 'app');
+    // 获取应用名称用于文件命名
+    $appStmt = $pdo->prepare('SELECT name FROM apps WHERE id = ?');
+    $appStmt->execute([$appId]);
+    $appName = $appStmt->fetchColumn() ?: 'app';
+    $customName = $appName . '-' . $version;
+
+    $upload = handle_upload('file', 'app', $customName);
     if (!$upload['ok']) {
         json_response(['error' => $upload['error']], 400);
     }

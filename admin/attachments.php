@@ -58,22 +58,28 @@ admin_header('附件管理', 'attachments');
         <div class="card" style="padding:0;align-self:start;">
             <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
                 <h3 style="margin:0;font-size:0.95em;" id="imgListTitle">选择一个分类</h3>
-                <button class="btn btn-primary btn-sm" id="imgUploadBtn" style="display:none;" onclick="document.getElementById('imgFileInput').click()"><i class="fas fa-upload"></i> 上传图片</button>
+                <button class="btn btn-primary btn-sm" id="imgUploadBtn" style="display:none;" onclick="Modal.show('imgUploadModal')"><i class="fas fa-upload"></i> 上传图片</button>
             </div>
             <div id="imgFileList" style="padding:16px;">
                 <div class="empty-state"><i class="fas fa-images"></i><p>请先选择左侧图片分类</p></div>
             </div>
         </div>
     </div>
-    <input type="file" id="imgFileInput" accept="image/*" style="display:none;" onchange="uploadImgFile(this)">
 </div>
 
 <!-- 上传弹窗 -->
 <div class="modal-overlay" id="uploadModal">
     <div class="modal">
         <h3>上传新版本</h3>
-        <div class="form-group"><label>版本号</label><input type="text" class="form-control" id="uploadVersion" placeholder="如: v1.0.0"></div>
-        <div class="form-group"><label>选择文件</label><input type="file" class="form-control" id="uploadFile" accept=".apk,.ipa,.exe,.dmg,.zip"></div>
+        <div class="form-group"><label><span style="color:#e74c3c;">*</span> 版本号</label><input type="text" class="form-control" id="uploadVersion" placeholder="如: v1.0.0"></div>
+        <div class="form-group">
+            <label>选择文件（支持拖拽）</label>
+            <div id="uploadDropZone" style="border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;" onclick="document.getElementById('uploadFile').click()">
+                <i class="fas fa-cloud-upload-alt" style="font-size:1.5em;color:var(--text-secondary);"></i>
+                <p style="margin:8px 0 0;color:var(--text-secondary);font-size:0.9em;" id="uploadDropText">点击选择或拖拽文件到此处</p>
+                <input type="file" id="uploadFile" accept=".apk,.ipa,.exe,.dmg,.zip" style="display:none;">
+            </div>
+        </div>
         <div class="form-group"><label>更新日志 <small style="color:var(--text-secondary);">(可选)</small></label><textarea class="form-control" id="uploadChangelog" rows="3" placeholder="本次更新内容..."></textarea></div>
         <div id="uploadProgress" style="display:none;margin:12px 0;">
             <div style="background:var(--border);border-radius:4px;overflow:hidden;height:6px;">
@@ -84,6 +90,27 @@ admin_header('附件管理', 'attachments');
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('uploadModal')">取消</button>
             <button class="btn btn-primary" id="uploadSubmit" onclick="doUpload()">上传</button>
+        </div>
+    </div>
+</div>
+
+<!-- 图片上传弹窗 -->
+<div class="modal-overlay" id="imgUploadModal">
+    <div class="modal" style="max-width:420px;">
+        <h3>上传图片</h3>
+        <div class="form-group"><label>重命名 <small style="color:var(--text-secondary);">(可选，不含后缀)</small></label><input type="text" class="form-control" id="imgRename" placeholder="留空则使用原文件名"></div>
+        <div class="form-group">
+            <label>选择图片（支持拖拽）</label>
+            <div id="imgDropZone" style="border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;" onclick="document.getElementById('imgFileInput2').click()">
+                <i class="fas fa-cloud-upload-alt" style="font-size:1.5em;color:var(--text-secondary);"></i>
+                <p style="margin:8px 0 0;color:var(--text-secondary);font-size:0.9em;" id="imgDropText">点击选择或拖拽图片到此处</p>
+                <input type="file" id="imgFileInput2" accept="image/*" style="display:none;">
+            </div>
+        </div>
+        <div class="form-group"><label>备注 <small style="color:var(--text-secondary);">(可选)</small></label><input type="text" class="form-control" id="imgRemark" placeholder="图片用途说明"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="Modal.hide('imgUploadModal')">取消</button>
+            <button class="btn btn-primary" onclick="doImgUpload()">上传</button>
         </div>
     </div>
 </div>
@@ -111,6 +138,8 @@ admin_header('附件管理', 'attachments');
 .img-row .img-name { font-size: 0.9em; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .img-row .img-meta { font-size: 0.8em; color: var(--text-secondary); white-space: nowrap; }
 .img-row .img-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.drop-active { border-color: var(--primary) !important; background: rgba(52,152,219,0.05) !important; }
+.img-row .img-remark { font-size: 0.78em; color: var(--text-secondary); font-style: italic; white-space: nowrap; }
 </style>
 
 <script>
@@ -226,11 +255,21 @@ async function deletePlatform(id, name) {
 }
 
 async function doUpload() {
-    const version = document.getElementById('uploadVersion').value.trim();
+    const versionEl = document.getElementById('uploadVersion');
+    const version = versionEl.value.trim();
     const file = document.getElementById('uploadFile').files[0];
     const changelog = document.getElementById('uploadChangelog').value.trim();
-    if (!version) { Toast.error('请填写版本号'); return; }
-    if (!file) { Toast.error('请选择文件'); return; }
+
+    // 版本号必填验证
+    if (!version) {
+        versionEl.style.borderColor = '#e74c3c';
+        versionEl.focus();
+        AlertModal.warning('请填写版本号', '版本号为必填项');
+        return;
+    }
+    versionEl.style.borderColor = '';
+
+    if (!file) { AlertModal.warning('请选择文件', '拖拽文件到虚线框或点击选择'); return; }
 
     const fd = new FormData();
     fd.append('app_id', currentAppId);
@@ -364,6 +403,7 @@ async function loadImgFiles() {
         <div class="img-row">
             <img src="/${escapeHTML(img.file_url)}" alt="" loading="lazy">
             <span class="img-name" title="${escapeHTML(img.filename)}">${escapeHTML(img.filename || img.file_url.split('/').pop())}</span>
+            ${img.remark ? `<span class="img-remark" title="${escapeHTML(img.remark)}">${escapeHTML(img.remark)}</span>` : ''}
             <span class="img-meta">${img.width && img.height ? img.width + '×' + img.height : ''}</span>
             <span class="img-meta">${escapeHTML(img.file_size)}</span>
             <span class="img-actions">
@@ -403,19 +443,32 @@ async function deleteImgCategory(id, name) {
     await loadImgCategories();
 }
 
-async function uploadImgFile(input) {
-    if (!input.files[0] || !currentImgCatId) return;
+async function doImgUpload() {
+    const file = document.getElementById('imgFileInput2').files[0];
+    if (!file || !currentImgCatId) {
+        AlertModal.warning('请选择图片', '拖拽图片到虚线框或点击选择');
+        return;
+    }
+    const rename = document.getElementById('imgRename').value.trim();
+    const remark = document.getElementById('imgRemark').value.trim();
+
     const fd = new FormData();
-    fd.append('file', input.files[0]);
+    fd.append('file', file);
     fd.append('category_id', currentImgCatId);
+    fd.append('rename', rename);
+    fd.append('remark', remark);
     fd.append('_csrf', CSRF_TOKEN);
     try {
         const res = await API.upload('/admin/api/image-library.php?action=images', fd);
         AlertModal.success('上传成功', '图片已上传到图片库');
+        Modal.hide('imgUploadModal');
+        document.getElementById('imgRename').value = '';
+        document.getElementById('imgRemark').value = '';
+        document.getElementById('imgFileInput2').value = '';
+        document.getElementById('imgDropText').textContent = '点击选择或拖拽图片到此处';
         await loadImgCategories();
         await loadImgFiles();
     } catch(e) {}
-    input.value = '';
 }
 
 async function deleteImgFile(id) {
@@ -430,6 +483,40 @@ function copyImgLink(url) {
     const full = location.origin + '/' + url;
     navigator.clipboard.writeText(full).then(() => Toast.success('链接已复制'));
 }
+
+// ===== 拖拽上传初始化 =====
+function setupDropZone(zoneId, fileInputId, textId) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(fileInputId);
+    if (!zone || !input) return;
+
+    ['dragenter','dragover'].forEach(ev => {
+        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.add('drop-active'); });
+    });
+    ['dragleave','drop'].forEach(ev => {
+        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('drop-active'); });
+    });
+    zone.addEventListener('drop', e => {
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            input.files = files;
+            document.getElementById(textId).textContent = files[0].name;
+        }
+    });
+    input.addEventListener('change', function() {
+        if (this.files.length) {
+            document.getElementById(textId).textContent = this.files[0].name;
+        }
+    });
+}
+
+// 版本号输入框恢复边框色
+document.getElementById('uploadVersion').addEventListener('input', function() {
+    this.style.borderColor = '';
+});
+
+setupDropZone('uploadDropZone', 'uploadFile', 'uploadDropText');
+setupDropZone('imgDropZone', 'imgFileInput2', 'imgDropText');
 
 init();
 </script>

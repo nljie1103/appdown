@@ -80,7 +80,7 @@
 **方式一：Git 克隆**
 ```bash
 cd /www/wwwroot/你的域名
-git clone https://github.com/nljie1103/appdown.git .
+git clone https://github.com/nljie1103/appdown.git
 ```
 
 **方式二：下载压缩包**
@@ -143,7 +143,7 @@ appdown/
 
 ## 🔧 Nginx 安全规则
 
-在 Nginx server 块中添加（宝塔面板：网站 → 设置 → 配置文件）：
+在 Nginx server 块中添加（宝塔面板：网站 → 设置 → 伪静态）：
 
 ```nginx
 # 禁止访问数据库和公共库

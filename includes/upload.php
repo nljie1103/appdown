@@ -3,7 +3,7 @@
  * 文件上传处理
  */
 
-function handle_upload(string $field, string $category): array {
+function handle_upload(string $field, string $category, string $custom_name = ''): array {
     if (empty($_FILES[$field]) || $_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
         $code = $_FILES[$field]['error'] ?? -1;
         return ['ok' => false, 'error' => "上传失败 (code: $code)"];
@@ -41,7 +41,13 @@ function handle_upload(string $field, string $category): array {
     }
 
     // 生成安全文件名
-    $safe_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if ($custom_name !== '') {
+        // 使用自定义名称，清理非法字符
+        $clean = preg_replace('/[^\w\x{4e00}-\x{9fff}.\-]/u', '_', $custom_name);
+        $safe_name = $clean . '.' . $ext;
+    } else {
+        $safe_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    }
     $dest_dir = __DIR__ . '/../uploads/' . $category . 's';
 
     if (!is_dir($dest_dir)) {
@@ -49,6 +55,12 @@ function handle_upload(string $field, string $category): array {
     }
 
     $dest_path = $dest_dir . '/' . $safe_name;
+    // 如有同名文件，追加随机后缀
+    if (file_exists($dest_path)) {
+        $base = pathinfo($safe_name, PATHINFO_FILENAME);
+        $safe_name = $base . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+        $dest_path = $dest_dir . '/' . $safe_name;
+    }
     if (!move_uploaded_file($file['tmp_name'], $dest_path)) {
         return ['ok' => false, 'error' => '文件保存失败'];
     }

@@ -84,17 +84,96 @@ document.getElementById('fontFamily').addEventListener('input', updatePreview);
 
 document.getElementById('fontUpload').addEventListener('change', async function() {
     if (!this.files.length) return;
+    const file = this.files[0];
+
+    // 尝试从字体文件读取字体名称
+    const fontName = await readFontName(file);
+    if (fontName) {
+        document.getElementById('fontFamily').value = fontName;
+    } else {
+        document.getElementById('fontFamily').value = '用户上传字体';
+    }
+
     const fd = new FormData();
-    fd.append('file', this.files[0]);
+    fd.append('file', file);
     fd.append('category', 'font');
     fd.append('_csrf', CSRF_TOKEN);
     try {
         const res = await API.upload('/admin/api/upload.php', fd);
         document.getElementById('fontUrl').value = res.url;
-        Toast.success('字体上传成功');
+        updatePreview();
+        AlertModal.success('上传成功', '字体文件已上传，字体名称已自动识别');
     } catch(e) {}
     this.value = '';
 });
+
+// 从字体文件中读取font family name (nameID=1 or nameID=4)
+async function readFontName(file) {
+    try {
+        const buf = await file.arrayBuffer();
+        const view = new DataView(buf);
+        // 检查是否为TrueType/OpenType
+        const sig = view.getUint32(0);
+        // 0x00010000=TrueType, 0x4F54544F='OTTO'=OpenType
+        if (sig !== 0x00010000 && sig !== 0x4F54544F) {
+            // 可能是WOFF
+            const woffSig = view.getUint32(0);
+            if (woffSig === 0x774F4646 || woffSig === 0x774F4632) {
+                return null; // WOFF格式暂不解析，使用默认名
+            }
+            return null;
+        }
+        const numTables = view.getUint16(4);
+        let nameOffset = 0, nameLength = 0;
+        for (let i = 0; i < numTables; i++) {
+            const tag = String.fromCharCode(
+                view.getUint8(12 + i * 16),
+                view.getUint8(13 + i * 16),
+                view.getUint8(14 + i * 16),
+                view.getUint8(15 + i * 16)
+            );
+            if (tag === 'name') {
+                nameOffset = view.getUint32(12 + i * 16 + 8);
+                nameLength = view.getUint32(12 + i * 16 + 12);
+                break;
+            }
+        }
+        if (!nameOffset) return null;
+        const nameCount = view.getUint16(nameOffset + 2);
+        const stringOffset = nameOffset + view.getUint16(nameOffset + 4);
+        // 优先找 platformID=3 (Windows) nameID=4 (Full Name) 或 nameID=1 (Family)
+        let found = null;
+        for (let i = 0; i < nameCount; i++) {
+            const rec = nameOffset + 6 + i * 12;
+            const platformID = view.getUint16(rec);
+            const nameID = view.getUint16(rec + 6);
+            const length = view.getUint16(rec + 8);
+            const offset = view.getUint16(rec + 10);
+            if (nameID === 4 || nameID === 1) {
+                const start = stringOffset + offset;
+                let name = '';
+                if (platformID === 3 || platformID === 0) {
+                    // UTF-16 BE
+                    for (let j = 0; j < length; j += 2) {
+                        name += String.fromCharCode(view.getUint16(start + j));
+                    }
+                } else if (platformID === 1) {
+                    // Mac Roman
+                    for (let j = 0; j < length; j++) {
+                        name += String.fromCharCode(view.getUint8(start + j));
+                    }
+                }
+                if (name && name.trim()) {
+                    found = name.trim();
+                    if (nameID === 4) break; // Full Name优先
+                }
+            }
+        }
+        return found;
+    } catch(e) {
+        return null;
+    }
+}
 
 async function save() {
     await API.post('/admin/api/settings.php', {
