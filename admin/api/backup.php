@@ -39,6 +39,10 @@ if ($action === 'export') {
     if (empty($selectedTables) && !$includeUploads) json_response(['error' => '请选择要导出的数据'], 400);
     if (!class_exists('ZipArchive')) json_response(['error' => '服务器未安装PHP zip扩展，请联系服务商启用'], 500);
 
+    // 提高限制以支持大文件打包
+    @set_time_limit(600);
+    @ini_set('memory_limit', '512M');
+
     $tmpZip = tempnam(sys_get_temp_dir(), 'appdown_export_');
     $zip = new ZipArchive();
     if ($zip->open($tmpZip, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -73,25 +77,34 @@ if ($action === 'export') {
 
     $zip->close();
 
-    // 读取ZIP
+    // 无密码：流式输出ZIP文件，不加载到内存
+    if ($password === '') {
+        $fileSize = filesize($tmpZip);
+        $filename = 'appdown_backup_' . date('Ymd_His') . '.zip';
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . $fileSize);
+        header('X-Filename: ' . $filename);
+        header('Access-Control-Expose-Headers: X-Filename');
+        readfile($tmpZip);
+        unlink($tmpZip);
+        exit;
+    }
+
+    // 有密码：分块读取加密
     $zipData = file_get_contents($tmpZip);
     unlink($tmpZip);
 
-    // 有密码则加密，无密码直接输出ZIP
-    if ($password !== '') {
-        $key = hash('sha256', $password, true);
-        $iv = random_bytes(12);
-        $tag = '';
-        $encrypted = openssl_encrypt($zipData, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
-        if ($encrypted === false) json_response(['error' => '加密失败'], 500);
-        $packed = $iv . $tag . $encrypted;
-        $ext = '.enc';
-    } else {
-        $packed = $zipData;
-        $ext = '.zip';
-    }
+    $key = hash('sha256', $password, true);
+    $iv = random_bytes(12);
+    $tag = '';
+    $encrypted = openssl_encrypt($zipData, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    unset($zipData); // 尽快释放内存
+    if ($encrypted === false) json_response(['error' => '加密失败'], 500);
+    $packed = $iv . $tag . $encrypted;
+    unset($encrypted);
 
-    $filename = 'appdown_backup_' . date('Ymd_His') . $ext;
+    $filename = 'appdown_backup_' . date('Ymd_His') . '.enc';
 
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
