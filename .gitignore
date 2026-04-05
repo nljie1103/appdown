@@ -22,5 +22,6 @@ Thumbs.db
 desktop.ini
 .user.ini
 
-# Install script (should be deleted after use)
-# install.php
+# Install lock & log (generated after installation)
+install/install.lock
+install/access.log

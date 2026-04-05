@@ -1,17 +1,50 @@
 <?php
 /**
- * 一次性安装脚本 - 初始化数据库
- * 使用后请删除此文件！
+ * 安装脚本 - 初始化数据库
+ * 安装完成后自动生成 install.lock 锁定文件，无需手动删除
  */
 
-require_once __DIR__ . '/includes/init.php';
+$lockFile = __DIR__ . '/install.lock';
 
-// 防止重复安装
+// 已安装：显示警告并记录IP
+if (file_exists($lockFile)) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $time = date('Y-m-d H:i:s');
+    @file_put_contents(__DIR__ . '/access.log', "[{$time}] 非法访问尝试 IP: {$ip}\n", FILE_APPEND);
+    http_response_code(403);
+    die('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>禁止访问</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;min-height:100vh}
+    .card{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:500px;text-align:center}
+    h2{color:#e74c3c;margin-bottom:12px}p{color:#666;line-height:1.8;margin-top:8px}.ip{background:#f8f8f8;padding:8px 16px;border-radius:6px;font-family:monospace;margin-top:16px;color:#333;display:inline-block}</style>
+    </head><body><div class="card">
+    <h2>⚠ 非法访问</h2>
+    <p>程序已经初始化安装过，当前操作已被记录。</p>
+    <p>如需重新安装，请手动删除 <code>install/install.lock</code> 文件。</p>
+    <div class="ip">您的IP: ' . htmlspecialchars($ip) . '</div>
+    </div></body></html>');
+}
+
+require_once dirname(__DIR__) . '/includes/init.php';
+
+// 二次检查：数据库中已有管理员
 $pdo = get_db();
 $exists = $pdo->query("SELECT COUNT(*) as c FROM admin_users")->fetch()['c'];
 if ($exists > 0) {
-    die('<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center;">
-    <h2 style="color:#e74c3c;">已安装过，请删除 install.php</h2></body></html>');
+    // 上次安装没生成lock，补写一个
+    @file_put_contents($lockFile, json_encode([
+        'installed_at' => date('Y-m-d H:i:s'),
+        'note' => 'Lock file recreated from existing data'
+    ]));
+    http_response_code(403);
+    die('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>已安装</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;min-height:100vh}
+    .card{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:460px;text-align:center}
+    h2{color:#e67e22;margin-bottom:12px}p{color:#666;line-height:1.8}</style>
+    </head><body><div class="card">
+    <h2>已安装</h2>
+    <p>检测到数据库中已有管理员账号，已自动锁定安装程序。</p>
+    <p style="margin-top:12px;"><a href="/admin/login.php" style="color:#007AFF">前往后台登录 →</a></p>
+    </div></body></html>');
 }
 
 $msg = '';
@@ -31,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare('INSERT INTO admin_users (username, password) VALUES (?, ?)');
         $stmt->execute([$username, $hash]);
 
-        // 导入默认站点设置（通用模板）
+        // 导入默认站点设置
         $settings = [
             'site_title'        => $siteName,
             'site_heading'      => $siteName,
@@ -52,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$k, $v]);
         }
 
-        // 导入一个示例应用
+        // 示例应用
         $pdo->exec("INSERT INTO apps (slug, name, icon, theme_color, sort_order) VALUES ('demo', '示例应用', 'fas fa-mobile-alt', '#007AFF', 1)");
         $demoId = $pdo->lastInsertId();
 
@@ -72,14 +105,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lStmt = $pdo->prepare('INSERT INTO friend_links (name, url, sort_order) VALUES (?, ?, ?)');
         $lStmt->execute(['示例链接', '#', 1]);
 
-        echo '<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center;">
-        <h2 style="color:#27ae60;">安装成功！</h2>
+        // 写入锁定文件
+        $lockData = [
+            'installed_at' => date('Y-m-d H:i:s'),
+            'admin_user'   => $username,
+            'site_name'    => $siteName,
+            'ip'           => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        ];
+        file_put_contents($lockFile, json_encode($lockData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        echo '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>安装成功</title>
+        <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;min-height:100vh}
+        .card{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:460px;text-align:center}
+        h2{color:#27ae60;margin-bottom:16px}p{color:#666;line-height:1.8;margin-top:8px}strong{color:#333}.lock-info{background:#f0fdf4;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-top:16px;color:#166534;font-size:.9em}</style>
+        </head><body><div class="card">
+        <h2>安装成功！</h2>
         <p>管理员: <strong>' . htmlspecialchars($username) . '</strong></p>
         <p>站点名称: <strong>' . htmlspecialchars($siteName) . '</strong></p>
         <p style="margin-top:16px;">请登录后台添加您的应用、上传图片、配置下载链接。</p>
-        <p style="color:#e74c3c;font-weight:bold;margin-top:20px;">请立即删除此文件 (install.php)！</p>
+        <div class="lock-info">安装程序已自动锁定（install.lock），无需手动删除文件。</div>
         <p style="margin-top:16px;"><a href="/admin/login.php" style="color:#007AFF;font-size:1.1em;">前往后台登录 →</a></p>
-        </body></html>';
+        </div></body></html>';
         exit;
     }
 }

@@ -40,11 +40,11 @@ location ~* ^/uploads/.*\.php$ {
     return 404;
 }
 
-# 禁止访问install.php(安装完成后)
-# 取消注释下面两行:
-# location = /install.php {
-#     deny all;
-# }
+# 禁止外部访问安装锁定文件和日志
+location ~* ^/install/(install\.lock|access\.log)$ {
+    deny all;
+    return 404;
+}
 ```
 
 ## 4. PHP配置
@@ -63,17 +63,12 @@ post_max_size = 210M
 
 ## 5. 运行安装脚本
 
-浏览器访问：`https://你的域名/install.php`
+浏览器访问：`https://你的域名/install/`
 
 - 首次访问会初始化数据库、种子数据、创建管理员账号
-- **重要：记住页面显示的管理员密码**
-- 安装成功后，**立即删除 install.php**：
-
-```bash
-rm /www/wwwroot/ysapp.jiuliu.org/install.php
-```
-
-或取消注释上面 Nginx 配置中的 `location = /install.php` 规则。
+- **重要：记住管理员密码**
+- 安装完成后自动生成 `install.lock` 锁定文件，无需手动删除
+- 如需重新安装，删除 `install/install.lock` 文件即可
 
 ## 6. 验证
 

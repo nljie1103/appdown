@@ -32,7 +32,8 @@ appdown/
 ├── privacy.php             # 隐私政策（动态读取站点名称）
 ├── terms.php               # 用户协议（动态读取站点名称）
 ├── style.css               # 协议页面公共样式
-├── install.php             # 一次性安装脚本（安装后请删除）
+├── install/                # 安装程序
+│   └── index.php           # 安装脚本（安装后自动锁定）
 │
 ├── api/                    # 公共API
 │   ├── config.php          # GET: 返回完整站点配置JSON（带缓存）
@@ -93,24 +94,25 @@ appdown/
    chmod 755 data uploads
    ```
 
-3. **运行安装程序** — 浏览器访问 `https://你的域名/install.php`
+3. **运行安装程序** — 浏览器访问 `https://你的域名/install/`
    - 自动创建数据库并导入示例数据
    - 设置管理员账号和站点名称
+   - 安装完成后自动生成 `install.lock` 锁定文件，无需手动删除
 
-4. **安装完成后立即删除安装脚本**：
-   ```bash
-   rm install.php
-   ```
-
-5. **登录后台** — 访问 `https://你的域名/admin/`
+4. **登录后台** — 访问 `https://你的域名/admin/`
 
 ### Nginx 安全规则
 
 在 Nginx 配置的 server 块中添加：
 
 ```nginx
-# 禁止访问数据库和公共库目录
+# 禁止访问数据库、公共库和安装锁定文件
 location ~* ^/(data|includes)/ {
+    deny all;
+    return 404;
+}
+
+location ~* ^/install/(install\.lock|access\.log)$ {
     deny all;
     return 404;
 }
