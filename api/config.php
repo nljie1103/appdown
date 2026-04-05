@@ -36,7 +36,7 @@ foreach ($rows as $r) {
 }
 
 // 应用列表
-$apps = $pdo->query('SELECT id, slug, name, icon, theme_color FROM apps WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+$apps = $pdo->query('SELECT id, slug, name, icon, icon_url, theme_color FROM apps WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 
 foreach ($apps as &$app) {
     // 下载按钮

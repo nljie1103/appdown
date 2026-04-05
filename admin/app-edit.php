@@ -32,7 +32,21 @@ admin_header('编辑应用', 'apps');
         </div>
         <div class="form-group">
             <label>图标</label>
-            <input type="text" class="form-control" id="appIcon" placeholder="fas fa-tv">
+            <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="iconType" value="fa" checked onchange="toggleIconMode()"> FA图标</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="iconType" value="image" onchange="toggleIconMode()"> 自定义图片</label>
+            </div>
+            <div id="iconFaMode">
+                <input type="text" class="form-control" id="appIcon" placeholder="fas fa-tv">
+            </div>
+            <div id="iconImgMode" style="display:none;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <img id="iconPreview" src="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid #ddd;display:none;">
+                    <button class="btn btn-outline" onclick="document.getElementById('iconUpload').click()"><i class="fas fa-upload"></i> 上传图标</button>
+                    <input type="file" id="iconUpload" accept="image/*" style="display:none;" onchange="uploadIcon(this)">
+                    <input type="hidden" id="appIconUrl">
+                </div>
+            </div>
         </div>
         <div class="form-group">
             <label>主题色</label>
@@ -55,6 +69,13 @@ admin_header('编辑应用', 'apps');
         <div class="form-group"><label>应用大小</label><input type="text" class="form-control" id="iosSize" placeholder="如: 4.5 MB"></div>
     </div>
     <div class="form-group"><label>应用简介</label><textarea class="form-control" id="iosDesc" rows="3" placeholder="iOS安装页展示的应用描述"></textarea></div>
+    <div class="form-group">
+        <label>安装页模板</label>
+        <select class="form-control" id="iosTemplate">
+            <option value="modern">现代风格（毛玻璃）</option>
+            <option value="classic">经典风格（仿App Store）</option>
+        </select>
+    </div>
     <button class="btn btn-primary" onclick="saveApp()"><i class="fas fa-save"></i> 保存iOS配置</button>
 </div>
 
@@ -132,29 +153,64 @@ async function loadApp() {
     document.getElementById('appName').value = app.name;
     document.getElementById('appIcon').value = app.icon;
     document.getElementById('appColor').value = app.theme_color;
+
+    // 图标模式
+    const iconUrl = app.icon_url || '';
+    document.getElementById('appIconUrl').value = iconUrl;
+    if (iconUrl) {
+        document.querySelector('input[name="iconType"][value="image"]').checked = true;
+        toggleIconMode();
+        document.getElementById('iconPreview').src = '/' + iconUrl;
+        document.getElementById('iconPreview').style.display = '';
+    }
+
     document.getElementById('iosPlist').value = app.ios_plist_url || '';
     document.getElementById('iosCert').value = app.ios_cert_name || '';
     document.getElementById('iosVersion').value = app.ios_version || '';
     document.getElementById('iosSize').value = app.ios_size || '';
     document.getElementById('iosDesc').value = app.ios_description || '';
+    document.getElementById('iosTemplate').value = app.ios_template || 'modern';
 
     renderDownloads(app.downloads);
     renderImages(app.images);
 }
 
 async function saveApp() {
+    const iconType = document.querySelector('input[name="iconType"]:checked').value;
     await API.put('/admin/api/apps.php', {
         id: APP_ID,
         name: document.getElementById('appName').value.trim(),
         icon: document.getElementById('appIcon').value.trim(),
+        icon_url: iconType === 'image' ? document.getElementById('appIconUrl').value.trim() : '',
         theme_color: document.getElementById('appColor').value,
         ios_plist_url: document.getElementById('iosPlist').value.trim(),
         ios_cert_name: document.getElementById('iosCert').value.trim(),
         ios_version: document.getElementById('iosVersion').value.trim(),
         ios_size: document.getElementById('iosSize').value.trim(),
         ios_description: document.getElementById('iosDesc').value.trim(),
+        ios_template: document.getElementById('iosTemplate').value,
     });
     Toast.success('已保存');
+}
+
+function toggleIconMode() {
+    const mode = document.querySelector('input[name="iconType"]:checked').value;
+    document.getElementById('iconFaMode').style.display = mode === 'fa' ? '' : 'none';
+    document.getElementById('iconImgMode').style.display = mode === 'image' ? '' : 'none';
+}
+
+async function uploadIcon(input) {
+    if (!input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('category', 'image');
+    const res = await API.upload('/admin/api/upload.php', fd);
+    if (res.ok) {
+        document.getElementById('appIconUrl').value = res.url;
+        document.getElementById('iconPreview').src = '/' + res.url;
+        document.getElementById('iconPreview').style.display = '';
+        Toast.success('图标已上传');
+    }
 }
 
 // === 下载按钮 ===

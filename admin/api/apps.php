@@ -51,9 +51,9 @@ if ($method === 'POST') {
 
     $max = $pdo->query('SELECT COALESCE(MAX(sort_order),0) as m FROM apps')->fetch()['m'];
 
-    $stmt = $pdo->prepare('INSERT INTO apps (slug, name, icon, theme_color, sort_order) VALUES (?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT INTO apps (slug, name, icon, icon_url, theme_color, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
     try {
-        $stmt->execute([$slug, $name, $icon, $color, $max + 1]);
+        $stmt->execute([$slug, $name, $icon, trim($data['icon_url'] ?? ''), $color, $max + 1]);
     } catch (PDOException $e) {
         if (str_contains($e->getMessage(), 'UNIQUE')) {
             json_response(['error' => '标识已存在'], 409);
@@ -71,7 +71,7 @@ if ($method === 'PUT') {
 
     $fields = [];
     $params = [];
-    foreach (['name', 'icon', 'theme_color', 'ios_plist_url', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size'] as $f) {
+    foreach (['name', 'icon', 'icon_url', 'theme_color', 'ios_plist_url', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size', 'ios_template'] as $f) {
         if (isset($data[$f])) {
             $fields[] = "$f = ?";
             $params[] = trim($data[$f]);
@@ -98,11 +98,24 @@ if ($method === 'DELETE') {
     $data = get_json_input();
     $id = $data['id'] ?? 0;
 
-    // 删除关联的上传图片文件
+    // 删除应用图标图片
+    $iconUrl = $pdo->prepare('SELECT icon_url FROM apps WHERE id = ?');
+    $iconUrl->execute([$id]);
+    $row = $iconUrl->fetch();
+    if ($row && $row['icon_url']) delete_upload($row['icon_url']);
+
+    // 删除关联的轮播图文件
     $imgs = $pdo->prepare('SELECT image_url FROM app_images WHERE app_id = ?');
     $imgs->execute([$id]);
     foreach ($imgs->fetchAll() as $img) {
         delete_upload($img['image_url']);
+    }
+
+    // 删除关联的附件文件
+    $atts = $pdo->prepare('SELECT file_url FROM app_attachments WHERE app_id = ?');
+    $atts->execute([$id]);
+    foreach ($atts->fetchAll() as $att) {
+        delete_upload($att['file_url']);
     }
 
     $pdo->prepare('DELETE FROM apps WHERE id = ?')->execute([$id]);

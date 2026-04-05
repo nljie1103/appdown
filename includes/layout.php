@@ -11,6 +11,7 @@ function admin_header(string $title, string $currentPage = ''): void {
     $nav = [
         ['dashboard', '仪表盘', 'fas fa-chart-line', '/admin/dashboard.php'],
         ['apps',      '应用管理', 'fas fa-mobile-alt', '/admin/apps.php'],
+        ['attachments','附件管理', 'fas fa-paperclip', '/admin/attachments.php'],
         ['settings',  '站点设置', 'fas fa-cog', '/admin/settings.php'],
         ['features',  '特色卡片', 'fas fa-star', '/admin/features.php'],
         ['links',     '友情链接', 'fas fa-link', '/admin/links.php'],

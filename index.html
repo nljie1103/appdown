@@ -1567,6 +1567,9 @@
                 const renderTabs = withErrorBoundary(() => {
                     const container = document.getElementById('appTabs');
                     if (!container || !APP_CONFIG.length) return;
+                    const renderIcon = (app) => app.icon_url
+                        ? `<img src="${escapeHTML(app.icon_url)}" alt="" style="width:20px;height:20px;border-radius:4px;object-fit:cover;">`
+                        : `<i class="${escapeHTML(app.icon)}" aria-hidden="true"></i>`;
                     container.innerHTML = APP_CONFIG.map((app, i) => `
                         <button class="app-tab ${i === 0 ? 'active' : ''}"
                                 id="${app.slug}Tab"
@@ -1575,7 +1578,7 @@
                                 aria-selected="${i === 0}"
                                 tabindex="${i === 0 ? '0' : '-1'}"
                                 aria-controls="${app.slug}Section">
-                            <i class="${escapeHTML(app.icon)}" aria-hidden="true"></i>
+                            ${renderIcon(app)}
                             <span>${escapeHTML(app.name)}</span>
                         </button>
                     `).join('');
@@ -1655,7 +1658,7 @@
                     }).join('');
 
                     section.innerHTML = `
-                        <h2><i class="${escapeHTML(app.icon)}" aria-hidden="true"></i> ${escapeHTML(app.name)}</h2>
+                        <h2>${app.icon_url ? `<img src="${escapeHTML(app.icon_url)}" alt="" style="width:28px;height:28px;border-radius:6px;vertical-align:middle;margin-right:6px;">` : `<i class="${escapeHTML(app.icon)}" aria-hidden="true"></i>`} ${escapeHTML(app.name)}</h2>
                         <div class="download-group">${downloadButtons}</div>
                         <div class="carousel-group" id="${app.slug}Carousel" data-carousel="${app.slug}Carousel">
                             <div class="carousel-container">
@@ -1762,6 +1765,7 @@
                                 slug: app.id,
                                 name: app.name,
                                 icon: app.icon || 'fas fa-mobile-alt',
+                                icon_url: app.icon_url || '',
                                 theme_color: app.theme_color || '#333',
                                 downloads: (app.downloads || []).map(d => ({
                                     type: d.btn_type,

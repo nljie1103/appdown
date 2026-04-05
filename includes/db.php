@@ -25,6 +25,8 @@ function get_db(): PDO {
 
     if ($is_new) {
         init_schema($pdo);
+    } else {
+        migrate_schema($pdo);
     }
 
     return $pdo;
@@ -45,12 +47,14 @@ function init_schema(PDO $pdo): void {
             slug            TEXT NOT NULL UNIQUE,
             name            TEXT NOT NULL,
             icon            TEXT NOT NULL DEFAULT 'fas fa-tv',
+            icon_url        TEXT NOT NULL DEFAULT '',
             theme_color     TEXT NOT NULL DEFAULT '#007AFF',
             ios_plist_url   TEXT NOT NULL DEFAULT '',
             ios_cert_name   TEXT NOT NULL DEFAULT '',
             ios_description TEXT NOT NULL DEFAULT '',
             ios_version     TEXT NOT NULL DEFAULT '',
             ios_size        TEXT NOT NULL DEFAULT '',
+            ios_template    TEXT NOT NULL DEFAULT 'modern',
             sort_order      INTEGER NOT NULL DEFAULT 0,
             is_active       INTEGER NOT NULL DEFAULT 1,
             created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -134,6 +138,26 @@ function init_schema(PDO $pdo): void {
         CREATE INDEX IF NOT EXISTS idx_visits_referer ON page_visits(referer);
         CREATE INDEX IF NOT EXISTS idx_clicks_date ON download_clicks(click_date);
         CREATE INDEX IF NOT EXISTS idx_clicks_app ON download_clicks(app_slug);
+
+        CREATE TABLE IF NOT EXISTS app_platforms (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id      INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            name        TEXT NOT NULL,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS app_attachments (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id        INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            platform_id   INTEGER NOT NULL REFERENCES app_platforms(id) ON DELETE CASCADE,
+            version       TEXT NOT NULL,
+            file_url      TEXT NOT NULL,
+            file_size     TEXT NOT NULL DEFAULT '',
+            changelog     TEXT NOT NULL DEFAULT '',
+            sort_order    INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     ");
 
     // 默认自定义代码位置
@@ -148,4 +172,42 @@ function clear_config_cache(): void {
     if (file_exists($path)) {
         unlink($path);
     }
+}
+
+/**
+ * 已有数据库的增量迁移
+ */
+function migrate_schema(PDO $pdo): void {
+    // 检测 apps 表是否有 icon_url 列
+    $cols = $pdo->query("PRAGMA table_info(apps)")->fetchAll();
+    $colNames = array_column($cols, 'name');
+
+    if (!in_array('icon_url', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('ios_template', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN ios_template TEXT NOT NULL DEFAULT 'modern'");
+    }
+
+    // 新增附件管理表
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS app_platforms (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id      INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            name        TEXT NOT NULL,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS app_attachments (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id        INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            platform_id   INTEGER NOT NULL REFERENCES app_platforms(id) ON DELETE CASCADE,
+            version       TEXT NOT NULL,
+            file_url      TEXT NOT NULL,
+            file_size     TEXT NOT NULL DEFAULT '',
+            changelog     TEXT NOT NULL DEFAULT '',
+            sort_order    INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    ");
 }
