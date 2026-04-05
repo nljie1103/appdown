@@ -1,23 +1,40 @@
+<?php
+require_once __DIR__ . '/includes/init.php';
+$pdo = get_db();
+$siteName = '';
+$copyright = '';
+try {
+    $rows = $pdo->query("SELECT setting_key, setting_val FROM site_settings WHERE setting_key IN ('site_title','copyright')")->fetchAll();
+    foreach ($rows as $r) {
+        if ($r['setting_key'] === 'site_title') $siteName = $r['setting_val'];
+        if ($r['setting_key'] === 'copyright') $copyright = $r['setting_val'];
+    }
+} catch (Exception $e) {}
+if (empty($siteName)) $siteName = 'APP下载中心';
+if (empty($copyright)) $copyright = '© ' . date('Y') . ' ' . $siteName;
+$s = htmlspecialchars($siteName);
+$c = htmlspecialchars($copyright);
+?>
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>隐私政策 - 杰哩杰哩影视APP</title>
+    <title>隐私政策 - <?= $s ?></title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header class="policy-header">
-            <a href="index.html" class="back-button">← 返回首页</a>
+            <a href="/" class="back-button">← 返回首页</a>
             <h1>隐私政策</h1>
-            <p>最后更新日期：2025年1月1日 &nbsp;|&nbsp; 生效日期：2025年1月1日</p>
+            <p>最后更新日期：<?= date('Y') ?>年1月1日 &nbsp;|&nbsp; 生效日期：<?= date('Y') ?>年1月1日</p>
         </header>
 
-        <main class="policy-content glass-effect">
+        <main class="policy-content">
             <section>
                 <h2>引言</h2>
-                <p>杰哩杰哩影视APP（以下简称"我们"）非常重视您的隐私保护。本隐私政策旨在向您说明我们如何收集、使用、存储、共享和保护您的个人信息，以及您对这些信息享有的权利。请在使用我们的服务前仔细阅读本政策。</p>
+                <p><?= $s ?>（以下简称"我们"）非常重视您的隐私保护。本隐私政策旨在向您说明我们如何收集、使用、存储、共享和保护您的个人信息，以及您对这些信息享有的权利。请在使用我们的服务前仔细阅读本政策。</p>
             </section>
 
             <section>
@@ -32,7 +49,7 @@
                 <ul>
                     <li>设备信息：设备型号、操作系统版本、屏幕分辨率、唯一设备标识符</li>
                     <li>网络信息：IP地址、网络类型（Wi-Fi/移动数据）、运营商信息</li>
-                    <li>使用数据：应用启动时间、功能使用频率、播放记录、搜索关键词</li>
+                    <li>使用数据：应用启动时间、功能使用频率、浏览记录、搜索关键词</li>
                     <li>崩溃日志：应用异常时的错误信息，用于修复问题</li>
                 </ul>
                 <h3>1.3 我们不会收集的信息</h3>
@@ -46,8 +63,8 @@
                 <h2>2. 信息使用</h2>
                 <p>我们收集的信息将用于以下目的：</p>
                 <ul>
-                    <li><strong>提供核心服务：</strong>为您提供影视内容浏览、搜索、播放等基本功能</li>
-                    <li><strong>个性化体验：</strong>根据您的观看历史推荐可能感兴趣的内容</li>
+                    <li><strong>提供核心服务：</strong>为您提供应用内容的浏览、搜索、下载等基本功能</li>
+                    <li><strong>个性化体验：</strong>根据您的使用习惯推荐可能感兴趣的内容</li>
                     <li><strong>服务改进：</strong>分析使用数据以优化应用性能和用户体验</li>
                     <li><strong>问题排查：</strong>通过崩溃日志定位和修复技术问题</li>
                     <li><strong>安全保障：</strong>识别和防止异常行为，保护账号安全</li>
@@ -60,7 +77,7 @@
                 <ul>
                     <li><strong>存储位置：</strong>您的个人信息存储在位于中国境内的服务器上</li>
                     <li><strong>存储期限：</strong>我们仅在实现服务目的所必需的期限内保留您的个人信息。当您注销账号后，我们将在30个工作日内删除或匿名化处理您的个人信息</li>
-                    <li><strong>本地存储：</strong>部分数据（如播放进度、搜索历史）存储在您的设备本地，您可随时在应用设置中清除</li>
+                    <li><strong>本地存储：</strong>部分数据（如浏览记录、搜索历史）存储在您的设备本地，您可随时在应用设置中清除</li>
                 </ul>
             </section>
 
@@ -109,29 +126,14 @@
 
             <section>
                 <h2>9. 联系我们</h2>
-                <p>如您对本隐私政策有任何疑问、意见或建议，可通过以下方式联系我们：</p>
-                <ul>
-                    <li>应用内"意见反馈"功能</li>
-                    <li>电子邮箱：（待补充）</li>
-                </ul>
+                <p>如您对本隐私政策有任何疑问、意见或建议，可通过应用内反馈功能联系我们。</p>
                 <p>我们将在收到您的反馈后15个工作日内予以回复。</p>
             </section>
         </main>
 
         <footer class="policy-footer">
-            <p style="font-weight: bold;">© 2025 杰哩杰哩影视APP. All rights reserved.</p>
+            <p style="font-weight: bold;"><?= $c ?></p>
         </footer>
     </div>
-
-    <script>
-        const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
-        const currentTheme = localStorage.getItem('theme');
-
-        if (currentTheme === 'dark') {
-            document.body.classList.toggle('dark-theme');
-        } else if (currentTheme === 'light') {
-            document.body.classList.toggle('light-theme');
-        }
-    </script>
 </body>
 </html>

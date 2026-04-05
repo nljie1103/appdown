@@ -31,8 +31,8 @@ A self-hosted, fully configurable app download page with admin panel. Built with
 ```
 appdown/
 ├── index.html              # Main download page (loads config from API)
-├── privacy.html            # Privacy policy
-├── terms.html              # Terms of service
+├── privacy.php             # Privacy policy (dynamic site name)
+├── terms.php               # Terms of service (dynamic site name)
 ├── style.css               # Shared styles for policy pages
 ├── install.php             # One-time installer (delete after setup)
 │
