@@ -935,6 +935,17 @@
                 // 轮播间隔
                 if (s.carousel_interval) CONFIG.carousel_interval = s.carousel_interval;
 
+                // 网站背景
+                if (s.bg_type && s.bg_type !== 'default') {
+                    if (s.bg_type === 'color' && s.bg_color) {
+                        document.body.style.background = s.bg_color;
+                    } else if (s.bg_type === 'gradient' && s.bg_gradient) {
+                        document.body.style.background = s.bg_gradient;
+                    } else if (s.bg_type === 'image' && s.bg_image) {
+                        document.body.style.background = `url(${s.bg_image}) center/cover no-repeat fixed`;
+                    }
+                }
+
                 // 统计数据
                 if (s.stats) {
                     if (s.stats.downloads) STATS.total_downloads = s.stats.downloads;

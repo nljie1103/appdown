@@ -12,7 +12,7 @@ admin_header('应用管理', 'apps');
 
 <div class="page-header">
     <h1>应用管理</h1>
-    <button class="btn btn-primary" onclick="Modal.show('addModal')"><i class="fas fa-plus"></i> 添加应用</button>
+    <button class="btn btn-primary" onclick="openAddModal()"><i class="fas fa-plus"></i> 添加应用</button>
 </div>
 
 <div class="card">
@@ -82,6 +82,56 @@ admin_header('应用管理', 'apps');
 </div>
 
 <script>
+// 预定义一组好看的颜色池
+const COLOR_POOL = [
+    '#007AFF','#FF3B30','#FF9500','#FFCC00','#34C759','#5AC8FA','#AF52DE',
+    '#FF2D55','#5856D6','#00C7BE','#30B0C7','#A2845E','#FF6482','#32ADE6',
+    '#7DC832','#F44336','#E91E63','#9C27B0','#3F51B5','#009688','#FF5722',
+    '#795548','#607D8B','#4CAF50','#CDDC39','#03A9F4','#673AB7','#8BC34A'
+];
+
+function getRandomColor() {
+    // 收集已有应用的颜色
+    const usedColors = new Set();
+    document.querySelectorAll('.color-swatch').forEach(el => {
+        usedColors.add(el.style.background.toUpperCase ? el.closest('td')?.textContent.trim().match(/#[0-9A-Fa-f]{6}/)?.[0]?.toUpperCase() : '');
+    });
+    // 从池中过滤掉已用的
+    const available = COLOR_POOL.filter(c => !usedColors.has(c.toUpperCase()));
+    if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
+    // 池用完了就随机生成一个鲜艳颜色
+    const hue = Math.floor(Math.random() * 360);
+    return `hsl(${hue}, 70%, 50%)`;
+}
+
+function hslToHex(hslStr) {
+    const el = document.createElement('div');
+    el.style.color = hslStr;
+    document.body.appendChild(el);
+    const rgb = getComputedStyle(el).color;
+    el.remove();
+    const m = rgb.match(/\d+/g);
+    if (!m) return '#007AFF';
+    return '#' + m.slice(0,3).map(x => (+x).toString(16).padStart(2,'0')).join('');
+}
+
+function openAddModal() {
+    // 重置表单
+    document.getElementById('addSlug').value = '';
+    document.getElementById('addName').value = '';
+    document.getElementById('addIcon').value = 'fas fa-tv';
+    document.getElementById('addIconPreviewFa').className = 'fas fa-tv';
+    document.getElementById('addIconUrl').value = '';
+    document.getElementById('addIconPreviewImg').style.display = 'none';
+    document.querySelector('input[name="addIconType"][value="fa"]').checked = true;
+    toggleAddIconMode();
+    // 随机主题色
+    let color = getRandomColor();
+    if (color.startsWith('hsl')) color = hslToHex(color);
+    document.getElementById('addColor').value = color;
+    Modal.show('addModal');
+}
+
 function toggleAddIconMode() {
     const mode = document.querySelector('input[name="addIconType"]:checked').value;
     document.getElementById('addIconFaMode').style.display = mode === 'fa' ? '' : 'none';

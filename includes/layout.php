@@ -6,6 +6,7 @@
 function admin_header(string $title, string $currentPage = ''): void {
     $user = $_SESSION['admin_user'] ?? 'Admin';
     $csrf = csrf_token();
+    $ver = '20260406'; // 静态资源版本号，更新后修改此值强制刷新缓存
     $pdo = get_db();
     $siteTitle = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key='site_title'")->fetchColumn() ?: '管理后台';
     $nav = [
@@ -27,9 +28,9 @@ function admin_header(string $title, string $currentPage = ''): void {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
     <title><?= htmlspecialchars($title) ?> - 后台管理</title>
-    <link rel="stylesheet" href="/admin/assets/admin.css">
+    <link rel="stylesheet" href="/admin/assets/admin.css?v=<?= $ver ?>">
     <link rel="stylesheet" href="/static/fontawesome-free-7.1.0-web/css/all.min.css">
-    <script src="/admin/assets/admin.js"></script>
+    <script src="/admin/assets/admin.js?v=<?= $ver ?>"></script>
 </head>
 <body>
     <button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open');this.classList.toggle('active')" aria-label="菜单">
