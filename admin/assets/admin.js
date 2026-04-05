@@ -349,6 +349,13 @@ const ImagePicker = {
 
     _ensure() {
         if (this._overlay) return;
+        // 注入分类样式
+        if (!document.getElementById('_ipCatStyle')) {
+            const st = document.createElement('style');
+            st.id = '_ipCatStyle';
+            st.textContent = `.ip-cat{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:3px 4px;border-radius:8px;cursor:pointer;transition:all .15s;color:var(--text-secondary);border:1px solid transparent;}.ip-cat:hover{background:var(--bg);color:var(--text);border-color:var(--border);}.ip-cat.active{background:var(--primary);color:#fff;border-color:var(--primary);}.ip-cat.active i{color:#fff;}`;
+            document.head.appendChild(st);
+        }
         const o = document.createElement('div');
         o.className = 'modal-overlay';
         o.id = '_imagePicker';
@@ -397,19 +404,20 @@ const ImagePicker = {
             return;
         }
         el.innerHTML = this._categories.map(c => `
-            <div class="plat-item ${c.id == this._currentCatId ? 'active' : ''}" onclick="ImagePicker._selectCat(${c.id})" style="font-size:0.85em;">
-                <span>${escapeHTML(c.name)} <small style="opacity:0.6;">(${c.image_count})</small></span>
+            <div class="${c.id == this._currentCatId ? 'ip-cat active' : 'ip-cat'}" onclick="ImagePicker._selectCat(${c.id})">
+                <i class="fas fa-folder${c.id == this._currentCatId ? '-open' : ''}" style="font-size:1.1em;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.88em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(c.name)}</div>
+                    <div style="font-size:0.75em;opacity:0.6;margin-top:2px;">${c.image_count} 张图片</div>
+                </div>
             </div>
         `).join('');
     },
 
     async _selectCat(catId) {
         this._currentCatId = catId;
-        // 重新渲染分类高亮
-        document.querySelectorAll('#_ipCatList .plat-item').forEach(el => el.classList.remove('active'));
-        const items = document.querySelectorAll('#_ipCatList .plat-item');
-        const idx = this._categories.findIndex(c => c.id == catId);
-        if (idx >= 0 && items[idx]) items[idx].classList.add('active');
+        // 重新渲染分类列表（更新高亮+图标）
+        await this._loadCategories();
 
         document.getElementById('_ipUploadBtn').style.display = '';
         const images = await API.get(`/admin/api/image-library.php?action=images&category_id=${catId}`);
