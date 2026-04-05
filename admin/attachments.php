@@ -230,7 +230,7 @@ async function doUpload() {
         });
 
         if (res.ok) {
-            Toast.success('上传成功');
+            AlertModal.success('上传成功', `版本 <b>${escapeHTML(version)}</b> 已成功上传`);
             Modal.hide('uploadModal');
             document.getElementById('uploadVersion').value = '';
             document.getElementById('uploadFile').value = '';
@@ -238,10 +238,18 @@ async function doUpload() {
             await loadPlatforms();
             selectPlatform(currentPlatId);
         } else {
-            Toast.error(res.error || '上传失败');
+            const detail = explainUploadError(res.error || '上传失败');
+            AlertModal.error('上传失败', detail);
         }
     } catch (e) {
-        Toast.error(e.message);
+        // 超出PHP限制时request body为空会进入这里
+        let detail = e.message || '未知错误';
+        if (detail === '解析失败' || detail.includes('JSON')) {
+            detail = '服务器返回了无法解析的响应，可能原因：<br>1. 文件超出PHP上传限制<br>2. 服务器内存不足<br><b>建议：</b>到「系统信息」页面查看当前最大上传限制，减小文件体积或修改 php.ini';
+        } else {
+            detail = explainUploadError(detail);
+        }
+        AlertModal.error('上传失败', detail);
     }
     document.getElementById('uploadProgress').style.display = 'none';
     document.getElementById('uploadBar').style.width = '0%';

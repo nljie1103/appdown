@@ -204,7 +204,7 @@ async function addApp() {
     if (!slug || !name) { Toast.error('标识和名称不能为空'); return; }
 
     await API.post('/admin/api/apps.php', { slug, name, icon, icon_url: iconUrl, theme_color: color });
-    Toast.success('添加成功');
+    AlertModal.success('添加成功', `应用「${escapeHTML(name)}」已创建`);
     Modal.hide('addModal');
     loadApps();
 }

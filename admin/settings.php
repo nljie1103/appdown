@@ -187,7 +187,7 @@ async function saveAll() {
         settings[f] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
     });
     await API.post('/admin/api/settings.php', { settings });
-    Toast.success('设置已保存');
+    AlertModal.success('保存成功', '所有站点设置已保存');
 }
 
 function uploadFor(field, category) {
@@ -204,7 +204,7 @@ document.getElementById('hiddenUpload').addEventListener('change', async functio
     try {
         const res = await API.upload('/admin/api/upload.php', fd);
         document.getElementById(uploadTarget).value = res.url;
-        Toast.success('上传成功');
+        AlertModal.success('上传成功', '文件已上传');
         if (uploadTarget === 'bg_image') updateBgPreview();
     } catch(e) {}
     this.value = '';

@@ -86,7 +86,7 @@ async function save() {
     } else {
         await API.post('/admin/api/links.php', body);
     }
-    Toast.success('已保存');
+    AlertModal.success('保存成功', '链接信息已保存');
     Modal.hide('addModal');
     document.getElementById('editId').value = '';
     document.getElementById('modalTitle').textContent = '添加链接';

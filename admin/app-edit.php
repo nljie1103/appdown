@@ -358,7 +358,7 @@ async function saveApp() {
         icon_url: iconType === 'image' ? document.getElementById('appIconUrl').value.trim() : '',
         theme_color: document.getElementById('appColor').value,
     });
-    Toast.success('基本信息已保存');
+    AlertModal.success('保存成功', '基本信息已保存');
 }
 
 async function saveIosConfig() {
@@ -379,7 +379,7 @@ async function saveIosConfig() {
         ios_description: document.getElementById('iosDesc').value.trim(),
         ios_template: document.getElementById('iosTemplate').value,
     });
-    Toast.success('iOS配置已保存');
+    AlertModal.success('保存成功', 'iOS配置已保存');
     updatePlistPreview();
 }
 
@@ -445,7 +445,7 @@ async function addDownload() {
         btn_subtext: document.getElementById('dlSubtext').value.trim(),
         href: document.getElementById('dlHref').value.trim() || '#',
     });
-    Toast.success('添加成功');
+    AlertModal.success('添加成功', '下载按钮已添加');
     Modal.hide('addDlModal');
     loadApp();
 }
@@ -478,7 +478,7 @@ async function saveEditDownload() {
         href: document.getElementById('editDlHref').value.trim(),
         is_active: 1,
     });
-    Toast.success('已更新');
+    AlertModal.success('保存成功', '下载按钮已更新');
     Modal.hide('editDlModal');
     loadApp();
 }

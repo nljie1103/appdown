@@ -98,7 +98,7 @@ async function save() {
             font_url: document.getElementById('fontUrl').value.trim(),
         }
     });
-    Toast.success('字体设置已保存');
+    AlertModal.success('保存成功', '字体设置已保存');
 }
 
 load();

@@ -190,7 +190,7 @@ async function load() {
 async function save(position) {
     const code = document.getElementById(position).value;
     await API.post('/admin/api/custom-code.php', { position, code });
-    Toast.success('已保存');
+    AlertModal.success('保存成功', '自定义代码已保存');
 }
 
 load();
