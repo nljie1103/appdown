@@ -240,8 +240,8 @@ function renderFiles(files) {
 
 async function addPlatform() {
     if (!currentAppId) { Toast.error('请先选择一个应用'); return; }
-    const name = prompt('平台名称（如: Android, iOS, PC, TV）');
-    if (!name || !name.trim()) return;
+    const name = await PromptModal.open('添加平台分类', '');
+    if (!name) return;
     try {
         await API.post('/admin/api/attachments.php', { app_id: currentAppId, name: name.trim() });
         Toast.success('分类已添加');
@@ -421,16 +421,16 @@ async function loadImgFiles() {
 }
 
 async function addImgCategory() {
-    const name = prompt('图片分类名称');
-    if (!name || !name.trim()) return;
+    const name = await PromptModal.open('添加图片分类', '');
+    if (!name) return;
     await API.post('/admin/api/image-library.php?action=categories', { name: name.trim() });
     Toast.success('分类已添加');
     await loadImgCategories();
 }
 
 async function renameImgCategory(id, oldName) {
-    const name = prompt('重命名分类', oldName);
-    if (!name || !name.trim() || name.trim() === oldName) return;
+    const name = await PromptModal.open('重命名分类', oldName);
+    if (!name || name === oldName) return;
     await API.put('/admin/api/image-library.php?action=categories', { id, name: name.trim() });
     Toast.success('已重命名');
     await loadImgCategories();

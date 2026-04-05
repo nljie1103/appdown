@@ -344,6 +344,7 @@ async function saveEffects() {
         settings: { effects_config: JSON.stringify(effectsConfig) }
     });
     renderPresets();
+    AlertModal.success('保存成功', '特效设置已保存');
 }
 
 load();

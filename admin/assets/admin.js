@@ -151,6 +151,59 @@ const AlertModal = {
     warning(msg, detail) { this.show('warning', msg, detail); },
 };
 
+// 自定义输入弹窗（替代浏览器prompt）
+const PromptModal = {
+    _overlay: null,
+    _resolve: null,
+
+    _ensure() {
+        if (this._overlay) return;
+        const o = document.createElement('div');
+        o.className = 'modal-overlay';
+        o.id = '_promptModal';
+        o.innerHTML = `
+            <div class="modal" style="max-width:400px;">
+                <h3 id="_promptTitle" style="margin-bottom:14px;">请输入</h3>
+                <div class="form-group" style="margin-bottom:16px;">
+                    <input type="text" class="form-control" id="_promptInput" placeholder="">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-outline" onclick="PromptModal._cancel()">取消</button>
+                    <button class="btn btn-primary" onclick="PromptModal._confirm()">确定</button>
+                </div>
+            </div>`;
+        document.body.appendChild(o);
+        this._overlay = o;
+        // 回车确认
+        document.getElementById('_promptInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') PromptModal._confirm();
+            if (e.key === 'Escape') PromptModal._cancel();
+        });
+    },
+
+    open(title, defaultValue) {
+        this._ensure();
+        document.getElementById('_promptTitle').textContent = title || '请输入';
+        const input = document.getElementById('_promptInput');
+        input.value = defaultValue || '';
+        input.placeholder = '';
+        this._overlay.classList.add('active');
+        setTimeout(() => input.focus(), 100);
+        return new Promise(resolve => { this._resolve = resolve; });
+    },
+
+    _confirm() {
+        const val = document.getElementById('_promptInput').value.trim();
+        this._overlay.classList.remove('active');
+        if (this._resolve) { this._resolve(val || null); this._resolve = null; }
+    },
+
+    _cancel() {
+        this._overlay.classList.remove('active');
+        if (this._resolve) { this._resolve(null); this._resolve = null; }
+    }
+};
+
 // 模态框
 const Modal = {
     show(id) {
