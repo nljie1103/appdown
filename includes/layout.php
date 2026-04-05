@@ -6,7 +6,7 @@
 function admin_header(string $title, string $currentPage = ''): void {
     $user = $_SESSION['admin_user'] ?? 'Admin';
     $csrf = csrf_token();
-    $ver = '20260406e'; // 静态资源版本号，更新后修改此值强制刷新缓存
+    $ver = '20260406f'; // 静态资源版本号，更新后修改此值强制刷新缓存
     $pdo = get_db();
     $siteTitle = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key='site_title'")->fetchColumn() ?: '管理后台';
     $nav = [

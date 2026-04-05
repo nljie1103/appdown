@@ -151,7 +151,7 @@ const AlertModal = {
     warning(msg, detail) { this.show('warning', msg, detail); },
 };
 
-// 自定义输入弹窗（替代浏览器prompt）
+// 自定义输入弹窗（替代浏览器prompt，风格与友链弹窗一致）
 const PromptModal = {
     _overlay: null,
     _resolve: null,
@@ -162,33 +162,40 @@ const PromptModal = {
         o.className = 'modal-overlay';
         o.id = '_promptModal';
         o.innerHTML = `
-            <div class="modal" style="max-width:400px;">
-                <h3 id="_promptTitle" style="margin-bottom:14px;">请输入</h3>
-                <div class="form-group" style="margin-bottom:16px;">
+            <div class="modal">
+                <h3 id="_promptTitle">请输入</h3>
+                <div class="form-group">
+                    <label id="_promptLabel">名称</label>
                     <input type="text" class="form-control" id="_promptInput" placeholder="">
                 </div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="PromptModal._cancel()">取消</button>
-                    <button class="btn btn-primary" onclick="PromptModal._confirm()">确定</button>
+                    <button class="btn btn-primary" onclick="PromptModal._confirm()">保存</button>
                 </div>
             </div>`;
         document.body.appendChild(o);
         this._overlay = o;
-        // 回车确认
         document.getElementById('_promptInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') PromptModal._confirm();
             if (e.key === 'Escape') PromptModal._cancel();
         });
     },
 
-    open(title, defaultValue) {
+    /**
+     * @param {string} title  弹窗标题，如"添加平台分类"
+     * @param {string} defaultValue  输入框默认值
+     * @param {string} label  输入框上方的 label 文字（默认"名称"）
+     * @param {string} placeholder  输入框占位符
+     */
+    open(title, defaultValue, label, placeholder) {
         this._ensure();
         document.getElementById('_promptTitle').textContent = title || '请输入';
+        document.getElementById('_promptLabel').textContent = label || '名称';
         const input = document.getElementById('_promptInput');
         input.value = defaultValue || '';
-        input.placeholder = '';
+        input.placeholder = placeholder || '';
         this._overlay.classList.add('active');
-        setTimeout(() => input.focus(), 100);
+        setTimeout(() => { input.focus(); input.select(); }, 100);
         return new Promise(resolve => { this._resolve = resolve; });
     },
 

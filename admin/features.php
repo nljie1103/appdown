@@ -274,7 +274,7 @@ async function delCard(id) {
 
 // === 分类管理 ===
 async function addCategory() {
-    const name = await PromptModal.open('添加特色卡片分类', '');
+    const name = await PromptModal.open('添加特色卡片分类', '', '分类名称', '如: 视频功能, 社交功能');
     if (!name) return;
     await API.post('/admin/api/features.php?action=categories', { name: name.trim() });
     Toast.success('分类已添加');
@@ -282,7 +282,7 @@ async function addCategory() {
 }
 
 async function renameCategory(id, oldName) {
-    const name = await PromptModal.open('重命名分类', oldName);
+    const name = await PromptModal.open('重命名分类', oldName, '分类名称', '输入新的分类名称');
     if (!name || name === oldName) return;
     await API.put('/admin/api/features.php?action=categories', { id, name: name.trim() });
     Toast.success('已重命名');
