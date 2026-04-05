@@ -35,7 +35,7 @@ if ($action === 'export') {
     $selectedTables = $data['tables'] ?? [];
     $includeUploads = !empty($data['include_uploads']);
 
-    if (strlen($password) < 4) json_response(['error' => '加密密码至少4位'], 400);
+    if (strlen($password) > 0 && strlen($password) < 4) json_response(['error' => '加密密码至少4位'], 400);
     if (empty($selectedTables) && !$includeUploads) json_response(['error' => '请选择要导出的数据'], 400);
     if (!class_exists('ZipArchive')) json_response(['error' => '服务器未安装PHP zip扩展，请联系服务商启用'], 500);
 
@@ -73,19 +73,25 @@ if ($action === 'export') {
 
     $zip->close();
 
-    // 读取ZIP并加密
+    // 读取ZIP
     $zipData = file_get_contents($tmpZip);
     unlink($tmpZip);
 
-    $key = hash('sha256', $password, true);
-    $iv = random_bytes(12);
-    $tag = '';
-    $encrypted = openssl_encrypt($zipData, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    // 有密码则加密，无密码直接输出ZIP
+    if ($password !== '') {
+        $key = hash('sha256', $password, true);
+        $iv = random_bytes(12);
+        $tag = '';
+        $encrypted = openssl_encrypt($zipData, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($encrypted === false) json_response(['error' => '加密失败'], 500);
+        $packed = $iv . $tag . $encrypted;
+        $ext = '.enc';
+    } else {
+        $packed = $zipData;
+        $ext = '.zip';
+    }
 
-    if ($encrypted === false) json_response(['error' => '加密失败'], 500);
-
-    $packed = $iv . $tag . $encrypted;
-    $filename = 'appdown_backup_' . date('Ymd_His') . '.enc';
+    $filename = 'appdown_backup_' . date('Ymd_His') . $ext;
 
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -99,7 +105,6 @@ if ($action === 'export') {
 // ========== 解密预览 ==========
 if ($action === 'decrypt_preview') {
     $password = $_POST['password'] ?? '';
-    if (!$password) json_response(['error' => '请输入密码'], 400);
     if (!isset($_FILES['file']['tmp_name'])) json_response(['error' => '未收到文件'], 400);
 
     $raw = file_get_contents($_FILES['file']['tmp_name']);
@@ -163,7 +168,6 @@ if ($action === 'import') {
     $selectedTables = json_decode($_POST['tables'] ?? '[]', true) ?: [];
     $includeUploads = ($_POST['include_uploads'] ?? '0') === '1';
 
-    if (!$password) json_response(['error' => '请输入密码'], 400);
     if (empty($selectedTables) && !$includeUploads) json_response(['error' => '请选择要导入的数据'], 400);
     if (!isset($_FILES['file']['tmp_name'])) json_response(['error' => '未收到文件'], 400);
 
@@ -261,14 +265,31 @@ json_response(['error' => '无效操作'], 400);
  * 返回 ['data' => array, 'is_zip' => bool, 'zip_path' => ?string]
  */
 function decryptAndParse(string $raw, string $password): ?array {
-    // 尝试原始二进制格式
-    $decrypted = tryDecrypt($raw, $password);
+    $decrypted = null;
 
-    // 尝试 base64 编码格式（旧版兼容）
-    if ($decrypted === null) {
-        $decoded = base64_decode($raw, true);
-        if ($decoded !== false && strlen($decoded) >= 28) {
-            $decrypted = tryDecrypt($decoded, $password);
+    // 如果是纯ZIP（无加密），直接使用
+    if (substr($raw, 0, 2) === 'PK') {
+        $decrypted = $raw;
+    }
+
+    // 尝试纯JSON（旧版无加密）
+    if ($decrypted === null && $raw[0] === '{') {
+        $testJson = json_decode($raw, true);
+        if ($testJson && isset($testJson['meta'])) {
+            return ['data' => $testJson, 'is_zip' => false, 'zip_path' => null];
+        }
+    }
+
+    // 有密码时尝试解密
+    if ($decrypted === null && $password !== '') {
+        $decrypted = tryDecrypt($raw, $password);
+
+        // 尝试 base64（旧版兼容）
+        if ($decrypted === null) {
+            $decoded = base64_decode($raw, true);
+            if ($decoded !== false && strlen($decoded) >= 28) {
+                $decrypted = tryDecrypt($decoded, $password);
+            }
         }
     }
 

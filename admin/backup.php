@@ -46,8 +46,8 @@ admin_header('导入导出', 'backup');
     </div>
     <div class="form-row">
         <div class="form-group">
-            <label>加密密码</label>
-            <input type="password" class="form-control" id="exportPwd" placeholder="设置加密密码（至少4位）">
+            <label>加密密码 <small style="color:var(--text-secondary);">（可选，留空则不加密）</small></label>
+            <input type="password" class="form-control" id="exportPwd" placeholder="留空则不加密">
         </div>
         <div class="form-group">
             <label>确认密码</label>
@@ -71,12 +71,12 @@ admin_header('导入导出', 'backup');
     <div class="form-row">
         <div class="form-group">
             <label>选择备份文件</label>
-            <input type="file" class="form-control" id="importFile" accept=".enc">
+            <input type="file" class="form-control" id="importFile" accept=".enc,.zip">
         </div>
         <div class="form-group">
-            <label>解密密码</label>
+            <label>解密密码 <small style="color:var(--text-secondary);">（导出时未设密码则留空）</small></label>
             <div style="display:flex;gap:8px;">
-                <input type="password" class="form-control" id="importPwd" placeholder="输入导出时设置的密码" style="flex:1;">
+                <input type="password" class="form-control" id="importPwd" placeholder="无密码则留空" style="flex:1;">
                 <button class="btn btn-outline" onclick="decryptPreview()" id="decryptBtn"><i class="fas fa-lock-open"></i> 解密预览</button>
             </div>
         </div>
@@ -113,8 +113,8 @@ admin_header('导入导出', 'backup');
     <h3>备份说明</h3>
     <table style="width:100%;font-size:0.9em;">
         <tbody>
-            <tr><td style="font-weight:600;padding:8px 0;width:120px;">加密算法</td><td>AES-256-GCM（认证加密）</td></tr>
-            <tr><td style="font-weight:600;padding:8px 0;">备份格式</td><td>ZIP打包 + AES-256-GCM加密（.enc文件）</td></tr>
+            <tr><td style="font-weight:600;padding:8px 0;width:120px;">加密算法</td><td>AES-256-GCM（认证加密），密码可选</td></tr>
+            <tr><td style="font-weight:600;padding:8px 0;">备份格式</td><td>设密码：ZIP打包→加密→.enc文件 · 不设密码：直接.zip文件</td></tr>
             <tr><td style="font-weight:600;padding:8px 0;">可选内容</td><td>数据库记录（站点配置、应用、特色卡片等）+ uploads/ 上传文件目录</td></tr>
             <tr><td style="font-weight:600;padding:8px 0;">注意事项</td><td>导入大文件时需确保PHP的 upload_max_filesize 和 post_max_size 足够大</td></tr>
         </tbody>
@@ -155,7 +155,7 @@ async function doExport() {
     const includeUploads = document.getElementById('exportUploads').checked;
 
     if (!tables.length && !includeUploads) { AlertModal.error('请选择导出内容', '至少选择一项数据或上传文件目录'); return; }
-    if (pwd.length < 4) { AlertModal.error('加密密码至少4位'); return; }
+    if (pwd && pwd.length < 4) { AlertModal.error('加密密码至少4位'); return; }
     if (pwd !== pwd2) { AlertModal.error('两次输入的密码不一致'); return; }
 
     const btn = document.getElementById('exportBtn');
@@ -206,7 +206,6 @@ async function decryptPreview() {
     const file = document.getElementById('importFile').files[0];
     const pwd = document.getElementById('importPwd').value;
     if (!file) { AlertModal.error('请选择备份文件'); return; }
-    if (!pwd) { AlertModal.error('请输入解密密码'); return; }
 
     const btn = document.getElementById('decryptBtn');
     btn.disabled = true;
