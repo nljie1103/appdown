@@ -6,6 +6,8 @@
 function admin_header(string $title, string $currentPage = ''): void {
     $user = $_SESSION['admin_user'] ?? 'Admin';
     $csrf = csrf_token();
+    $pdo = get_db();
+    $siteTitle = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key='site_title'")->fetchColumn() ?: '管理后台';
     $nav = [
         ['dashboard', '仪表盘', 'fas fa-chart-line', '/admin/dashboard.php'],
         ['apps',      '应用管理', 'fas fa-mobile-alt', '/admin/apps.php'],
@@ -14,6 +16,7 @@ function admin_header(string $title, string $currentPage = ''): void {
         ['links',     '友情链接', 'fas fa-link', '/admin/links.php'],
         ['fonts',     '字体管理', 'fas fa-font', '/admin/fonts.php'],
         ['code',      '自定义代码', 'fas fa-code', '/admin/custom-code.php'],
+        ['system',    '系统信息', 'fas fa-server', '/admin/system.php'],
     ];
 ?>
 <!DOCTYPE html>
@@ -25,11 +28,12 @@ function admin_header(string $title, string $currentPage = ''): void {
     <title><?= htmlspecialchars($title) ?> - 后台管理</title>
     <link rel="stylesheet" href="/admin/assets/admin.css">
     <link rel="stylesheet" href="/static/fontawesome-free-7.1.0-web/css/all.min.css">
+    <script src="/admin/assets/admin.js"></script>
 </head>
 <body>
     <nav class="sidebar">
         <div class="sidebar-header">
-            <h2>影视APP后台</h2>
+            <h2><?= htmlspecialchars($siteTitle) ?></h2>
             <small><?= htmlspecialchars($user) ?></small>
         </div>
         <div class="sidebar-nav">
@@ -50,7 +54,6 @@ function admin_header(string $title, string $currentPage = ''): void {
 function admin_footer(): void {
 ?>
     </div>
-    <script src="/admin/assets/admin.js"></script>
 </body>
 </html>
 <?php
