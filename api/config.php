@@ -98,6 +98,7 @@ $config = [
         'bg_gradient' => $settings['bg_gradient'] ?? '',
         'bg_image'    => $settings['bg_image'] ?? '',
         'effects_config' => $settings['effects_config'] ?? '{}',
+        'inapp_redirect' => (bool)($settings['inapp_redirect'] ?? false),
     ],
     'apps'         => $apps,
     'features'     => $features,

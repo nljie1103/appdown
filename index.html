@@ -738,9 +738,145 @@
             margin: 10px 0;
             font-size: 0.9em;
         }
+
+        /* 应用内浏览器跳转引导 */
+        .inapp-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .inapp-overlay.show { display: flex; }
+        .inapp-card {
+            background: #fff;
+            border-radius: 24px;
+            padding: 40px 30px;
+            max-width: 360px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: inappSlideUp 0.5s ease;
+        }
+        @keyframes inappSlideUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .inapp-icon {
+            width: 80px; height: 80px;
+            margin: 0 auto 20px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: #fff;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+        .inapp-title {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .inapp-desc {
+            font-size: 0.9em;
+            color: #888;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .inapp-steps {
+            text-align: left;
+            margin-bottom: 28px;
+        }
+        .inapp-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 0;
+        }
+        .inapp-step + .inapp-step {
+            border-top: 1px solid #f0f0f0;
+        }
+        .inapp-step-num {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            font-size: 0.8em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .inapp-step-text {
+            font-size: 0.9em;
+            color: #555;
+            line-height: 1.5;
+        }
+        .inapp-step-text strong {
+            color: #333;
+        }
+        .inapp-btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .inapp-btn:active {
+            transform: scale(0.97);
+        }
+        .inapp-source {
+            margin-top: 16px;
+            padding: 10px 16px;
+            background: #f8f8f8;
+            border-radius: 10px;
+            font-size: 0.8em;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .inapp-source i { color: #bbb; }
+        .inapp-source span {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #666;
+        }
     </style>
 </head>
 <body>
+    <!-- 应用内浏览器跳转引导 -->
+    <div class="inapp-overlay" id="inappOverlay">
+        <div class="inapp-card">
+            <div class="inapp-icon"><i class="fas fa-compass"></i></div>
+            <div class="inapp-title">请在浏览器中打开</div>
+            <div class="inapp-desc">当前正在 <strong id="inappAppName">应用内</strong> 浏览，部分功能可能受限，请使用系统浏览器访问以获得最佳体验</div>
+            <div class="inapp-steps" id="inappSteps"></div>
+            <button class="inapp-btn" id="inappBtn" onclick="inappTryOpen()">点击尝试打开浏览器</button>
+            <div class="inapp-source">
+                <i class="fas fa-link"></i>
+                <span id="inappUrl"></span>
+            </div>
+        </div>
+    </div>
+
     <button class="back-to-top" aria-label="返回页面顶部" tabindex="-1">
         <i class="fas fa-arrow-up" aria-hidden="true"></i>
     </button>
@@ -881,6 +1017,117 @@
                     document.body.appendChild(s);
                 }
             };
+
+            // ==================== 应用内浏览器检测 ====================
+            const INAPP_RULES = [
+                { pattern: /MicroMessenger/i, name: '微信' },
+                { pattern: /\bQQ\//i, name: 'QQ' },
+                { pattern: /\bQQ\b/i, name: 'QQ', exclude: /MQQBrowser/i },
+                { pattern: /Weibo/i, name: '微博' },
+                { pattern: /DingTalk/i, name: '钉钉' },
+                { pattern: /AlipayClient/i, name: '支付宝' },
+                { pattern: /BytedanceWebview|ToutiaoMicroApp|aweme/i, name: '抖音' },
+                { pattern: /XiaoHongShu|discover/i, name: '小红书' },
+                { pattern: /BaiduBoxApp/i, name: '百度' },
+                { pattern: /Douban/i, name: '豆瓣' },
+                { pattern: /MiuiBrowser/i, name: 'MIUI浏览器', skip: true },
+                { pattern: /FBAN|FBAV/i, name: 'Facebook' },
+                { pattern: /Instagram/i, name: 'Instagram' },
+                { pattern: /Line\//i, name: 'LINE' },
+                { pattern: /Telegram/i, name: 'Telegram' },
+            ];
+
+            function checkInAppBrowser() {
+                const ua = navigator.userAgent;
+                let matched = null;
+                for (const rule of INAPP_RULES) {
+                    if (rule.skip) continue;
+                    if (rule.pattern.test(ua)) {
+                        if (rule.exclude && rule.exclude.test(ua)) continue;
+                        matched = rule;
+                        break;
+                    }
+                }
+                if (!matched) return;
+
+                const isIOS = /iPhone|iPad|iPod/i.test(ua);
+                const overlay = document.getElementById('inappOverlay');
+                document.getElementById('inappAppName').textContent = matched.name;
+                document.getElementById('inappUrl').textContent = location.href;
+
+                const stepsEl = document.getElementById('inappSteps');
+                let steps = [];
+                if (matched.name === '微信') {
+                    if (isIOS) {
+                        steps = [
+                            '点击右上角 <strong>···</strong> 按钮',
+                            '选择 <strong>「在Safari中打开」</strong>',
+                        ];
+                    } else {
+                        steps = [
+                            '点击右上角 <strong>⋮</strong> 按钮',
+                            '选择 <strong>「在浏览器中打开」</strong>',
+                        ];
+                    }
+                } else if (matched.name === 'QQ') {
+                    steps = [
+                        '点击右上角 <strong>···</strong> 按钮',
+                        '选择 <strong>「在浏览器中打开」</strong>',
+                    ];
+                } else if (matched.name === '支付宝') {
+                    steps = [
+                        '点击右上角 <strong>···</strong> 按钮',
+                        '选择 <strong>「在浏览器中打开」</strong>',
+                    ];
+                } else {
+                    if (isIOS) {
+                        steps = [
+                            '点击右上角的分享或菜单按钮',
+                            '选择 <strong>「在Safari中打开」</strong>',
+                        ];
+                    } else {
+                        steps = [
+                            '点击右上角的菜单按钮 <strong>⋮</strong> 或 <strong>···</strong>',
+                            '选择 <strong>「在浏览器中打开」</strong>',
+                        ];
+                    }
+                }
+
+                stepsEl.innerHTML = steps.map((s, i) => `
+                    <div class="inapp-step">
+                        <div class="inapp-step-num">${i + 1}</div>
+                        <div class="inapp-step-text">${s}</div>
+                    </div>
+                `).join('');
+
+                overlay.classList.add('show');
+            }
+
+            function inappTryOpen() {
+                const url = location.href;
+                // Android: 尝试 intent scheme
+                if (/android/i.test(navigator.userAgent)) {
+                    const intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') +
+                        '#Intent;scheme=https;action=android.intent.action.VIEW;end';
+                    location.href = intentUrl;
+                    return;
+                }
+                // iOS: 复制链接提示
+                const ta = document.createElement('textarea');
+                ta.value = url;
+                ta.style.cssText = 'position:fixed;left:-9999px;';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                const btn = document.getElementById('inappBtn');
+                btn.textContent = '链接已复制，请在浏览器中粘贴打开';
+                btn.style.background = '#27ae60';
+                setTimeout(() => {
+                    btn.textContent = '点击尝试打开浏览器';
+                    btn.style.background = '';
+                }, 3000);
+            }
 
             // ==================== 内置特效引擎 ====================
             const injectEffects = (configStr) => {
@@ -1940,6 +2187,11 @@
 
                             // 注入内置特效
                             injectEffects(data.site?.effects_config);
+
+                            // 应用内浏览器检测
+                            if (data.site?.inapp_redirect) {
+                                checkInAppBrowser();
+                            }
                         }
 
                         // 2. 渲染所有内容

@@ -103,6 +103,14 @@ admin_header('站点设置', 'settings');
     </div>
 </div>
 
+<div class="card">
+    <h3>应用内浏览器跳转</h3>
+    <div class="form-group">
+        <label>全局开启 <label class="toggle" style="margin-left:8px;"><input type="checkbox" id="inapp_redirect"><span class="toggle-slider"></span></label></label>
+        <p style="color:var(--text-secondary);font-size:0.85em;margin-top:4px;">当用户在微信、QQ、微博、抖音等应用内置浏览器打开时，自动弹出引导页提示用户在系统浏览器中打开</p>
+    </div>
+</div>
+
 <div style="margin-top:20px;">
     <button class="btn btn-primary" onclick="saveAll()" style="padding:12px 32px;font-size:1em;"><i class="fas fa-save"></i> 保存所有设置</button>
 </div>
@@ -115,7 +123,7 @@ let uploadTarget = '';
 const fields = ['site_title','site_heading','logo_url','favicon_url','copyright',
                 'notice_text','notice_enabled','stats_downloads','stats_rating',
                 'stats_daily_active','carousel_interval','captcha_enabled',
-                'bg_type','bg_color','bg_gradient','bg_image'];
+                'bg_type','bg_color','bg_gradient','bg_image','inapp_redirect'];
 
 // 渐变预设
 const GRADIENT_PRESETS = [
