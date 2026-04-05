@@ -103,7 +103,7 @@ appdown/
 
 ### Nginx 安全规则
 
-在 Nginx 配置的 server 块中添加：
+在 Nginx 配置的 server 块中添加（宝塔面板：网站 → 你的站点 → 设置 → 配置文件，在 `location / { }` 之前添加）：
 
 ```nginx
 # 禁止访问数据库、公共库和安装锁定文件
@@ -130,9 +130,31 @@ location ~* ^/uploads/.*\.php$ {
 }
 ```
 
-### 宝塔面板用户
+### PHP 配置
 
-详见 [DEPLOY.md](DEPLOY.md) 宝塔面板部署教程。
+确保以下扩展已开启（宝塔面板：PHP → 设置 → 安装扩展）：
+- `pdo_sqlite` — SQLite 数据库支持
+- `fileinfo` — 文件 MIME 检测
+
+如需上传大文件（安装包），调整上传限制（PHP → 设置 → 配置修改）：
+```ini
+upload_max_filesize = 200M
+post_max_size = 210M
+```
+
+### 验证安装
+
+1. 访问 `https://你的域名/admin/` → 使用安装时设置的账号登录
+2. 在后台添加/编辑应用、上传图片
+3. 访问 `https://你的域名/` → 确认首页正常加载
+4. 检查 `https://你的域名/api/config.php` → 返回 JSON 数据
+
+### 安全建议
+
+- 定期备份 `data/app.db` 数据库文件
+- 确保 `data/` 目录不可通过 Web 访问
+- 启用 HTTPS（宝塔：网站 → SSL）
+- 如需重新安装，删除 `install/install.lock` 文件即可
 
 ## 后台功能
 
