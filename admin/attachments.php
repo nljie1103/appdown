@@ -108,9 +108,15 @@ admin_header('附件管理', 'attachments');
             </div>
         </div>
         <div class="form-group"><label>备注 <small style="color:var(--text-secondary);">(可选)</small></label><input type="text" class="form-control" id="imgRemark" placeholder="图片用途说明"></div>
+        <div id="imgUploadProgress" style="display:none;margin:8px 0;">
+            <div style="background:var(--border);border-radius:4px;overflow:hidden;height:6px;">
+                <div id="imgUploadBar" style="width:0%;height:100%;background:var(--primary);transition:width 0.3s;"></div>
+            </div>
+            <p style="font-size:0.8em;color:var(--text-secondary);margin-top:4px;" id="imgUploadStatus">上传中...</p>
+        </div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('imgUploadModal')">取消</button>
-            <button class="btn btn-primary" onclick="doImgUpload()">上传</button>
+            <button class="btn btn-primary" id="imgUploadSubmit" onclick="doImgUpload()">上传</button>
         </div>
     </div>
 </div>
@@ -407,7 +413,7 @@ async function loadImgFiles() {
             <span class="img-meta">${img.width && img.height ? img.width + '×' + img.height : ''}</span>
             <span class="img-meta">${escapeHTML(img.file_size)}</span>
             <span class="img-actions">
-                <button class="btn btn-outline btn-sm" onclick="copyImgLink('${escapeHTML(img.file_url)}')" title="复制链接"><i class="fas fa-copy"></i></button>
+                <button class="btn btn-outline btn-sm" onclick="copyImgLink(this.dataset.url)" data-url="${escapeHTML(img.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
                 <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteImgFile(${img.id})" title="删除"><i class="fas fa-trash"></i></button>
             </span>
         </div>
@@ -458,17 +464,48 @@ async function doImgUpload() {
     fd.append('rename', rename);
     fd.append('remark', remark);
     fd.append('_csrf', CSRF_TOKEN);
+
+    document.getElementById('imgUploadProgress').style.display = '';
+    document.getElementById('imgUploadSubmit').disabled = true;
+
     try {
-        const res = await API.upload('/admin/api/image-library.php?action=images', fd);
-        AlertModal.success('上传成功', '图片已上传到图片库');
-        Modal.hide('imgUploadModal');
-        document.getElementById('imgRename').value = '';
-        document.getElementById('imgRemark').value = '';
-        document.getElementById('imgFileInput2').value = '';
-        document.getElementById('imgDropText').textContent = '点击选择或拖拽图片到此处';
-        await loadImgCategories();
-        await loadImgFiles();
-    } catch(e) {}
+        const res = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const pct = Math.round(e.loaded / e.total * 100);
+                    document.getElementById('imgUploadBar').style.width = pct + '%';
+                    document.getElementById('imgUploadStatus').textContent = `上传中... ${pct}%`;
+                }
+            };
+            xhr.onload = function() {
+                try { resolve(JSON.parse(xhr.responseText)); }
+                catch(e) { reject(new Error('服务器返回了无法解析的响应')); }
+            };
+            xhr.onerror = function() { reject(new Error('网络错误')); };
+            xhr.open('POST', '/admin/api/image-library.php?action=images');
+            xhr.setRequestHeader('X-CSRF-Token', CSRF_TOKEN);
+            xhr.send(fd);
+        });
+
+        if (res.ok) {
+            AlertModal.success('上传成功', '图片已上传到图片库');
+            Modal.hide('imgUploadModal');
+            document.getElementById('imgRename').value = '';
+            document.getElementById('imgRemark').value = '';
+            document.getElementById('imgFileInput2').value = '';
+            document.getElementById('imgDropText').textContent = '点击选择或拖拽图片到此处';
+            await loadImgCategories();
+            await loadImgFiles();
+        } else {
+            AlertModal.error('上传失败', res.error || '未知错误');
+        }
+    } catch(e) {
+        AlertModal.error('上传失败', e.message);
+    }
+    document.getElementById('imgUploadProgress').style.display = 'none';
+    document.getElementById('imgUploadBar').style.width = '0%';
+    document.getElementById('imgUploadSubmit').disabled = false;
 }
 
 async function deleteImgFile(id) {

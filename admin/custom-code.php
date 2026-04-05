@@ -1,6 +1,6 @@
 <?php
 /**
- * 自定义代码注入页
+ * 自定义代码注入页 — 含内置特效管理
  */
 
 require_once __DIR__ . '/../includes/init.php';
@@ -18,8 +18,16 @@ admin_header('自定义代码', 'code');
 
 <!-- 内置特效预设 -->
 <div class="card">
-    <h3><i class="fas fa-magic"></i> 内置特效 <small style="color:#999;font-weight:400;">（点击启用/禁用，自动写入对应代码区域）</small></h3>
-    <div id="presetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:14px;"></div>
+    <h3><i class="fas fa-magic"></i> 内置特效</h3>
+    <p style="color:var(--text-secondary);font-size:0.85em;margin-bottom:14px;">点击卡片启用/禁用，启用后可调节参数。特效独立于下方代码区域保存。</p>
+    <div id="presetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;"></div>
+</div>
+
+<!-- 特效参数面板 -->
+<div class="card" id="effectParams" style="display:none;">
+    <h3 id="effectParamsTitle">特效参数</h3>
+    <div id="effectParamsBody"></div>
+    <button class="btn btn-primary btn-sm" onclick="saveEffects()" style="margin-top:12px;"><i class="fas fa-save"></i> 保存特效设置</button>
 </div>
 
 <div class="card">
@@ -46,151 +54,296 @@ admin_header('自定义代码', 'code');
     <button class="btn btn-primary btn-sm" onclick="save('footer_js')" style="margin-top:10px;"><i class="fas fa-save"></i> 保存</button>
 </div>
 
+<style>
+.slider-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+.slider-row label { width: 80px; font-size: 0.9em; font-weight: 500; flex-shrink: 0; }
+.slider-row input[type=range] { flex: 1; accent-color: var(--primary); }
+.slider-row .slider-val { width: 36px; text-align: center; font-size: 0.85em; color: var(--text-secondary); font-weight: 600; }
+.festival-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap: 6px; margin: 10px 0; }
+.festival-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg); border-radius: 6px; font-size: 0.88em; cursor: pointer; user-select: none; }
+.festival-item input { accent-color: var(--primary); }
+.festival-item:hover { background: var(--border); }
+</style>
+
 <script>
-// ==================== 内置特效预设 ====================
-const PRESETS = [
-    {
-        id: 'sakura', name: '全屏樱花', icon: '🌸', color: '#FFB7C5',
-        desc: '飘落的樱花瓣特效',
-        target: 'footer_js',
-        code: `// [preset:sakura] 全屏樱花特效
-(function(){const c=document.createElement('canvas');c.id='sakura-canvas';c.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999';document.body.appendChild(c);const x=c.getContext('2d');let w,h;function resize(){w=c.width=innerWidth;h=c.height=innerHeight}resize();addEventListener('resize',resize);const petals=[];function Petal(){this.x=Math.random()*w;this.y=-10;this.s=Math.random()*8+4;this.r=Math.random()*Math.PI*2;this.vx=Math.random()*2-1;this.vy=Math.random()*1+1;this.vr=Math.random()*0.02-0.01;this.a=Math.random()*0.5+0.5}function draw(){x.clearRect(0,0,w,h);petals.forEach((p,i)=>{p.x+=p.vx+Math.sin(p.r)*0.5;p.y+=p.vy;p.r+=p.vr;if(p.y>h+10){petals[i]=new Petal()}x.save();x.translate(p.x,p.y);x.rotate(p.r);x.globalAlpha=p.a;x.fillStyle='#FFB7C5';x.beginPath();x.ellipse(0,0,p.s,p.s/2,0,0,Math.PI*2);x.fill();x.restore()});requestAnimationFrame(draw)}for(let i=0;i<35;i++){const p=new Petal();p.y=Math.random()*h;petals.push(p)}draw()})();`
+// ================== 特效定义 ==================
+const EFFECTS = {
+    sakura: { name: '全屏樱花', icon: '🌸', color: '#FFB7C5', desc: '飘落的樱花瓣特效',
+        params: [
+            { key: 'count', label: '数量', min: 5, max: 100, default: 35 },
+            { key: 'size', label: '大小', min: 2, max: 20, default: 8 },
+            { key: 'speed', label: '速度', min: 10, max: 100, default: 50 },
+        ]
     },
-    {
-        id: 'snow', name: '全屏雪花', icon: '❄️', color: '#87CEEB',
-        desc: '飘落的雪花特效',
-        target: 'footer_js',
-        code: `// [preset:snow] 全屏雪花特效
-(function(){const c=document.createElement('canvas');c.id='snow-canvas';c.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999';document.body.appendChild(c);const x=c.getContext('2d');let w,h;function resize(){w=c.width=innerWidth;h=c.height=innerHeight}resize();addEventListener('resize',resize);const flakes=[];function Flake(){this.x=Math.random()*w;this.y=-5;this.r=Math.random()*3+1;this.vx=Math.random()*1-0.5;this.vy=Math.random()*1.5+0.5;this.a=Math.random()*0.6+0.4}function draw(){x.clearRect(0,0,w,h);flakes.forEach((f,i)=>{f.x+=f.vx+Math.sin(Date.now()*0.001+i)*0.3;f.y+=f.vy;if(f.y>h+5){flakes[i]=new Flake()}x.beginPath();x.arc(f.x,f.y,f.r,0,Math.PI*2);x.fillStyle='rgba(255,255,255,'+f.a+')';x.fill()});requestAnimationFrame(draw)}for(let i=0;i<60;i++){const f=new Flake();f.y=Math.random()*h;flakes.push(f)}draw()})();`
+    snow: { name: '全屏雪花', icon: '❄️', color: '#87CEEB', desc: '飘落的雪花特效',
+        params: [
+            { key: 'count', label: '数量', min: 10, max: 200, default: 60 },
+            { key: 'size', label: '大小', min: 1, max: 10, default: 4 },
+            { key: 'speed', label: '速度', min: 10, max: 100, default: 50 },
+        ]
     },
-    {
-        id: 'grayscale', name: '全站灰色', icon: '🕯️', color: '#888',
-        desc: '纪念/悼念模式，全站变灰',
-        target: 'head_css',
-        code: `/* [preset:grayscale] 全站灰色（纪念/悼念模式） */
-html { filter: grayscale(100%); -webkit-filter: grayscale(100%); }`
+    lantern: { name: '节日灯笼', icon: '🏮', color: '#FF4500', desc: '页面顶部悬挂灯笼',
+        params: [
+            { key: 'size', label: '大小', min: 20, max: 100, default: 50 },
+        ]
     },
-    {
-        id: 'lantern', name: '节日灯笼', icon: '🏮', color: '#FF4500',
-        desc: '页面顶部悬挂灯笼',
-        target: 'footer_js',
-        code: `// [preset:lantern] 节日灯笼
-(function(){const d=document.createElement('div');d.id='lanterns';d.innerHTML='<div style="position:fixed;top:-10px;left:15%;z-index:9998;animation:swing 3s ease-in-out infinite;transform-origin:top center;"><div style="width:50px;height:60px;background:radial-gradient(circle,#ff6b35,#e63900);border-radius:50% 50% 50% 50%/60% 60% 40% 40%;box-shadow:0 0 20px rgba(255,100,0,0.5);display:flex;align-items:center;justify-content:center;color:#ffe0b2;font-size:14px;font-weight:bold;">福</div><div style="width:30px;height:15px;background:#ffd700;margin:0 auto;border-radius:0 0 4px 4px;"></div></div><div style="position:fixed;top:-10px;right:15%;z-index:9998;animation:swing 3s ease-in-out infinite 0.5s;transform-origin:top center;"><div style="width:50px;height:60px;background:radial-gradient(circle,#ff6b35,#e63900);border-radius:50% 50% 50% 50%/60% 60% 40% 40%;box-shadow:0 0 20px rgba(255,100,0,0.5);display:flex;align-items:center;justify-content:center;color:#ffe0b2;font-size:14px;font-weight:bold;">春</div><div style="width:30px;height:15px;background:#ffd700;margin:0 auto;border-radius:0 0 4px 4px;"></div></div>';const s=document.createElement('style');s.textContent='@keyframes swing{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}';document.head.appendChild(s);document.body.appendChild(d)})();`
+    particles: { name: '粒子背景', icon: '✨', color: '#3498DB', desc: '动态粒子连线效果',
+        params: [
+            { key: 'count', label: '数量', min: 10, max: 150, default: 50 },
+            { key: 'speed', label: '速度', min: 10, max: 100, default: 40 },
+            { key: 'opacity', label: '透明度', min: 10, max: 100, default: 40 },
+        ]
     },
-    {
-        id: 'welcome', name: '节日欢迎弹窗', icon: '🎉', color: '#FF6B6B',
-        desc: '进入网站弹出节日欢迎语',
-        target: 'footer_js',
-        code: `// [preset:welcome] 节日欢迎弹窗（修改文字后使用）
-(function(){if(sessionStorage.getItem('welcomed'))return;sessionStorage.setItem('welcomed','1');const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;justify-content:center;align-items:center;opacity:0;transition:opacity 0.3s';const d=document.createElement('div');d.style.cssText='background:#fff;padding:40px;border-radius:16px;text-align:center;max-width:380px;transform:scale(0.8);transition:transform 0.3s';d.innerHTML='<div style="font-size:3em;margin-bottom:10px;">🎊</div><h2 style="margin-bottom:12px;color:#333;">欢迎访问！</h2><p style="color:#666;line-height:1.8;margin-bottom:20px;">祝您节日快乐！感谢您的来访。</p><button style="padding:10px 30px;background:#007AFF;color:#fff;border:none;border-radius:8px;font-size:1em;cursor:pointer;" onclick="this.closest(\\'div\\').parentElement.remove()">知道了</button>';o.appendChild(d);document.body.appendChild(o);setTimeout(()=>{o.style.opacity='1';d.style.transform='scale(1)'},100)})();`
+    cursor: { name: '鼠标跟随', icon: '🌟', color: '#F39C12', desc: '鼠标移动时星星拖尾',
+        params: [
+            { key: 'size', label: '大小', min: 2, max: 15, default: 6 },
+        ]
     },
-    {
-        id: 'bgmusic', name: '背景音乐', icon: '🎵', color: '#9B59B6',
-        desc: '可显示/隐藏音乐播放控件',
-        target: 'footer_js',
-        code: `// [preset:bgmusic] 背景音乐（请修改音乐URL）
-(function(){const url='https://example.com/music.mp3';const a=new Audio(url);a.loop=true;a.volume=0.3;const btn=document.createElement('div');btn.style.cssText='position:fixed;bottom:20px;right:20px;width:44px;height:44px;background:#007AFF;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9999;box-shadow:0 2px 10px rgba(0,0,0,0.2);transition:transform 0.3s;color:#fff;font-size:18px;';btn.innerHTML='🎵';btn.title='点击播放/暂停';let playing=false;btn.onclick=function(){if(playing){a.pause();btn.style.opacity='0.6';btn.style.animation='none'}else{a.play().catch(()=>{});btn.style.opacity='1';btn.style.animation='spin-music 3s linear infinite'}playing=!playing};const s=document.createElement('style');s.textContent='@keyframes spin-music{from{transform:rotate(0)}to{transform:rotate(360deg)}}';document.head.appendChild(s);document.body.appendChild(btn)})();`
+    ribbon: { name: '彩带背景', icon: '🎀', color: '#E91E63', desc: '点击刷新彩带背景',
+        params: [
+            { key: 'opacity', label: '透明度', min: 10, max: 100, default: 60 },
+        ]
     },
-    {
-        id: 'contextmenu', name: '右键美化', icon: '🖱️', color: '#2ECC71',
-        desc: '自定义右键菜单样式',
-        target: 'footer_js',
-        code: `// [preset:contextmenu] 右键菜单美化
-(function(){const menu=document.createElement('div');menu.id='custom-ctx';menu.style.cssText='display:none;position:fixed;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);padding:6px 0;z-index:99999;min-width:180px;font-size:14px;';const items=[{icon:'🏠',text:'返回首页',action:()=>location.href='/'},{icon:'↑',text:'回到顶部',action:()=>scrollTo({top:0,behavior:'smooth'})},{icon:'←',text:'返回上页',action:()=>history.back()},{icon:'🔄',text:'刷新页面',action:()=>location.reload()}];items.forEach(it=>{const d=document.createElement('div');d.style.cssText='padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background 0.15s;';d.innerHTML=it.icon+' '+it.text;d.onmouseenter=()=>d.style.background='#f5f5f5';d.onmouseleave=()=>d.style.background='';d.onclick=()=>{menu.style.display='none';it.action()};menu.appendChild(d)});document.body.appendChild(menu);document.addEventListener('contextmenu',e=>{e.preventDefault();menu.style.display='block';let x=e.clientX,y=e.clientY;if(x+menu.offsetWidth>innerWidth)x=innerWidth-menu.offsetWidth-5;if(y+menu.offsetHeight>innerHeight)y=innerHeight-menu.offsetHeight-5;menu.style.left=x+'px';menu.style.top=y+'px'});document.addEventListener('click',()=>menu.style.display='none')})();`
+    grayscale: { name: '全站灰色', icon: '🕯️', color: '#888', desc: '纪念/悼念模式',
+        params: []
     },
-    {
-        id: 'nosource', name: '禁止查看源码', icon: '🔒', color: '#E74C3C',
-        desc: '禁用F12、右键查看源码、Ctrl+U',
-        target: 'footer_js',
-        code: `// [preset:nosource] 禁止查看源码
-(function(){document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='J'||e.key==='C'))||(e.ctrlKey&&e.key==='u')){e.preventDefault();return false}});document.addEventListener('contextmenu',function(e){e.preventDefault()});(function c(){try{const d=new Date();debugger;if(new Date()-d>100){document.body.innerHTML='<div style=\"display:flex;justify-content:center;align-items:center;min-height:100vh;font-size:1.5em;color:#e74c3c;\">检测到开发者工具，页面已保护</div>'}}catch(e){}setTimeout(c,1000)})()})();`
+    contextmenu: { name: '右键美化', icon: '🖱️', color: '#2ECC71', desc: '自定义右键菜单',
+        params: []
     },
-    {
-        id: 'particles', name: '粒子背景', icon: '✨', color: '#3498DB',
-        desc: '动态粒子连线背景效果',
-        target: 'footer_js',
-        code: `// [preset:particles] 粒子背景
-(function(){const c=document.createElement('canvas');c.id='particles-bg';c.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1;opacity:0.4';document.body.appendChild(c);const x=c.getContext('2d');let w,h;function resize(){w=c.width=innerWidth;h=c.height=innerHeight}resize();addEventListener('resize',resize);const dots=[];const N=50;for(let i=0;i<N;i++)dots.push({x:Math.random()*w,y:Math.random()*h,vx:(Math.random()-0.5)*0.8,vy:(Math.random()-0.5)*0.8,r:Math.random()*2+1});function draw(){x.clearRect(0,0,w,h);dots.forEach(d=>{d.x+=d.vx;d.y+=d.vy;if(d.x<0||d.x>w)d.vx*=-1;if(d.y<0||d.y>h)d.vy*=-1;x.beginPath();x.arc(d.x,d.y,d.r,0,Math.PI*2);x.fillStyle='#007AFF';x.fill()});for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){const dx=dots[i].x-dots[j].x,dy=dots[i].y-dots[j].y,dist=Math.sqrt(dx*dx+dy*dy);if(dist<120){x.beginPath();x.moveTo(dots[i].x,dots[i].y);x.lineTo(dots[j].x,dots[j].y);x.strokeStyle='rgba(0,122,255,'+(1-dist/120)*0.3+')';x.stroke()}}requestAnimationFrame(draw)}draw()})();`
+    nosource: { name: '禁止查看源码', icon: '🔒', color: '#E74C3C', desc: '禁用F12/右键查看源码',
+        params: []
     },
-    {
-        id: 'cursor', name: '鼠标跟随', icon: '🌟', color: '#F39C12',
-        desc: '鼠标移动时产生星星拖尾',
-        target: 'footer_js',
-        code: `// [preset:cursor] 鼠标星星拖尾
-(function(){const stars=[];document.addEventListener('mousemove',function(e){stars.push({x:e.clientX,y:e.clientY,life:1,vx:(Math.random()-0.5)*2,vy:(Math.random()-0.5)*2-1,s:Math.random()*6+3})});const c=document.createElement('canvas');c.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99999';document.body.appendChild(c);const x=c.getContext('2d');function resize(){c.width=innerWidth;c.height=innerHeight}resize();addEventListener('resize',resize);function draw(){x.clearRect(0,0,c.width,c.height);for(let i=stars.length-1;i>=0;i--){const s=stars[i];s.life-=0.02;s.x+=s.vx;s.y+=s.vy;if(s.life<=0){stars.splice(i,1);continue}x.save();x.globalAlpha=s.life;x.fillStyle='#FFD700';x.translate(s.x,s.y);x.rotate(Math.PI/4);x.fillRect(-s.s/2,-s.s/2,s.s,s.s);x.restore()}if(stars.length>100)stars.splice(0,stars.length-100);requestAnimationFrame(draw)}draw()})();`
+    bgmusic: { name: '背景音乐', icon: '🎵', color: '#9B59B6', desc: '网站背景音乐播放',
+        params: [
+            { key: 'volume', label: '音量', min: 5, max: 100, default: 30 },
+        ],
+        extra: 'music_url'  // 需要额外输入框
     },
-    {
-        id: 'ribbon', name: '彩带背景', icon: '🎀', color: '#E91E63',
-        desc: '点击页面更换彩带背景',
-        target: 'footer_js',
-        code: `// [preset:ribbon] 彩带背景（点击刷新）
-(function(){const c=document.createElement('canvas');c.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1;opacity:0.6';document.body.appendChild(c);const x=c.getContext('2d');let w,h;function resize(){w=c.width=innerWidth;h=c.height=innerHeight}resize();addEventListener('resize',resize);function draw(){x.clearRect(0,0,w,h);const colors=['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8'];let py=0,px=0;for(let i=0;i<6;i++){x.beginPath();x.moveTo(px,py);const segments=Math.floor(Math.random()*3)+3;for(let j=0;j<segments;j++){const nx=Math.random()*w;const ny=py+h/6*Math.random()+h/12;x.quadraticCurveTo(Math.random()*w,py+Math.random()*(ny-py),nx,ny);px=nx;py=ny}x.lineTo(w,py);x.lineTo(w,py-h/8);x.closePath();x.fillStyle=colors[i%colors.length]+'40';x.fill();py=Math.random()*h*0.3;px=0}}draw();document.addEventListener('click',draw)})();`
-    }
+    welcome: { name: '节日欢迎弹窗', icon: '🎉', color: '#FF6B6B', desc: '节日自动弹窗祝福',
+        params: [],
+        extra: 'festival'   // 需要节日选择面板
+    },
+};
+
+// 中国节日列表（公历 + 农历标注）
+const FESTIVALS = [
+    { id: 'newyear', name: '元旦', date: '01-01', greeting: '新年快乐！愿新的一年万事如意，阖家幸福！🎊' },
+    { id: 'valentine', name: '情人节', date: '02-14', greeting: '情人节快乐！愿有情人终成眷属！💕' },
+    { id: 'women', name: '妇女节', date: '03-08', greeting: '妇女节快乐！致敬每一位伟大的女性！🌷' },
+    { id: 'arbor', name: '植树节', date: '03-12', greeting: '植树节快乐！让我们一起守护绿色家园！🌳' },
+    { id: 'fool', name: '愚人节', date: '04-01', greeting: '愚人节快乐！今天的玩笑要适可而止哦！😄' },
+    { id: 'qingming', name: '清明节', date: '04-05', greeting: '清明时节，缅怀先人，珍惜当下。🕊️' },
+    { id: 'labor', name: '劳动节', date: '05-01', greeting: '劳动节快乐！向每一位劳动者致敬！💪' },
+    { id: 'youth', name: '青年节', date: '05-04', greeting: '五四青年节快乐！青春正当时，奋斗不止步！🔥' },
+    { id: 'mother', name: '母亲节', date: '05-second-sun', greeting: '母亲节快乐！感恩母亲的无私奉献！❤️', dynamic: true },
+    { id: 'children', name: '儿童节', date: '06-01', greeting: '六一儿童节快乐！愿每个人心中都住着一个快乐的孩子！🎈' },
+    { id: 'dragon', name: '端午节', date: 'lunar-05-05', greeting: '端午节安康！粽叶飘香，龙舟竞渡！🐉', lunar: true },
+    { id: 'cpc', name: '建党节', date: '07-01', greeting: '七一建党节，不忘初心，牢记使命！🇨🇳' },
+    { id: 'army', name: '建军节', date: '08-01', greeting: '八一建军节，致敬最可爱的人！🎖️' },
+    { id: 'qixi', name: '七夕节', date: 'lunar-07-07', greeting: '七夕节快乐！愿天下有情人终成眷属！🌹', lunar: true },
+    { id: 'teacher', name: '教师节', date: '09-10', greeting: '教师节快乐！感恩师恩，桃李满天下！📚' },
+    { id: 'mid_autumn', name: '中秋节', date: 'lunar-08-15', greeting: '中秋节快乐！月圆人团圆，幸福美满！🥮🌕', lunar: true },
+    { id: 'national', name: '国庆节', date: '10-01', greeting: '国庆节快乐！祝伟大祖国繁荣昌盛！🇨🇳🎆' },
+    { id: 'chongyang', name: '重阳节', date: 'lunar-09-09', greeting: '重阳节快乐！敬老爱老，登高望远！🏔️', lunar: true },
+    { id: 'spring', name: '春节', date: 'lunar-01-01', greeting: '新春快乐！恭喜发财，大吉大利！🧧🎆', lunar: true },
+    { id: 'lantern_fest', name: '元宵节', date: 'lunar-01-15', greeting: '元宵节快乐！花灯璀璨，团团圆圆！🏮🎊', lunar: true },
+    { id: 'christmas', name: '圣诞节', date: '12-25', greeting: '圣诞快乐！Merry Christmas！🎄🎅' },
+    { id: 'nye', name: '除夕', date: 'lunar-12-30', greeting: '除夕夜快乐！辞旧迎新，阖家团圆！🎇', lunar: true },
 ];
 
-// 渲染预设网格
+// 当前特效配置
+let effectsConfig = {};
+
+// ================== 渲染 ==================
 function renderPresets() {
     const grid = document.getElementById('presetGrid');
     grid.innerHTML = '';
-    PRESETS.forEach(p => {
-        const isActive = isPresetActive(p);
+    for (const [id, ef] of Object.entries(EFFECTS)) {
+        const isActive = !!effectsConfig[id]?.enabled;
         const card = document.createElement('div');
-        card.style.cssText = `padding:14px;border-radius:10px;border:2px solid ${isActive ? p.color : '#e5e5e5'};background:${isActive ? p.color + '10' : '#fafafa'};cursor:pointer;transition:all 0.2s;text-align:center;`;
+        card.style.cssText = `padding:14px;border-radius:10px;border:2px solid ${isActive ? ef.color : '#e5e5e5'};background:${isActive ? ef.color + '10' : '#fafafa'};cursor:pointer;transition:all 0.2s;text-align:center;`;
         card.innerHTML = `
-            <div style="font-size:1.8em;margin-bottom:6px;">${p.icon}</div>
-            <div style="font-weight:600;font-size:0.9em;color:#333;">${p.name}</div>
-            <div style="font-size:0.75em;color:#999;margin-top:4px;">${p.desc}</div>
+            <div style="font-size:1.8em;margin-bottom:6px;">${ef.icon}</div>
+            <div style="font-weight:600;font-size:0.9em;color:#333;">${ef.name}</div>
+            <div style="font-size:0.75em;color:#999;margin-top:4px;">${ef.desc}</div>
             <div style="margin-top:8px;font-size:0.75em;font-weight:600;color:${isActive ? '#27ae60' : '#ccc'};">${isActive ? '● 已启用' : '○ 未启用'}</div>
         `;
-        card.onmouseenter = () => { card.style.borderColor = p.color; card.style.transform = 'translateY(-2px)'; };
-        card.onmouseleave = () => { card.style.borderColor = isActive ? p.color : '#e5e5e5'; card.style.transform = ''; };
-        card.onclick = () => togglePreset(p);
+        card.onmouseenter = () => { card.style.borderColor = ef.color; card.style.transform = 'translateY(-2px)'; };
+        card.onmouseleave = () => { card.style.borderColor = isActive ? ef.color : '#e5e5e5'; card.style.transform = ''; };
+        card.onclick = () => toggleEffect(id);
         grid.appendChild(card);
+    }
+    renderActiveParams();
+}
+
+function toggleEffect(id) {
+    if (!effectsConfig[id]) effectsConfig[id] = { enabled: false, params: {} };
+    effectsConfig[id].enabled = !effectsConfig[id].enabled;
+
+    // 初始化默认参数
+    if (effectsConfig[id].enabled) {
+        const ef = EFFECTS[id];
+        if (ef.params) {
+            ef.params.forEach(p => {
+                if (effectsConfig[id].params[p.key] === undefined) {
+                    effectsConfig[id].params[p.key] = p.default;
+                }
+            });
+        }
+        if (id === 'welcome' && !effectsConfig[id].festivals) {
+            effectsConfig[id].festivals = {};
+            FESTIVALS.forEach(f => { effectsConfig[id].festivals[f.id] = { enabled: true, greeting: f.greeting }; });
+        }
+        if (id === 'bgmusic' && !effectsConfig[id].music_url) {
+            effectsConfig[id].music_url = '';
+        }
+    }
+    saveEffects();
+}
+
+function renderActiveParams() {
+    const panel = document.getElementById('effectParams');
+    const body = document.getElementById('effectParamsBody');
+    const activeEffects = Object.entries(effectsConfig).filter(([id, c]) => c.enabled && EFFECTS[id]);
+
+    if (!activeEffects.length) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = '';
+    document.getElementById('effectParamsTitle').textContent = '特效参数设置';
+    body.innerHTML = '';
+
+    activeEffects.forEach(([id, cfg]) => {
+        const ef = EFFECTS[id];
+        const section = document.createElement('div');
+        section.style.cssText = 'margin-bottom:20px;padding:14px;background:var(--bg);border-radius:8px;';
+        let html = `<div style="font-weight:600;font-size:0.95em;margin-bottom:10px;">${ef.icon} ${ef.name}</div>`;
+
+        // 参数滑块
+        ef.params.forEach(p => {
+            const val = cfg.params?.[p.key] ?? p.default;
+            html += `<div class="slider-row">
+                <label>${p.label}</label>
+                <input type="range" min="${p.min}" max="${p.max}" value="${val}"
+                    oninput="updateParam('${id}','${p.key}',this.value);this.nextElementSibling.textContent=this.value">
+                <span class="slider-val">${val}</span>
+            </div>`;
+        });
+
+        // 背景音乐链接
+        if (ef.extra === 'music_url') {
+            html += `<div class="form-group" style="margin-top:10px;">
+                <label style="font-size:0.9em;font-weight:500;"><span style="color:#e74c3c;">*</span> 音乐链接</label>
+                <input type="text" class="form-control" value="${escapeHTML(cfg.music_url || '')}"
+                    placeholder="https://example.com/music.mp3"
+                    onchange="effectsConfig['${id}'].music_url=this.value">
+            </div>`;
+        }
+
+        // 节日选择
+        if (ef.extra === 'festival') {
+            html += `<div style="margin-top:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <label style="font-size:0.9em;font-weight:500;">选择触发节日</label>
+                    <label style="font-size:0.8em;cursor:pointer;color:var(--primary);" onclick="toggleAllFestivals('${id}')">全选/取消</label>
+                </div>
+                <div class="festival-grid">`;
+            FESTIVALS.forEach(f => {
+                const fc = cfg.festivals?.[f.id];
+                const checked = fc?.enabled !== false ? 'checked' : '';
+                const lunar = f.lunar ? ' <small style="color:var(--text-secondary);">(农历)</small>' : '';
+                html += `<label class="festival-item">
+                    <input type="checkbox" ${checked} onchange="effectsConfig['${id}'].festivals['${f.id}'].enabled=this.checked">
+                    ${f.name}${lunar}
+                </label>`;
+            });
+            html += `</div>
+                <div style="margin-top:10px;">
+                    <label style="font-size:0.9em;font-weight:500;display:block;margin-bottom:6px;">自定义祝福内容 <small style="color:var(--text-secondary);">(点击展开编辑)</small></label>
+                    <details>
+                        <summary style="cursor:pointer;color:var(--primary);font-size:0.85em;margin-bottom:8px;">展开编辑各节日祝福语</summary>
+                        <div style="max-height:300px;overflow-y:auto;">`;
+            FESTIVALS.forEach(f => {
+                const greeting = cfg.festivals?.[f.id]?.greeting ?? f.greeting;
+                html += `<div style="margin:6px 0;display:flex;align-items:center;gap:8px;">
+                    <span style="width:70px;font-size:0.85em;flex-shrink:0;">${f.name}</span>
+                    <input type="text" class="form-control" value="${escapeHTML(greeting)}" style="font-size:0.85em;"
+                        onchange="effectsConfig['${id}'].festivals['${f.id}'].greeting=this.value">
+                </div>`;
+            });
+            html += `</div></details></div>`;
+        }
+
+        section.innerHTML = html;
+        body.appendChild(section);
     });
 }
 
-function isPresetActive(preset) {
-    const ta = document.getElementById(preset.target);
-    return ta && ta.value.includes('[preset:' + preset.id + ']');
+function updateParam(effectId, paramKey, value) {
+    if (!effectsConfig[effectId]) return;
+    if (!effectsConfig[effectId].params) effectsConfig[effectId].params = {};
+    effectsConfig[effectId].params[paramKey] = parseInt(value);
 }
 
-async function togglePreset(preset) {
-    const ta = document.getElementById(preset.target);
-    if (!ta) return;
-    const marker = '[preset:' + preset.id + ']';
-    if (ta.value.includes(marker)) {
-        // 移除：找到整个预设代码块并删除
-        const lines = ta.value.split('\n');
-        const newLines = [];
-        let skip = false;
-        for (const line of lines) {
-            if (line.includes(marker)) { skip = true; continue; }
-            if (skip && line.trim() === '') { skip = false; continue; }
-            if (!skip) newLines.push(line);
-        }
-        ta.value = newLines.join('\n').trim();
-    } else {
-        // 添加
-        ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + preset.code;
-    }
-    // 自动保存
-    await save(preset.target);
-    renderPresets();
+function toggleAllFestivals(effectId) {
+    const cfg = effectsConfig[effectId];
+    if (!cfg?.festivals) return;
+    const allEnabled = Object.values(cfg.festivals).every(f => f.enabled !== false);
+    Object.keys(cfg.festivals).forEach(fid => { cfg.festivals[fid].enabled = !allEnabled; });
+    renderActiveParams();
 }
 
+// ================== 加载/保存 ==================
 async function load() {
+    // 加载自定义代码
     const data = await API.get('/admin/api/custom-code.php');
     ['head_css', 'head_js', 'footer_css', 'footer_js'].forEach(pos => {
         const el = document.getElementById(pos);
         if (el) el.value = data[pos] || '';
     });
+
+    // 清理旧的preset代码（迁移到新系统）
+    ['head_css', 'head_js', 'footer_css', 'footer_js'].forEach(pos => {
+        const el = document.getElementById(pos);
+        if (el && el.value.includes('[preset:')) {
+            const lines = el.value.split('\n');
+            const cleaned = [];
+            let skip = false;
+            for (const line of lines) {
+                if (line.includes('[preset:')) { skip = true; continue; }
+                if (skip && line.trim() === '') { skip = false; continue; }
+                if (!skip) cleaned.push(line);
+            }
+            const newVal = cleaned.join('\n').trim();
+            if (newVal !== el.value.trim()) {
+                el.value = newVal;
+                save(pos, true);
+            }
+        }
+    });
+
+    // 加载特效配置
+    const settings = await API.get('/admin/api/settings.php');
+    try {
+        effectsConfig = JSON.parse(settings.effects_config || '{}');
+    } catch(e) {
+        effectsConfig = {};
+    }
     renderPresets();
 }
 
-async function save(position) {
+async function save(position, silent) {
     const code = document.getElementById(position).value;
     await API.post('/admin/api/custom-code.php', { position, code });
-    AlertModal.success('保存成功', '自定义代码已保存');
+    if (!silent) AlertModal.success('保存成功', '自定义代码已保存');
+}
+
+async function saveEffects() {
+    await API.post('/admin/api/settings.php', {
+        settings: { effects_config: JSON.stringify(effectsConfig) }
+    });
+    renderPresets();
 }
 
 load();

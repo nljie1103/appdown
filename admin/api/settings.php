@@ -30,7 +30,8 @@ if ($method === 'POST') {
     $allowed = ['site_title','site_heading','logo_url','favicon_url','notice_text','notice_enabled',
                 'copyright','carousel_interval','stats_downloads','stats_rating','stats_daily_active',
                 'font_url','font_family','captcha_enabled',
-                'bg_type','bg_color','bg_gradient','bg_image'];
+                'bg_type','bg_color','bg_gradient','bg_image',
+                'effects_config'];
 
     foreach ($settings as $key => $val) {
         if (in_array($key, $allowed, true)) {

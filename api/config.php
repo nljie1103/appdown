@@ -97,6 +97,7 @@ $config = [
         'bg_color'    => $settings['bg_color'] ?? '',
         'bg_gradient' => $settings['bg_gradient'] ?? '',
         'bg_image'    => $settings['bg_image'] ?? '',
+        'effects_config' => $settings['effects_config'] ?? '{}',
     ],
     'apps'         => $apps,
     'features'     => $features,
