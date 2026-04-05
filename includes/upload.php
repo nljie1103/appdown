@@ -58,20 +58,38 @@ function handle_upload(string $field, string $category): array {
 }
 
 function get_upload_rules(string $category): ?array {
+    // 读取PHP配置的上传限制
+    $php_max = min(parse_size(ini_get('upload_max_filesize')), parse_size(ini_get('post_max_size')));
+
     return match($category) {
         'image' => [
-            'extensions' => ['webp', 'png', 'jpg', 'jpeg', 'gif'],
-            'max_size'   => 5 * 1024 * 1024,
+            'extensions' => ['webp', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico'],
+            'max_size'   => $php_max,
         ],
         'font' => [
             'extensions' => ['ttf', 'woff', 'woff2', 'otf'],
-            'max_size'   => 10 * 1024 * 1024,
+            'max_size'   => $php_max,
         ],
         'app' => [
-            'extensions' => ['apk', 'ipa', 'exe'],
-            'max_size'   => 200 * 1024 * 1024,
+            'extensions' => ['apk', 'ipa', 'exe', 'dmg', 'zip'],
+            'max_size'   => $php_max,
         ],
         default => null,
+    };
+}
+
+/**
+ * 将PHP的ini大小值(如 "200M", "1G")转为字节数
+ */
+function parse_size(string $val): int {
+    $val = trim($val);
+    $unit = strtolower(substr($val, -1));
+    $num = (int)$val;
+    return match($unit) {
+        'g' => $num * 1024 * 1024 * 1024,
+        'm' => $num * 1024 * 1024,
+        'k' => $num * 1024,
+        default => $num,
     };
 }
 

@@ -59,7 +59,7 @@ appdown/
 │   ├── login.php           # 登录页
 │   ├── dashboard.php       # 统计仪表盘
 │   ├── apps.php            # 应用列表管理
-│   ├── app-edit.php        # 应用编辑（下载按钮+轮播���+iOS配置）
+│   ├── app-edit.php        # 应用编辑（下载按钮+轮播图+iOS配置）
 │   ├── settings.php        # 站点设置
 │   ├── features.php        # 特色卡片
 │   ├── links.php           # 友情链接
@@ -91,21 +91,25 @@ appdown/
 
 ### 安装步骤
 
-1. **上传**项目文件到服务器网站根目录
+1. **下载项目**到服务器网站根目录：
 
-2. **创建必要目录**（如不存在）：
+   **方式一：Git 克隆**
    ```bash
-   mkdir -p data uploads/images uploads/fonts uploads/apps
-   chmod 755 data uploads
+   cd /www/wwwroot/你的域名
+   git clone https://github.com/nljie1103/appdown.git .
    ```
 
-3. **运行安装程序** — 浏览器访问 `https://你的域名/install/`
-   - 自动检测运行环境（PHP版本、扩展、目录权限），有问题会红色标示并禁止安装
+   **方式二：下载压缩包**
+
+   点击本页面右上角绿色 **Code** 按钮 → **Download ZIP**，解压后将所有文件上传到网站根目录。
+
+2. **打开浏览器**访问 `https://你的域名/install/`
+   - 自动检测运行环境（PHP版本、扩展、目录权限），不通过会红色标示并禁止安装
    - 设置管理员账号和站点名称
    - 安装完成后自动生成 `install.lock` 锁定文件，无需手动删除
    - 如未安装直接访问首页，会提示跳转到安装页面
 
-4. **登录后台** — 访问 `https://你的域名/admin/`
+3. **登录后台** — 访问 `https://你的域名/admin/`
 
 ### Nginx 安全规则
 
@@ -142,11 +146,7 @@ location ~* ^/uploads/.*\.php$ {
 - `pdo_sqlite` — SQLite 数据库支持
 - `fileinfo` — 文件 MIME 检测
 
-如需上传大文件（安装包），调整上传限制（PHP → 设置 → 配置修改）：
-```ini
-upload_max_filesize = 200M
-post_max_size = 210M
-```
+如需上传大文件（如安装包），可在 PHP 配置中调整 `upload_max_filesize` 和 `post_max_size`。程序会自动读取 PHP 配置的上传限制，无额外限制。
 
 ### 验证安装
 
@@ -199,35 +199,6 @@ post_max_size = 210M
 | `/admin/api/upload.php` | POST | 文件上传（图片/字体/安装包） |
 | `/admin/api/reorder.php` | POST | 拖拽排序 |
 | `/admin/api/dashboard.php` | GET | 仪表盘统计数据 |
-
-## 本地开发
-
-项目基于 PHP，本地开发需要 PHP 环境：
-
-**方式一：PHP 内置服务器**（推荐）
-```bash
-cd /path/to/appdown
-php -S localhost:8000
-```
-然后访问 `http://localhost:8000`
-
-**方式二：VS Code + PHP Server 扩展**
-1. 安装 [PHP](https://www.php.net/downloads)
-2. 安装 [PHP Server](https://marketplace.visualstudio.com/items?itemName=brapifra.phpserver) VS Code 扩展
-3. 右键 `index.html` → "PHP Server: Serve Project"
-
-**方式三：Docker**
-```bash
-docker run -d -p 8080:80 -v $(pwd):/var/www/html php:8.2-apache
-```
-
-## 上传限制
-
-| 类型 | 大小限制 | 允许格式 |
-|------|---------|---------|
-| 图片 | 5 MB | jpg, jpeg, png, gif, webp, svg, ico |
-| 字体 | 10 MB | ttf, woff, woff2, otf |
-| 安装包 | 200 MB | apk, ipa, exe, dmg, zip |
 
 ## 开源协议
 
