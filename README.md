@@ -37,14 +37,18 @@
 
 **🎨 高度自定义**
 - 自定义代码注入（CSS / JS）
-- 11 种内置一键特效（樱花、雪花、粒子等）
-- 自定义字体上传
-- 特色卡片 & 友情链接模块
+- 11 种内置一键特效（樱花、雪花、灯笼、粒子等）
+- 节日欢迎弹窗（22个中国节日 + 自定义祝福语）
+- 背景音乐播放
+- 自定义字体上传（自动识别字体名称）
+- 特色卡片（分类管理、FA图标/自定义图片图标）
+- 友情链接（支持图标：FA图标/自定义图片、按链接开关显示）
 
 **📎 附件管理**
 - 按应用 → 平台 → 版本三级管理
-- XHR 上传带进度条
-- 下载按钮可直接选择已上传版本
+- 拖拽上传 + XHR 进度条
+- 文件自动命名（应用名-版本号）
+- 公共图片库（分类管理、备注、一键复制链接）
 
 **🔒 安全防护**
 - CSRF 保护 + 预处理语句
@@ -72,6 +76,7 @@
 ### 环境要求
 
 - PHP 8.0+ 且启用 `pdo_sqlite` 和 `fileinfo` 扩展
+- 导入导出功能需启用 `zip` 扩展
 - Nginx 或 Apache
 - **无需** MySQL、Composer、Node.js
 
@@ -116,9 +121,13 @@ appdown/
 │   ├── dashboard.php       #   统计仪表盘
 │   ├── apps.php            #   应用列表
 │   ├── app-edit.php        #   应用编辑（下载+轮播+iOS）
-│   ├── attachments.php     #   附件管理
+│   ├── attachments.php     #   附件管理 + 公共图片库
+│   ├── features.php        #   特色卡片（分类管理）
+│   ├── links.php           #   友情链接（图标管理）
+│   ├── fonts.php           #   字体管理
 │   ├── settings.php        #   站点设置
-│   ├── custom-code.php     #   自定义代码+特效预设
+│   ├── custom-code.php     #   自定义代码 + 特效配置
+│   ├── backup.php          #   数据导入导出
 │   ├── system.php          #   系统信息
 │   └── api/                #   后台AJAX接口
 ├── static/                 # 静态资源（FontAwesome）
@@ -133,12 +142,14 @@ appdown/
 | 📊 仪表盘 | 今日访问/下载量、7天趋势图、来源 TOP10 |
 | 📱 应用管理 | 添加/编辑/排序应用，支持自定义图标（FA图标或上传图片） |
 | ✏️ 应用编辑 | 下载按钮（图标可自定义）、轮播截图、iOS安装页配置 |
-| 📎 附件管理 | 按平台分类管理安装包，XHR上传带进度条 |
+| 📎 附件管理 | 按平台分类管理安装包，拖拽上传带进度条，公共图片库 |
+| ⭐ 特色卡片 | 首页亮点卡片，分类管理，FA图标/自定义图片图标 |
+| 🔗 友情链接 | 页脚链接管理，支持图标（FA/自定义图片），按链接开关图标显示 |
+| 🔤 字体管理 | 上传自定义字体（自动识别字体名称）或选择系统字体 |
 | ⚙️ 站点设置 | 站名/Logo/公告/统计数字/轮播间隔/登录验证码开关 |
-| 🃏 特色卡片 | 首页亮点卡片（拖拽排序） |
-| 🔗 友情链接 | 页脚链接管理（拖拽排序） |
-| 🔤 字体管理 | 上传自定义字体或选择系统字体 |
-| 💻 自定义代码 | head/footer 注入 CSS/JS，11种一键特效预设 |
+| 🎭 特效配置 | 11种内置特效（参数可调）、节日欢迎弹窗、背景音乐 |
+| 💻 自定义代码 | head/footer 注入 CSS/JS |
+| 💾 导入导出 | 按数据类别选择性备份，支持 AES-256-GCM 加密，含上传文件 |
 | 🖧 系统信息 | 运行环境检测、数据库状态、PHP扩展一览 |
 
 ## 🔧 Nginx 安全规则
@@ -189,10 +200,13 @@ location ~* ^/uploads/.*\.php$ {
 | `/admin/api/images.php` | CRUD | 轮播图 |
 | `/admin/api/attachments.php` | CRUD | 附件平台分类 |
 | `/admin/api/attachment-files.php` | POST/DELETE | 附件文件上传删除 |
-| `/admin/api/settings.php` | GET/POST | 站点设置 |
-| `/admin/api/features.php` | CRUD | 特色卡片 |
+| `/admin/api/features.php` | CRUD | 特色卡片 + 分类 |
 | `/admin/api/links.php` | CRUD | 友情链接 |
+| `/admin/api/image-library.php` | CRUD | 公共图片库 |
+| `/admin/api/fonts.php` | CRUD | 字体管理 |
+| `/admin/api/settings.php` | GET/POST | 站点设置 |
 | `/admin/api/custom-code.php` | GET/POST | 自定义代码 |
+| `/admin/api/backup.php` | POST | 数据导入导出 |
 | `/admin/api/upload.php` | POST | 文件上传 |
 | `/admin/api/reorder.php` | POST | 拖拽排序 |
 
@@ -202,7 +216,8 @@ location ~* ^/uploads/.*\.php$ {
 |:---|:---|
 | 重新安装 | 删除 `install/install.lock` 后访问 `/install/` |
 | 修改上传限制 | 修改 PHP 配置的 `upload_max_filesize` 和 `post_max_size` |
-| 备份数据 | 复制 `data/app.db` 和 `uploads/` 目录 |
+| 备份数据 | 后台「导入导出」页面，支持选择性导出 + 加密 |
+| 手动备份 | 复制 `data/app.db` 和 `uploads/` 目录 |
 | 开启验证码 | 后台「站点设置 → 安全设置」开启 |
 
 ## 📜 开源协议
