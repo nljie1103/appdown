@@ -62,9 +62,47 @@ if ($method === 'PUT') {
         json_response(['error' => 'ID和版本号不能为空'], 400);
     }
 
-    $stmt = $pdo->prepare('UPDATE app_attachments SET version = ?, changelog = ? WHERE id = ?');
-    $stmt->execute([$version, $changelog, $id]);
-    json_response(['ok' => true]);
+    // 查询当前记录
+    $stmt = $pdo->prepare('SELECT app_id, version, file_url FROM app_attachments WHERE id = ?');
+    $stmt->execute([$id]);
+    $att = $stmt->fetch();
+    if (!$att) json_response(['error' => '附件不存在'], 404);
+
+    $newUrl = $att['file_url'];
+
+    // 如果版本号变了，物理重命名文件（应用名-版本号.ext）
+    if ($version !== $att['version']) {
+        $oldPath = __DIR__ . '/../../' . $att['file_url'];
+        if (file_exists($oldPath)) {
+            // 获取应用名称
+            $appStmt = $pdo->prepare('SELECT name FROM apps WHERE id = ?');
+            $appStmt->execute([$att['app_id']]);
+            $appName = $appStmt->fetchColumn() ?: 'app';
+
+            $ext = strtolower(pathinfo($oldPath, PATHINFO_EXTENSION));
+            $cleanName = preg_replace('/[^\w\x{4e00}-\x{9fff}.\-]/u', '_', $appName . '-' . $version);
+            $safeName = $cleanName . '.' . $ext;
+            $dir = dirname($oldPath);
+            $newPath = $dir . '/' . $safeName;
+
+            // 避免同名冲突（排除自己）
+            if ($newPath !== $oldPath && file_exists($newPath)) {
+                $safeName = $cleanName . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+                $newPath = $dir . '/' . $safeName;
+            }
+
+            if ($newPath !== $oldPath) {
+                if (!rename($oldPath, $newPath)) {
+                    json_response(['error' => '文件重命名失败'], 500);
+                }
+                $newUrl = 'uploads/apps/' . $safeName;
+            }
+        }
+    }
+
+    $stmt = $pdo->prepare('UPDATE app_attachments SET version = ?, changelog = ?, file_url = ? WHERE id = ?');
+    $stmt->execute([$version, $changelog, $newUrl, $id]);
+    json_response(['ok' => true, 'file_url' => $newUrl]);
 }
 
 if ($method === 'DELETE') {
