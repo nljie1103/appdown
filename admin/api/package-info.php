@@ -999,10 +999,11 @@ function checkCertOcsp(string $certDer, string $provisionData): ?array {
         return ['status' => 'unknown', 'detail' => '证书中未包含 OCSP 地址', 'is_revoked' => null];
     }
 
-    // 2. 从 mobileprovision PKCS7 链中查找颁发者证书
-    $issuerCertDer = findIssuerCertFromPkcs7($certPem, $provisionData);
+    // 2. 获取颁发者证书（多种方式尝试）
+    $aia = $extensions['authorityInfoAccess'] ?? '';
+    $issuerCertDer = findIssuerCert($certPem, $provisionData, $aia);
     if (!$issuerCertDer) {
-        return ['status' => 'unknown', 'detail' => '无法提取颁发者证书', 'is_revoked' => null];
+        return ['status' => 'unknown', 'detail' => '无法获取颁发者证书', 'is_revoked' => null];
     }
 
     // 3. 提取 OCSP 请求所需字段
@@ -1030,27 +1031,68 @@ function checkCertOcsp(string $certDer, string $provisionData): ?array {
 }
 
 /**
- * 从 mobileprovision 的 PKCS7 证书链中查找颁发者证书
+ * 获取颁发者证书（多种方式尝试）
+ * 1. 从 mobileprovision PKCS7 证书链查找
+ * 2. 从证书 AIA CA Issuers URL 下载
  */
-function findIssuerCertFromPkcs7(string $leafCertPem, string $provisionData): ?string {
-    $p7pem = "-----BEGIN PKCS7-----\n" . chunk_split(base64_encode($provisionData), 64) . "-----END PKCS7-----\n";
-    $certs = [];
-    if (!openssl_pkcs7_read($p7pem, $certs)) return null;
-
+function findIssuerCert(string $leafCertPem, string $provisionData, string $aia): ?string {
     $leafInfo = openssl_x509_parse($leafCertPem);
     if (!$leafInfo) return null;
     $wantIssuer = $leafInfo['issuer'] ?? [];
 
-    foreach ($certs as $pem) {
-        $info = openssl_x509_parse($pem);
-        if (!$info) continue;
-        if (($info['subject'] ?? []) == $wantIssuer) {
-            // 转回 DER
-            $clean = preg_replace('/-----[^-]+-----/', '', $pem);
-            return base64_decode(str_replace(["\n", "\r", " "], '', $clean));
+    // 方式1: PKCS7 证书链
+    $p7pem = "-----BEGIN PKCS7-----\n" . chunk_split(base64_encode($provisionData), 64) . "-----END PKCS7-----\n";
+    $certs = [];
+    if (openssl_pkcs7_read($p7pem, $certs) && !empty($certs)) {
+        foreach ($certs as $pem) {
+            $info = openssl_x509_parse($pem);
+            if ($info && ($info['subject'] ?? []) == $wantIssuer) {
+                $clean = preg_replace('/-----[^-]+-----/', '', $pem);
+                return base64_decode(str_replace(["\n", "\r", " "], '', $clean));
+            }
         }
     }
+
+    // 方式2: 从 AIA 的 CA Issuers URL 下载颁发者证书
+    if (preg_match('/CA Issuers\s*-\s*URI:(\S+)/i', $aia, $m)) {
+        $caUrl = trim($m[1]);
+        $issuerDer = downloadWithCurl($caUrl);
+        if ($issuerDer && strlen($issuerDer) > 100) {
+            // 判断是 DER 还是 PEM 格式
+            if (str_contains($issuerDer, '-----BEGIN CERTIFICATE-----')) {
+                $clean = preg_replace('/-----[^-]+-----/', '', $issuerDer);
+                $issuerDer = base64_decode(str_replace(["\n", "\r", " "], '', $clean));
+            }
+            // 验证是否确实是颁发者
+            $issuerPem = "-----BEGIN CERTIFICATE-----\n" . chunk_split(base64_encode($issuerDer), 64) . "-----END CERTIFICATE-----\n";
+            $issuerInfo = openssl_x509_parse($issuerPem);
+            if ($issuerInfo && ($issuerInfo['subject'] ?? []) == $wantIssuer) {
+                return $issuerDer;
+            }
+        }
+    }
+
     return null;
+}
+
+/**
+ * 通过 cURL 下载数据
+ */
+function downloadWithCurl(string $url): ?string {
+    if (!function_exists('curl_init')) return null;
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_USERAGENT => 'Mozilla/5.0',
+    ]);
+    $data = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ($code === 200 && $data !== false && $data !== '') ? $data : null;
 }
 
 // ===== DER 解析工具 =====
