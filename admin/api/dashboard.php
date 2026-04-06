@@ -28,14 +28,15 @@ $dl_today->execute([$today]);
 $todayDownloads = (int)$dl_today->fetch()['c'];
 
 // 今日下载按app和类型分组
-$dl_detail = $pdo->prepare('SELECT app_slug, btn_type, COUNT(*) as c FROM download_clicks WHERE click_date = ? GROUP BY app_slug, btn_type ORDER BY app_slug, btn_type');
+$dl_detail = $pdo->prepare('SELECT d.app_slug, d.btn_type, COUNT(*) as c, a.name as app_name FROM download_clicks d LEFT JOIN apps a ON a.slug = d.app_slug WHERE d.click_date = ? GROUP BY d.app_slug, d.btn_type ORDER BY d.app_slug, d.btn_type');
 $dl_detail->execute([$today]);
 $todayDlByApp = [];
 while ($r = $dl_detail->fetch()) {
-    if (!isset($todayDlByApp[$r['app_slug']])) {
-        $todayDlByApp[$r['app_slug']] = [];
+    $name = $r['app_name'] ?: $r['app_slug'];
+    if (!isset($todayDlByApp[$name])) {
+        $todayDlByApp[$name] = [];
     }
-    $todayDlByApp[$r['app_slug']][$r['btn_type']] = (int)$r['c'];
+    $todayDlByApp[$name][$r['btn_type']] = (int)$r['c'];
 }
 
 // 来源 TOP10（按域名合并 http/https，识别来源类型）
