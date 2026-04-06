@@ -61,6 +61,33 @@ function check_environment(): array {
         'pass' => extension_loaded('json'),
     ];
 
+    // GD (可选 - 图片格式转换压缩)
+    $checks['gd'] = [
+        'name' => 'GD 扩展（可选，图片转换压缩）',
+        'required' => '建议启用',
+        'current' => extension_loaded('gd') ? '已启用' : '未启用',
+        'pass' => true, // 可选，不阻止安装
+        'optional' => true,
+    ];
+
+    // ZIP (可选 - 导入导出/安装包解析)
+    $checks['zip'] = [
+        'name' => 'Zip 扩展（可选，导入导出/安装包解析）',
+        'required' => '建议启用',
+        'current' => extension_loaded('zip') ? '已启用' : '未启用',
+        'pass' => true,
+        'optional' => true,
+    ];
+
+    // OpenSSL (可选 - 安装包解析)
+    $checks['openssl'] = [
+        'name' => 'OpenSSL 扩展（可选，安装包解析）',
+        'required' => '建议启用',
+        'current' => extension_loaded('openssl') ? '已启用' : '未启用',
+        'pass' => true,
+        'optional' => true,
+    ];
+
     // data 目录可写
     $dataDir = dirname(__DIR__) . '/data';
     if (!is_dir($dataDir)) @mkdir($dataDir, 0755, true);
@@ -229,6 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .env-current { color: #666; font-family: monospace; font-size: 0.85em; }
         .env-pass { color: #27ae60; font-weight: bold; }
         .env-fail { color: #e74c3c; font-weight: bold; }
+        .env-optional { color: #f39c12; font-weight: bold; }
         .env-warn { background: #fef3cd; color: #856404; padding: 10px 14px; border-radius: 8px; margin-top: 10px; font-size: 0.85em; line-height: 1.6; }
     </style>
 </head>
@@ -239,12 +267,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="env-check">
             <h3>环境检测</h3>
-            <?php foreach ($envChecks as $check): ?>
+            <?php foreach ($envChecks as $check):
+                $isOptional = !empty($check['optional']);
+                $loaded = ($check['current'] === '已启用' || $check['current'] === '可写');
+                if ($isOptional && !$loaded) {
+                    $statusClass = 'env-optional';
+                    $statusIcon = '&#9888;'; // ⚠
+                } elseif ($check['pass']) {
+                    $statusClass = 'env-pass';
+                    $statusIcon = '&#10004;';
+                } else {
+                    $statusClass = 'env-fail';
+                    $statusIcon = '&#10008;';
+                }
+            ?>
             <div class="env-item">
                 <span class="env-name"><?= $check['name'] ?></span>
                 <span class="env-val">
                     <span class="env-current"><?= htmlspecialchars($check['current']) ?></span>
-                    <span class="<?= $check['pass'] ? 'env-pass' : 'env-fail' ?>"><?= $check['pass'] ? '&#10004;' : '&#10008;' ?></span>
+                    <span class="<?= $statusClass ?>"><?= $statusIcon ?></span>
                 </span>
             </div>
             <?php endforeach; ?>
