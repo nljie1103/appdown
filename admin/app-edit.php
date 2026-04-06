@@ -301,11 +301,10 @@ function onDlTypeChange(typeId, iconId, previewId) {
     const defaultIcon = TYPE_ICON_MAP[type] || 'fas fa-download';
     document.getElementById(iconId).value = defaultIcon;
     updateIconPreview(defaultIcon, previewId);
-    // 自动填充按钮文本为选中项的显示名称（仅添加模态框）+ 更新placeholder
+    // 更新按钮文本placeholder提示（仅添加模态框）
     const typeName = sel.options[sel.selectedIndex].text;
     const isAddModal = typeId === 'dlType';
     if (isAddModal) {
-        document.getElementById('dlText').value = typeName;
         document.getElementById('dlText').placeholder = '如: ' + typeName;
         const hrefInput = document.getElementById('dlHref');
         const hint = document.getElementById('dlHrefAutoHint');
@@ -323,7 +322,7 @@ function onDlTypeChange(typeId, iconId, previewId) {
 function openAddDlModal() {
     document.getElementById('dlType').value = 'android';
     document.getElementById('dlIcon').value = 'fab fa-android';
-    document.getElementById('dlText').value = 'Android';
+    document.getElementById('dlText').value = '';
     document.getElementById('dlSubtext').value = '';
     document.getElementById('dlHref').value = '';
     document.getElementById('dlHrefPicker').style.display = 'none';
