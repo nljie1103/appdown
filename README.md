@@ -48,6 +48,7 @@
 - 按应用 → 平台 → 版本三级管理
 - 拖拽上传 + XHR 进度条
 - 文件自动命名（应用名-版本号）
+- **安装包详细信息解析**（APK / IPA）：签名信息、版本号、包名 / Bundle ID、证书有效期、权限列表等
 - 公共图片库（分类管理、备注、一键复制链接）
 
 **🔒 安全防护**
@@ -77,6 +78,7 @@
 
 - PHP 8.0+ 且启用 `pdo_sqlite` 和 `fileinfo` 扩展
 - 导入导出功能需启用 `zip` 扩展
+- 安装包解析功能需启用 `zip` 和 `openssl` 扩展
 - Nginx 或 Apache
 - **无需** MySQL、Composer、Node.js
 
@@ -200,6 +202,7 @@ location ~* ^/uploads/.*\.php$ {
 | `/admin/api/images.php` | CRUD | 轮播图 |
 | `/admin/api/attachments.php` | CRUD | 附件平台分类 |
 | `/admin/api/attachment-files.php` | POST/DELETE | 附件文件上传删除 |
+| `/admin/api/package-info.php` | GET | 安装包详细信息解析（APK/IPA） |
 | `/admin/api/features.php` | CRUD | 特色卡片 + 分类 |
 | `/admin/api/links.php` | CRUD | 友情链接 |
 | `/admin/api/image-library.php` | CRUD | 公共图片库 |

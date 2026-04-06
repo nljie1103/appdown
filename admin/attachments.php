@@ -121,6 +121,17 @@ admin_header('附件管理', 'attachments');
     </div>
 </div>
 
+<!-- 安装包详细信息弹窗 -->
+<div class="modal-overlay" id="pkgInfoModal">
+    <div class="modal" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;">
+        <h3><i class="fas fa-info-circle" style="color:var(--primary);"></i> 安装包详细信息</h3>
+        <div id="pkgInfoBody" style="overflow-y:auto;flex:1;"></div>
+        <div class="modal-actions" style="margin-top:12px;">
+            <button class="btn btn-outline" onclick="Modal.hide('pkgInfoModal')">关闭</button>
+        </div>
+    </div>
+</div>
+
 <style>
 @media (max-width: 768px) {
     #mainArea > div { grid-template-columns: 1fr !important; }
@@ -231,6 +242,7 @@ function renderFiles(files) {
                 ${f.changelog ? `<div class="log">${escapeHTML(f.changelog)}</div>` : ''}
             </div>
             <div class="file-actions">
+                ${/\.(apk|ipa)$/i.test(f.file_url) ? `<button class="btn btn-outline btn-sm" onclick="showPackageInfo('${escapeHTML(f.file_url)}')" title="详细信息"><i class="fas fa-info-circle"></i></button>` : ''}
                 <button class="btn btn-outline btn-sm copy-btn" onclick="copyLink(this)" data-url="${escapeHTML(f.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
                 <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteFile(${f.id})" title="删除"><i class="fas fa-trash"></i></button>
             </div>
@@ -584,6 +596,211 @@ function setupDropZone(zoneId, fileInputId, textId) {
 document.getElementById('uploadVersion').addEventListener('input', function() {
     this.style.borderColor = '';
 });
+
+// ===== 安装包详细信息 =====
+async function showPackageInfo(fileUrl) {
+    const modal = document.getElementById('pkgInfoModal');
+    const body = document.getElementById('pkgInfoBody');
+    body.innerHTML = '<div style="text-align:center;padding:32px;"><i class="fas fa-spinner fa-spin" style="font-size:1.5em;color:var(--primary);"></i><p style="margin-top:12px;color:var(--text-secondary);font-size:0.9em;">正在解析安装包，请稍候...</p></div>';
+    Modal.show('pkgInfoModal');
+
+    try {
+        const res = await API.get('/admin/api/package-info.php?file=' + encodeURIComponent(fileUrl));
+        if (!res.ok) {
+            body.innerHTML = `<div style="text-align:center;padding:24px;color:#e74c3c;"><i class="fas fa-exclamation-circle" style="font-size:1.5em;"></i><p style="margin-top:8px;">${escapeHTML(res.error || '解析失败')}</p></div>`;
+            return;
+        }
+        renderPackageInfo(res.info);
+    } catch (e) {
+        body.innerHTML = `<div style="text-align:center;padding:24px;color:#e74c3c;"><i class="fas fa-exclamation-circle" style="font-size:1.5em;"></i><p style="margin-top:8px;">请求失败: ${escapeHTML(e.message || '未知错误')}</p></div>`;
+    }
+}
+
+function renderPackageInfo(info) {
+    const body = document.getElementById('pkgInfoBody');
+    let html = '';
+
+    const isAndroid = info.platform === 'Android';
+    const icon = isAndroid ? 'fa-android' : 'fa-apple';
+    const color = isAndroid ? '#3DDC84' : '#007AFF';
+
+    html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+        <i class="fab ${icon}" style="font-size:1.8em;color:${color};"></i>
+        <div>
+            <div style="font-weight:700;font-size:1.05em;">${escapeHTML(isAndroid ? (info.package_name || '') : (info.display_name || info.bundle_name || ''))}</div>
+            <div style="font-size:0.82em;color:var(--text-secondary);">${escapeHTML(info.file_name)} · ${escapeHTML(info.file_size)}</div>
+        </div>
+    </div>`;
+
+    // 基本信息
+    const basic = [];
+    if (isAndroid) {
+        if (info.package_name) basic.push(['包名', info.package_name]);
+        if (info.version_name) basic.push(['版本', info.version_name]);
+        if (info.version_code) basic.push(['版本代码', info.version_code]);
+        if (info.min_sdk) basic.push(['最低 SDK', `API ${info.min_sdk}` + (info.min_android_version ? ` (${info.min_android_version})` : '')]);
+        if (info.target_sdk) basic.push(['目标 SDK', `API ${info.target_sdk}` + (info.target_android_version ? ` (${info.target_android_version})` : '')]);
+        if (info.compile_sdk) basic.push(['编译 SDK', `API ${info.compile_sdk}`]);
+        if (info.main_activity) basic.push(['主 Activity', info.main_activity]);
+        if (info.application_class) basic.push(['Application 类', info.application_class]);
+        basic.push(['Multidex', info.multidex ? `是 (${info.dex_count} 个 DEX)` : '否']);
+        if (info.native_architectures) basic.push(['原生架构', info.native_architectures.join(', ')]);
+        basic.push(['使用 Kotlin', info.uses_kotlin ? '是' : '否']);
+        basic.push(['包内文件数', info.total_files_in_package]);
+    } else {
+        if (info.bundle_id) basic.push(['Bundle ID', info.bundle_id]);
+        if (info.display_name) basic.push(['显示名称', info.display_name]);
+        if (info.bundle_name) basic.push(['Bundle 名称', info.bundle_name]);
+        if (info.version) basic.push(['版本', info.version]);
+        if (info.build_version) basic.push(['构建版本', info.build_version]);
+        if (info.min_ios_version) basic.push(['最低 iOS 版本', info.min_ios_version]);
+        if (info.bundle_executable) basic.push(['可执行文件', info.bundle_executable]);
+        if (info.sdk_name) basic.push(['SDK', info.sdk_name]);
+        if (info.platform_name) basic.push(['平台', info.platform_name + (info.platform_version ? ' ' + info.platform_version : '')]);
+        if (info.xcode_version) basic.push(['Xcode 版本', info.xcode_version + (info.xcode_build ? ` (${info.xcode_build})` : '')]);
+        if (info.compiler) basic.push(['编译器', info.compiler]);
+        if (info.supported_devices) basic.push(['支持设备', info.supported_devices.join(', ')]);
+        if (info.supported_orientations) basic.push(['支持方向', info.supported_orientations.join(', ')]);
+        if (info.url_schemes) basic.push(['URL Schemes', info.url_schemes.join(', ')]);
+        if (info.allows_arbitrary_loads !== undefined) basic.push(['允许 HTTP 加载', info.allows_arbitrary_loads ? '是' : '否']);
+        if (info.embedded_frameworks) basic.push(['内嵌 Frameworks', `${info.frameworks_count} 个`]);
+        basic.push(['包内文件数', info.total_files_in_package]);
+    }
+
+    html += renderInfoSection('基本信息', 'fa-cube', basic);
+
+    // 签名信息
+    if (isAndroid && info.signature) {
+        const sig = info.signature;
+        const sigRows = [];
+        sigRows.push(['证书文件', sig.cert_file || '—']);
+        sigRows.push(['证书版本', sig.cert_version || '—']);
+        sigRows.push(['签名算法', sig.signature_algorithm || '—']);
+        sigRows.push(['签发者', sig.issuer || '—']);
+        sigRows.push(['使用者', sig.subject || '—']);
+        sigRows.push(['序列号', sig.serial_number || '—']);
+        sigRows.push(['生效日期', sig.valid_from || '—']);
+        sigRows.push(['到期日期', sig.valid_to || '—']);
+        const statusColor = sig.is_valid ? '#27ae60' : '#e74c3c';
+        const statusIcon = sig.is_valid ? 'fa-check-circle' : 'fa-times-circle';
+        let statusText = sig.validity_status || '—';
+        if (sig.is_valid && sig.days_remaining) statusText += ` (剩余 ${sig.days_remaining} 天)`;
+        sigRows.push(['有效性', `<span style="color:${statusColor};"><i class="fas ${statusIcon}"></i> ${statusText}</span>`]);
+        sigRows.push(['V1 签名', sig.v1_signature ? '<span style="color:#27ae60;">✓</span>' : '<span style="color:#e74c3c;">✗</span>']);
+        sigRows.push(['V2 签名', sig.v2_signature ? '<span style="color:#27ae60;">✓</span>' : '<span style="color:#e74c3c;">✗</span>']);
+        if (sig.fingerprint_md5) sigRows.push(['指纹 MD5', `<code style="font-size:0.78em;word-break:break-all;">${escapeHTML(sig.fingerprint_md5)}</code>`]);
+        if (sig.fingerprint_sha1) sigRows.push(['指纹 SHA-1', `<code style="font-size:0.78em;word-break:break-all;">${escapeHTML(sig.fingerprint_sha1)}</code>`]);
+        if (sig.fingerprint_sha256) sigRows.push(['指纹 SHA-256', `<code style="font-size:0.78em;word-break:break-all;">${escapeHTML(sig.fingerprint_sha256)}</code>`]);
+        html += renderInfoSection('签名信息', 'fa-shield-alt', sigRows);
+    }
+
+    // iOS 描述文件
+    if (!isAndroid && info.provisioning) {
+        const prov = info.provisioning;
+        const provRows = [];
+        provRows.push(['描述文件名称', prov.name || '—']);
+        provRows.push(['签名类型', prov.provision_type || '—']);
+        if (prov.team_name) provRows.push(['团队名称', prov.team_name]);
+        if (prov.team_id) provRows.push(['团队 ID', prov.team_id]);
+        if (prov.app_id_name) provRows.push(['App ID 名称', prov.app_id_name]);
+        if (prov.creation_date) provRows.push(['创建日期', prov.creation_date]);
+        if (prov.expiration_date) provRows.push(['过期日期', prov.expiration_date]);
+        if (prov.expiry_status) {
+            const ec = prov.is_expired ? '#e74c3c' : '#27ae60';
+            const ei = prov.is_expired ? 'fa-times-circle' : 'fa-check-circle';
+            let et = prov.expiry_status;
+            if (!prov.is_expired && prov.days_remaining) et += ` (剩余 ${prov.days_remaining} 天)`;
+            provRows.push(['有效性', `<span style="color:${ec};"><i class="fas ${ei}"></i> ${et}</span>`]);
+        }
+        if (prov.provisioned_devices_count) provRows.push(['注册设备数', prov.provisioned_devices_count]);
+        html += renderInfoSection('描述文件 (Provisioning)', 'fa-file-signature', provRows);
+
+        // 开发者证书
+        if (prov.certificates && prov.certificates.length) {
+            prov.certificates.forEach((cert, idx) => {
+                const certRows = [];
+                certRows.push(['使用者', cert.subject || '—']);
+                certRows.push(['签发者', cert.issuer || '—']);
+                certRows.push(['序列号', cert.serial || '—']);
+                certRows.push(['生效日期', cert.valid_from || '—']);
+                certRows.push(['到期日期', cert.valid_to || '—']);
+                const vc = cert.is_valid ? '#27ae60' : '#e74c3c';
+                const vi = cert.is_valid ? 'fa-check-circle' : 'fa-times-circle';
+                certRows.push(['有效性', `<span style="color:${vc};"><i class="fas ${vi}"></i> ${cert.is_valid ? '有效' : '已过期'}</span>`]);
+                if (cert.fingerprint_sha1) certRows.push(['指纹 SHA-1', `<code style="font-size:0.78em;word-break:break-all;">${escapeHTML(cert.fingerprint_sha1)}</code>`]);
+                html += renderInfoSection(`开发者证书 #${idx + 1}`, 'fa-certificate', certRows);
+            });
+        }
+
+        // Entitlements
+        if (prov.entitlements) {
+            const entRows = [];
+            for (const [k, v] of Object.entries(prov.entitlements)) {
+                const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const val = typeof v === 'boolean' ? (v ? '是' : '否') : (Array.isArray(v) ? v.join(', ') : String(v));
+                entRows.push([label, val]);
+            }
+            html += renderInfoSection('权限 (Entitlements)', 'fa-key', entRows);
+        }
+
+        // 注册设备列表
+        if (prov.provisioned_devices && prov.provisioned_devices.length) {
+            const devHtml = prov.provisioned_devices.map(d => `<code style="font-size:0.8em;">${escapeHTML(d)}</code>`).join('<br>');
+            html += `<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:0.88em;font-weight:600;color:var(--text-secondary);"><i class="fas fa-mobile-alt"></i> 注册设备 UDID (${prov.provisioned_devices.length})</summary><div style="margin-top:8px;padding:8px 12px;background:var(--bg);border-radius:6px;max-height:200px;overflow-y:auto;">${devHtml}</div></details>`;
+        }
+    }
+
+    // 权限列表 (Android)
+    if (isAndroid && info.permissions && info.permissions.length) {
+        let permHtml = info.permissions.map(p => {
+            const short = p.replace('android.permission.', '');
+            return `<span style="display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px;margin:2px;font-size:0.78em;" title="${escapeHTML(p)}">${escapeHTML(short)}</span>`;
+        }).join('');
+        html += `<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:0.88em;font-weight:600;color:var(--text-secondary);"><i class="fas fa-lock"></i> 权限列表 (${info.permissions_count})</summary><div style="margin-top:8px;padding:8px 12px;">${permHtml}</div></details>`;
+    }
+
+    // features (Android)
+    if (isAndroid && info.features && info.features.length) {
+        let featHtml = info.features.map(f => {
+            const short = f.replace('android.hardware.', '').replace('android.software.', '');
+            return `<span style="display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px;margin:2px;font-size:0.78em;" title="${escapeHTML(f)}">${escapeHTML(short)}</span>`;
+        }).join('');
+        html += `<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:0.88em;font-weight:600;color:var(--text-secondary);"><i class="fas fa-microchip"></i> 硬件/软件特性 (${info.features.length})</summary><div style="margin-top:8px;padding:8px 12px;">${featHtml}</div></details>`;
+    }
+
+    // iOS 内嵌 Frameworks
+    if (!isAndroid && info.embedded_frameworks && info.embedded_frameworks.length) {
+        let fwHtml = info.embedded_frameworks.map(f => `<span style="display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px;margin:2px;font-size:0.78em;">${escapeHTML(f)}</span>`).join('');
+        html += `<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:0.88em;font-weight:600;color:var(--text-secondary);"><i class="fas fa-layer-group"></i> 内嵌 Frameworks (${info.frameworks_count})</summary><div style="margin-top:8px;padding:8px 12px;">${fwHtml}</div></details>`;
+    }
+
+    // 文件哈希
+    const hashRows = [];
+    if (info.file_md5) hashRows.push(['MD5', info.file_md5]);
+    if (info.file_sha1) hashRows.push(['SHA-1', info.file_sha1]);
+    if (info.file_sha256) hashRows.push(['SHA-256', info.file_sha256]);
+    if (info.file_size_bytes) hashRows.push(['精确大小', info.file_size_bytes.toLocaleString() + ' 字节']);
+    html += renderInfoSection('文件校验', 'fa-fingerprint', hashRows, true);
+
+    body.innerHTML = html;
+}
+
+function renderInfoSection(title, icon, rows, monospace) {
+    if (!rows.length) return '';
+    let html = `<div style="margin-top:14px;">
+        <div style="font-size:0.88em;font-weight:600;color:var(--text-secondary);margin-bottom:8px;"><i class="fas ${icon}" style="margin-right:4px;"></i> ${title}</div>
+        <div style="background:var(--bg);border-radius:8px;overflow:hidden;">`;
+    rows.forEach(([label, value], i) => {
+        const bg = i % 2 === 0 ? '' : 'background:rgba(0,0,0,0.02);';
+        const valStyle = monospace ? 'font-family:monospace;font-size:0.8em;word-break:break-all;' : '';
+        html += `<div style="display:flex;padding:7px 12px;gap:12px;font-size:0.85em;${bg}">
+            <span style="min-width:110px;color:var(--text-secondary);flex-shrink:0;">${label}</span>
+            <span style="flex:1;word-break:break-word;${valStyle}">${value}</span>
+        </div>`;
+    });
+    html += `</div></div>`;
+    return html;
+}
 
 setupDropZone('uploadDropZone', 'uploadFile', 'uploadDropText');
 setupDropZone('imgDropZone', 'imgFileInput2', 'imgDropText');
