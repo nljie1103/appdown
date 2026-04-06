@@ -519,5 +519,9 @@ const ImagePicker = {
     },
 };
 
-// 初始化toast
-Toast.init();
+// 初始化toast（等待DOM就绪）
+if (document.body) {
+    Toast.init();
+} else {
+    document.addEventListener('DOMContentLoaded', () => Toast.init());
+}
