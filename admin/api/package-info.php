@@ -920,6 +920,18 @@ function parseMobileProvision(string $data): ?array {
                     if (isset($ocspResult['revocation_time'])) {
                         $cert['revocation_time'] = $ocspResult['revocation_time'];
                     }
+                    if (isset($ocspResult['revocation_reason'])) {
+                        $cert['revocation_reason'] = $ocspResult['revocation_reason'];
+                    }
+                    if (isset($ocspResult['produced_at'])) {
+                        $cert['ocsp_produced_at'] = $ocspResult['produced_at'];
+                    }
+                    if (isset($ocspResult['this_update'])) {
+                        $cert['ocsp_this_update'] = $ocspResult['this_update'];
+                    }
+                    if (isset($ocspResult['next_update'])) {
+                        $cert['ocsp_next_update'] = $ocspResult['next_update'];
+                    }
                     // 如果证书时间上有效但已被吊销，覆盖有效性
                     if ($cert['is_valid'] && ($ocspResult['is_revoked'] ?? false)) {
                         $cert['is_valid'] = false;
@@ -1328,32 +1340,92 @@ function ocspParseResponse(string $data): ?array {
     $singles = derParseChildren($basicRaw, $responsesSeq['vOff'], $responsesSeq['vLen']);
     if (empty($singles)) return null;
 
-    // SingleResponse -> SEQUENCE { certID, certStatus, thisUpdate, ... }
+    // SingleResponse -> SEQUENCE { certID, certStatus, thisUpdate, nextUpdate[0]?, extensions[1]? }
     $sr = $singles[0];
     $srKids = derParseChildren($basicRaw, $sr['vOff'], $sr['vLen']);
-    if (count($srKids) < 2) return null;
+    if (count($srKids) < 3) return null;
+
+    // 提取 thisUpdate / nextUpdate
+    $thisUpdate = ocspFormatTime($basicRaw, $srKids[2]);
+    $nextUpdate = null;
+    // nextUpdate 是 [0] EXPLICIT GeneralizedTime（可选）
+    for ($ni = 3; $ni < count($srKids); $ni++) {
+        if (($srKids[$ni]['tag'] & 0xE0) === 0xA0 && ($srKids[$ni]['tag'] & 0x1F) === 0) {
+            $innerTime = derParseEl($basicRaw, $srKids[$ni]['vOff']);
+            if ($innerTime) {
+                $nextUpdate = ocspFormatTime($basicRaw, $innerTime);
+            }
+            break;
+        }
+    }
+
+    // 提取 producedAt（在 tbsResponseData 中）
+    $producedAt = null;
+    foreach ($tbsKids as $kid) {
+        if ($kid['tag'] === 0x18) { // GeneralizedTime
+            $producedAt = ocspFormatTime($basicRaw, $kid);
+            break;
+        }
+    }
 
     $csEl = $srKids[1];
     $csTag = $csEl['tag'] & 0x1F;
 
+    $base = [
+        'produced_at' => $producedAt,
+        'this_update' => $thisUpdate,
+        'next_update' => $nextUpdate,
+    ];
+
     // [0] good, [1] revoked, [2] unknown
     if ($csTag === 0) {
-        return ['status' => 'good', 'detail' => '证书有效（未被吊销）', 'is_revoked' => false];
+        return array_merge($base, ['status' => 'good', 'detail' => '证书有效（未被吊销）', 'is_revoked' => false]);
     }
     if ($csTag === 1) {
         $revokedTime = '未知';
+        $revokeReason = null;
         if ($csEl['vLen'] > 0) {
             $rvKids = derParseChildren($basicRaw, $csEl['vOff'], $csEl['vLen']);
             if (!empty($rvKids)) {
-                $timeRaw = substr($basicRaw, $rvKids[0]['vOff'], $rvKids[0]['vLen']);
-                $clean = rtrim($timeRaw, 'Z');
-                if (strlen($clean) >= 14) {
-                    $revokedTime = substr($clean, 0, 4) . '-' . substr($clean, 4, 2) . '-' . substr($clean, 6, 2) . ' ' .
-                                   substr($clean, 8, 2) . ':' . substr($clean, 10, 2) . ':' . substr($clean, 12, 2) . ' UTC';
+                $revokedTime = ocspFormatTime($basicRaw, $rvKids[0]);
+                // CRLReason [0] EXPLICIT ENUMERATED（可选）
+                if (count($rvKids) >= 2 && ($rvKids[1]['tag'] & 0xE0) === 0xA0) {
+                    $reasonEl = derParseEl($basicRaw, $rvKids[1]['vOff']);
+                    if ($reasonEl && $reasonEl['vLen'] >= 1) {
+                        $reasonCode = ord(substr($basicRaw, $reasonEl['vOff'], 1));
+                        $reasonNames = [
+                            0 => '未指定 (unspecified)',
+                            1 => '密钥泄露 (keyCompromise)',
+                            2 => 'CA 泄露 (cACompromise)',
+                            3 => '信息变更 (affiliationChanged)',
+                            4 => '证书替换 (superseded)',
+                            5 => '停止运营 (cessationOfOperation)',
+                            6 => '证书挂起 (certificateHold)',
+                            9 => '特权撤回 (privilegeWithdrawn)',
+                        ];
+                        $revokeReason = $reasonNames[$reasonCode] ?? "code $reasonCode";
+                    }
                 }
             }
         }
-        return ['status' => 'revoked', 'detail' => '证书已被吊销（掉签）', 'is_revoked' => true, 'revocation_time' => $revokedTime];
+        $result = array_merge($base, [
+            'status' => 'revoked',
+            'detail' => '证书已被吊销（掉签）',
+            'is_revoked' => true,
+            'revocation_time' => $revokedTime,
+        ]);
+        if ($revokeReason) $result['revocation_reason'] = $revokeReason;
+        return $result;
     }
-    return ['status' => 'unknown', 'detail' => '证书状态未知', 'is_revoked' => null];
+    return array_merge($base, ['status' => 'unknown', 'detail' => '证书状态未知', 'is_revoked' => null]);
+}
+
+function ocspFormatTime(string $data, array $el): ?string {
+    $raw = substr($data, $el['vOff'], $el['vLen']);
+    $clean = rtrim($raw, 'Z');
+    if (strlen($clean) >= 14) {
+        return substr($clean, 0, 4) . '-' . substr($clean, 4, 2) . '-' . substr($clean, 6, 2) . ' ' .
+               substr($clean, 8, 2) . ':' . substr($clean, 10, 2) . ':' . substr($clean, 12, 2) . ' UTC';
+    }
+    return $raw ?: null;
 }

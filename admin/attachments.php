@@ -863,6 +863,18 @@ function renderPackageInfo(info) {
                 if (cert.revocation_time) {
                     certRows.push(['吊销时间', `<span style="color:#e74c3c;">${cert.revocation_time}</span>`]);
                 }
+                if (cert.revocation_reason) {
+                    certRows.push(['吊销原因', `<span style="color:#e74c3c;">${cert.revocation_reason}</span>`]);
+                }
+                if (cert.ocsp_produced_at) {
+                    certRows.push(['OCSP 响应时间', cert.ocsp_produced_at]);
+                }
+                if (cert.ocsp_this_update) {
+                    certRows.push(['状态确认时间', cert.ocsp_this_update]);
+                }
+                if (cert.ocsp_next_update) {
+                    certRows.push(['下次更新时间', cert.ocsp_next_update]);
+                }
 
                 if (cert.fingerprint_sha1) certRows.push(['指纹 SHA-1', `<code style="font-size:0.78em;word-break:break-all;">${escapeHTML(cert.fingerprint_sha1)}</code>`]);
                 html += renderInfoSection(`开发者证书 #${idx + 1}`, 'fa-certificate', certRows);
