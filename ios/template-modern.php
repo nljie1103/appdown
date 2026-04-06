@@ -132,7 +132,14 @@
         document.getElementById('installBtn').addEventListener('click', function() {
             var btn = this, text = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在请求安装...';
-            setTimeout(function() { btn.innerHTML = text; }, 2000);
+            setTimeout(function() {
+                btn.innerHTML = '<i class="fas fa-check-circle"></i> 正在安装中，返回桌面查看进度';
+                btn.style.background = '#27ae60';
+            }, 2000);
+            setTimeout(function() {
+                btn.innerHTML = text;
+                btn.style.background = '<?= $themeColor ?>';
+            }, 8000);
         });
     </script>
 </body>

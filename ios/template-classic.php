@@ -271,7 +271,16 @@
             if (isWx || isQQ) return;
             var btn = this, text = btn.textContent;
             btn.textContent = '正在请求安装...';
-            setTimeout(function() { btn.textContent = text; }, 2000);
+            setTimeout(function() {
+                btn.textContent = '✅ 正在安装中，返回桌面查看进度';
+                btn.style.background = '#27ae60';
+                btn.style.boxShadow = '0 3px 8px rgba(39,174,96,0.3)';
+            }, 2000);
+            setTimeout(function() {
+                btn.textContent = text;
+                btn.style.background = '<?= $themeColor ?>';
+                btn.style.boxShadow = '0 3px 8px <?= $themeColor ?>44';
+            }, 8000);
         });
 
         // 轮播引导
