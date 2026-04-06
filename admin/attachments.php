@@ -33,7 +33,7 @@ admin_header('附件管理', 'attachments');
         <div class="card" style="padding:0;align-self:start;">
             <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
                 <h3 style="margin:0;font-size:0.95em;" id="fileTitle">选择一个平台</h3>
-                <button class="btn btn-primary btn-sm" id="uploadBtn" style="display:none;" onclick="Modal.show('uploadModal')"><i class="fas fa-upload"></i> 上传新版本</button>
+                <button class="btn btn-primary btn-sm" id="uploadBtn" style="display:none;" onclick="resetUploadForm();Modal.show('uploadModal')"><i class="fas fa-upload"></i> 上传新版本</button>
             </div>
             <div id="fileList" style="padding:16px;">
                 <div class="empty-state"><i class="fas fa-folder-open"></i><p>请先选择左侧平台分类</p></div>
@@ -58,7 +58,7 @@ admin_header('附件管理', 'attachments');
         <div class="card" style="padding:0;align-self:start;">
             <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
                 <h3 style="margin:0;font-size:0.95em;" id="imgListTitle">选择一个分类</h3>
-                <button class="btn btn-primary btn-sm" id="imgUploadBtn" style="display:none;" onclick="Modal.show('imgUploadModal')"><i class="fas fa-upload"></i> 上传图片</button>
+                <button class="btn btn-primary btn-sm" id="imgUploadBtn" style="display:none;" onclick="resetImgUploadForm();Modal.show('imgUploadModal')"><i class="fas fa-upload"></i> 上传图片</button>
             </div>
             <div id="imgFileList" style="padding:16px;">
                 <div class="empty-state"><i class="fas fa-images"></i><p>请先选择左侧图片分类</p></div>
@@ -323,6 +323,13 @@ async function deletePlatform(id, name) {
     Toast.success('已删除');
 }
 
+function resetUploadForm() {
+    document.getElementById('uploadVersion').value = '';
+    document.getElementById('uploadFile').value = '';
+    document.getElementById('uploadChangelog').value = '';
+    document.getElementById('uploadDropText').textContent = '点击选择或拖拽文件到此处';
+}
+
 async function doUpload() {
     const versionEl = document.getElementById('uploadVersion');
     const version = versionEl.value.trim();
@@ -378,6 +385,7 @@ async function doUpload() {
             document.getElementById('uploadVersion').value = '';
             document.getElementById('uploadFile').value = '';
             document.getElementById('uploadChangelog').value = '';
+            document.getElementById('uploadDropText').textContent = '点击选择或拖拽文件到此处';
             await loadPlatforms();
             selectPlatform(currentPlatId);
         } else {
@@ -549,6 +557,16 @@ async function deleteImgCategory(id, name) {
     }
     Toast.success('已删除');
     await loadImgCategories();
+}
+
+function resetImgUploadForm() {
+    document.getElementById('imgFileInput2').value = '';
+    document.getElementById('imgDropText').textContent = '点击选择或拖拽图片到此处';
+    document.getElementById('imgRename').value = '';
+    document.getElementById('imgRemark').value = '';
+    document.getElementById('imgFormat').value = 'webp';
+    document.getElementById('imgQualityRange').value = 80;
+    document.getElementById('imgQuality').value = 80;
 }
 
 async function doImgUpload() {
