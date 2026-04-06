@@ -43,13 +43,15 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    $attemptKey = 'login_attempts_' . md5($ip);
-    $lockKey = 'login_lock_' . md5($ip);
 
-    // 检查是否被锁定
-    if (isset($_SESSION[$lockKey]) && $_SESSION[$lockKey] > time()) {
-        $remain = ceil(($_SESSION[$lockKey] - time()) / 60);
-        $error = "登录尝试过多，请 {$remain} 分钟后再试";
+    // 基于数据库的登录频率限制（不可被清cookie绕过）
+    $cutoff = date('Y-m-d H:i:s', time() - $lockMinutes * 60);
+    $stmt = $pdo->prepare('SELECT COUNT(*) as c FROM login_attempts WHERE ip = ? AND attempted_at > ?');
+    $stmt->execute([$ip, $cutoff]);
+    $recentAttempts = (int)$stmt->fetch()['c'];
+
+    if ($recentAttempts >= $maxAttempts) {
+        $error = "登录尝试过多，请 {$lockMinutes} 分钟后再试";
     } else {
         // 验证码校验
         if ($captchaEnabled) {
@@ -69,19 +71,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $password = $_POST['password'] ?? '';
 
             if (do_login($username, $password)) {
-                // 登录成功，清除计数
-                unset($_SESSION[$attemptKey], $_SESSION[$lockKey]);
+                // 登录成功，清除该IP的失败记录
+                $pdo->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([$ip]);
                 header('Location: /admin/dashboard.php');
                 exit;
             } else {
-                // 记录失败次数
-                $_SESSION[$attemptKey] = ($_SESSION[$attemptKey] ?? 0) + 1;
-                if ($_SESSION[$attemptKey] >= $maxAttempts) {
-                    $_SESSION[$lockKey] = time() + $lockMinutes * 60;
-                    $_SESSION[$attemptKey] = 0;
+                // 记录失败
+                $pdo->prepare('INSERT INTO login_attempts (ip) VALUES (?)')->execute([$ip]);
+                $recentAttempts++;
+                $left = $maxAttempts - $recentAttempts;
+                if ($left <= 0) {
                     $error = "登录失败次数过多，已锁定 {$lockMinutes} 分钟";
                 } else {
-                    $left = $maxAttempts - $_SESSION[$attemptKey];
                     $error = "用户名或密码错误（还可尝试 {$left} 次）";
                 }
 

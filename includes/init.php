@@ -5,7 +5,11 @@
 
 date_default_timezone_set('Asia/Shanghai');
 
-session_start();
+session_start([
+    'cookie_httponly' => true,
+    'cookie_samesite' => 'Lax',
+    'use_strict_mode' => true,
+]);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';

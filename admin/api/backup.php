@@ -220,7 +220,15 @@ if ($action === 'import') {
             if (!in_array($table, $selectedTables, true)) continue;
             $rows = $import[$table] ?? [];
             if (empty($rows)) continue;
+
+            // 获取表的合法列名
+            $tableInfo = $pdo->query("PRAGMA table_info(\"$table\")")->fetchAll();
+            $validCols = array_column($tableInfo, 'name');
+
             foreach ($rows as $row) {
+                // 只保留合法列名，防止注入
+                $row = array_intersect_key($row, array_flip($validCols));
+                if (empty($row)) continue;
                 $cols = array_keys($row);
                 $placeholders = implode(',', array_fill(0, count($cols), '?'));
                 $colList = implode(',', array_map(fn($c) => "\"$c\"", $cols));
@@ -247,6 +255,8 @@ if ($action === 'import') {
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $name = $zip->getNameIndex($i);
                 if (!str_starts_with($name, 'uploads/') || str_ends_with($name, '/')) continue;
+                // 防止路径遍历
+                if (str_contains($name, '..')) continue;
                 $destPath = $uploadsBase . $name;
                 $destDir = dirname($destPath);
                 if (!is_dir($destDir)) mkdir($destDir, 0755, true);

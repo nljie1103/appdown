@@ -539,7 +539,7 @@ async function renameImgCategory(id, oldName) {
 }
 
 async function deleteImgCategory(id, name) {
-    if (!confirmAction(`确定删除「${name}」？该分类下所有图片将被永久删除。`)) return;
+    if (!await confirmAction(`确定删除「${name}」？该分类下所有图片将被永久删除。`)) return;
     await API.del('/admin/api/image-library.php?action=categories', { id });
     if (currentImgCatId == id) {
         currentImgCatId = null;
@@ -654,7 +654,7 @@ function setupDropZone(zoneId, fileInputId, textId) {
 }
 
 // 版本号输入框恢复边框色
-document.getElementById('uploadVersion').addEventListener('input', function() {
+document.getElementById('uploadVersion')?.addEventListener('input', function() {
     this.style.borderColor = '';
 });
 

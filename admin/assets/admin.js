@@ -4,11 +4,11 @@
 
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-// 防XSS: HTML转义
+// 防XSS: HTML转义（含单引号）
 function escapeHTML(str) {
     const d = document.createElement('div');
     d.textContent = str;
-    return d.innerHTML;
+    return d.innerHTML.replace(/'/g, '&#39;');
 }
 
 const API = {
@@ -85,13 +85,17 @@ const Toast = {
     container: null,
 
     init() {
+        if (!document.body) return;
         this.container = document.createElement('div');
         this.container.className = 'toast-container';
         document.body.appendChild(this.container);
     },
 
     show(message, type = 'success', duration = 3000) {
-        if (!this.container) this.init();
+        if (!this.container) {
+            this.init();
+            if (!this.container) return; // body还不存在，静默跳过
+        }
         const el = document.createElement('div');
         el.className = `toast ${type}`;
         el.textContent = message;

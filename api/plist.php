@@ -22,9 +22,14 @@ if (!$app || empty($app['ios_ipa_url'])) {
     exit('app not found or no IPA configured');
 }
 
-// 构建完整URL
+// 构建完整URL（验证Host header防止注入）
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'];
+// 只允许合法的域名字符
+if (!preg_match('/^[a-zA-Z0-9._:-]+$/', $host)) {
+    http_response_code(400);
+    exit('invalid host');
+}
 $baseUrl = $scheme . '://' . $host;
 
 $ipaUrl = $app['ios_ipa_url'];
@@ -94,11 +99,11 @@ echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
           <key>bundle-identifier</key>
           <string><?= htmlspecialchars($bundleId) ?></string>
           <key>bundle-version</key>
-          <string><![CDATA[<?= htmlspecialchars($bundleVersion) ?>]]></string>
+          <string><![CDATA[<?= $bundleVersion ?>]]></string>
           <key>kind</key>
           <string>software</string>
           <key>title</key>
-          <string><![CDATA[<?= htmlspecialchars($title) ?>]]></string>
+          <string><![CDATA[<?= $title ?>]]></string>
         </dict>
       </dict>
     </array>

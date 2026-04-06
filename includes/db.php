@@ -326,4 +326,14 @@ function migrate_schema(PDO $pdo): void {
     if (!in_array('show_icon', $flColNames)) {
         $pdo->exec("ALTER TABLE friend_links ADD COLUMN show_icon INTEGER NOT NULL DEFAULT 0");
     }
+
+    // 登录尝试记录表（基于IP的防爆破）
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip          TEXT NOT NULL,
+            attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, attempted_at);
+    ");
 }

@@ -1027,7 +1027,7 @@
                 { pattern: /DingTalk/i, name: '钉钉' },
                 { pattern: /AlipayClient/i, name: '支付宝' },
                 { pattern: /BytedanceWebview|ToutiaoMicroApp|aweme/i, name: '抖音' },
-                { pattern: /XiaoHongShu|discover/i, name: '小红书' },
+                { pattern: /XiaoHongShu/i, name: '小红书' },
                 { pattern: /BaiduBoxApp/i, name: '百度' },
                 { pattern: /Douban/i, name: '豆瓣' },
                 { pattern: /MiuiBrowser/i, name: 'MIUI浏览器', skip: true },
@@ -1727,6 +1727,7 @@
 
                 return {
                     init,
+                    start,
                     change,
                     goTo,
                     togglePlay,
@@ -2451,6 +2452,7 @@
             }
 
             window.cleanupApp = App.cleanup;
+            window.inappTryOpen = inappTryOpen;
 
         })(window, document);
     </script>

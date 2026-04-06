@@ -49,13 +49,12 @@ $allVisits->execute([$today]);
 // UA 特征规则（应用内浏览器 / 客户端）
 $uaRules = [
     ['pattern' => '/MicroMessenger/i', 'key' => 'ua:wechat'],
-    ['pattern' => '/\bQQ\//i', 'key' => 'ua:qq'],
-    ['pattern' => '/\bQQ\b/i', 'key' => 'ua:qq', 'exclude' => '/MQQBrowser/i'],
+    ['pattern' => '/\bQQ[\b\/]/i', 'key' => 'ua:qq', 'exclude' => '/MQQBrowser/i'],
     ['pattern' => '/Weibo/i', 'key' => 'ua:weibo'],
     ['pattern' => '/DingTalk/i', 'key' => 'ua:dingtalk'],
     ['pattern' => '/AlipayClient/i', 'key' => 'ua:alipay'],
     ['pattern' => '/BytedanceWebview|ToutiaoMicroApp|aweme/i', 'key' => 'ua:douyin'],
-    ['pattern' => '/XiaoHongShu|discover/i', 'key' => 'ua:xiaohongshu'],
+    ['pattern' => '/XiaoHongShu/i', 'key' => 'ua:xiaohongshu'],
     ['pattern' => '/BaiduBoxApp/i', 'key' => 'ua:baiduapp'],
     ['pattern' => '/Douban/i', 'key' => 'ua:douban'],
     ['pattern' => '/FBAN|FBAV/i', 'key' => 'ua:facebook'],
@@ -114,22 +113,32 @@ foreach (array_slice($sourceCounts, 0, 10, true) as $key => $count) {
     ];
 }
 
-// 7天趋势
+// 7天趋势（2条查询代替14条）
 $dates = [];
 $visitsTrend = [];
 $downloadsTrend = [];
+$dateStart = date('Y-m-d', strtotime('-6 days'));
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-{$i} days"));
     $dates[] = $d;
-
-    $v = $pdo->prepare('SELECT COUNT(*) as c FROM page_visits WHERE visit_date = ?');
-    $v->execute([$d]);
-    $visitsTrend[] = (int)$v->fetch()['c'];
-
-    $dl = $pdo->prepare('SELECT COUNT(*) as c FROM download_clicks WHERE click_date = ?');
-    $dl->execute([$d]);
-    $downloadsTrend[] = (int)$dl->fetch()['c'];
+    $visitsTrend[$d] = 0;
+    $downloadsTrend[$d] = 0;
 }
+
+$vStmt = $pdo->prepare('SELECT visit_date, COUNT(*) as c FROM page_visits WHERE visit_date >= ? GROUP BY visit_date');
+$vStmt->execute([$dateStart]);
+while ($r = $vStmt->fetch()) {
+    if (isset($visitsTrend[$r['visit_date']])) $visitsTrend[$r['visit_date']] = (int)$r['c'];
+}
+
+$dStmt = $pdo->prepare('SELECT click_date, COUNT(*) as c FROM download_clicks WHERE click_date >= ? GROUP BY click_date');
+$dStmt->execute([$dateStart]);
+while ($r = $dStmt->fetch()) {
+    if (isset($downloadsTrend[$r['click_date']])) $downloadsTrend[$r['click_date']] = (int)$r['c'];
+}
+
+$visitsTrend = array_values($visitsTrend);
+$downloadsTrend = array_values($downloadsTrend);
 
 // 总计数据
 $totalVisits = (int)$pdo->query('SELECT COUNT(*) as c FROM page_visits')->fetch()['c'];
@@ -158,7 +167,7 @@ function identifySource(string $key): array {
     // 域名匹配规则
     $rules = [
         // 搜索引擎
-        ['keywords' => ['google.'], 'name' => 'Google 搜索', 'type' => 'search', 'icon' => 'fab fa-google'],
+        ['keywords' => ['google.com', 'google.co.', 'google.com.'], 'name' => 'Google 搜索', 'type' => 'search', 'icon' => 'fab fa-google'],
         ['keywords' => ['baidu.com', 'baidu.cn'], 'name' => '百度搜索', 'type' => 'search', 'icon' => 'fas fa-paw'],
         ['keywords' => ['bing.com'], 'name' => 'Bing 搜索', 'type' => 'search', 'icon' => 'fab fa-microsoft'],
         ['keywords' => ['sogou.com'], 'name' => '搜狗搜索', 'type' => 'search', 'icon' => 'fas fa-search'],

@@ -35,7 +35,7 @@ function handle_upload(string $field, string $category, string $custom_name = ''
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
         $allowed_mimes = ['image/webp', 'image/png', 'image/jpeg', 'image/gif',
-                          'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml'];
+                          'image/x-icon', 'image/vnd.microsoft.icon'];
         if (!in_array($mime, $allowed_mimes, true)) {
             return ['ok' => false, 'error' => "文件MIME类型不合法: $mime"];
         }
@@ -82,7 +82,7 @@ function get_upload_rules(string $category): ?array {
 
     return match($category) {
         'image' => [
-            'extensions' => ['webp', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico'],
+            'extensions' => ['webp', 'png', 'jpg', 'jpeg', 'gif', 'ico'],
             'max_size'   => $php_max,
         ],
         'font' => [
@@ -113,7 +113,7 @@ function parse_size(string $val): int {
 }
 
 function delete_upload(string $url): void {
-    if (str_starts_with($url, 'uploads/')) {
+    if (str_starts_with($url, 'uploads/') && !str_contains($url, '..')) {
         $path = __DIR__ . '/../' . $url;
         if (file_exists($path)) {
             unlink($path);

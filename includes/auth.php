@@ -12,6 +12,7 @@ function is_logged_in(): bool {
         $fingerprint = md5(filemtime($lockFile) . realpath($lockFile));
         if (($_SESSION['install_fp'] ?? '') !== $fingerprint) {
             // 安装指纹不匹配，说明是旧session或不同站点
+            $_SESSION = [];
             session_destroy();
             session_start();
             return false;
