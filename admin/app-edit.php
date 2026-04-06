@@ -307,10 +307,12 @@ function onDlTypeChange(typeId, iconId, previewId) {
         document.getElementById('dlText').value = sel.options[sel.selectedIndex].text;
         const hrefInput = document.getElementById('dlHref');
         const hint = document.getElementById('dlHrefAutoHint');
-        if (type === 'ios' && appSlug && (!hrefInput.value || hrefInput.value === '')) {
+        if (type === 'ios' && appSlug) {
             hrefInput.value = '/ios/?app=' + appSlug;
             if (hint) hint.style.display = '';
         } else {
+            // 切换非iOS时，清除之前自动填充的iOS链接
+            if (hrefInput.value.startsWith('/ios/?app=')) hrefInput.value = '';
             if (hint) hint.style.display = 'none';
         }
     }
