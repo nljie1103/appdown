@@ -124,12 +124,19 @@ admin_header('仪表盘', 'dashboard');
         if (data.top_referers.length === 0) {
             refDiv.innerHTML = '<div class="empty-state"><i class="fas fa-globe"></i><p>暂无来源数据</p></div>';
         } else {
-            refDiv.innerHTML = data.top_referers.map((r, i) =>
-                `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-                    <span>${i + 1}. ${escapeHTML(r.referer)}</span>
-                    <span style="font-weight:600;">${r.count}</span>
-                </div>`
-            ).join('');
+            const typeColors = { search: '#3498db', social: '#e74c3c', dev: '#2ecc71', direct: '#95a5a6', other: '#8e44ad' };
+            const typeLabels = { search: '搜索', social: '社交', dev: '开发', direct: '直访', other: '其他' };
+            refDiv.innerHTML = data.top_referers.map((r, i) => {
+                const color = typeColors[r.source_type] || '#8e44ad';
+                const label = typeLabels[r.source_type] || '其他';
+                return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.9em;">
+                    <span style="min-width:18px;color:var(--text-secondary);">${i + 1}.</span>
+                    <i class="${r.source_icon}" style="color:${color};width:16px;text-align:center;"></i>
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHTML(r.referer)}">${escapeHTML(r.source_name)}</span>
+                    <span style="font-size:0.75em;padding:1px 6px;border-radius:3px;background:${color}18;color:${color};flex-shrink:0;">${label}</span>
+                    <span style="font-weight:600;min-width:28px;text-align:right;">${r.count}</span>
+                </div>`;
+            }).join('');
         }
 
         // 下载明细

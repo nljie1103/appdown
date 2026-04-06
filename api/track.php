@@ -39,7 +39,7 @@ if ($type === 'visit') {
 
 if ($type === 'download') {
     $app_slug = $data['app'] ?? '';
-    $btn_type = $data['btn_type'] ?? '';
+    $btn_type = $data['btn_type'] ?? $data['download_type'] ?? '';
     $href = $data['href'] ?? '';
 
     if (empty($app_slug) || empty($btn_type)) {
