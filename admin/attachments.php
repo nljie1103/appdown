@@ -132,6 +132,34 @@ admin_header('附件管理', 'attachments');
     </div>
 </div>
 
+<!-- 编辑附件版本弹窗 -->
+<div class="modal-overlay" id="editFileModal">
+    <div class="modal" style="max-width:420px;">
+        <h3>编辑版本信息</h3>
+        <input type="hidden" id="editFileId">
+        <div class="form-group"><label><span style="color:#e74c3c;">*</span> 版本号</label><input type="text" class="form-control" id="editFileVersion"></div>
+        <div class="form-group"><label>更新日志 <small style="color:var(--text-secondary);">(可选)</small></label><textarea class="form-control" id="editFileChangelog" rows="3"></textarea></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="Modal.hide('editFileModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveFileEdit()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑图片信息弹窗 -->
+<div class="modal-overlay" id="editImgModal">
+    <div class="modal" style="max-width:420px;">
+        <h3>编辑图片信息</h3>
+        <input type="hidden" id="editImgId">
+        <div class="form-group"><label>文件名</label><input type="text" class="form-control" id="editImgFilename"></div>
+        <div class="form-group"><label>备注 <small style="color:var(--text-secondary);">(可选)</small></label><input type="text" class="form-control" id="editImgRemark"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="Modal.hide('editImgModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveImgEdit()">保存</button>
+        </div>
+    </div>
+</div>
+
 <style>
 @media (max-width: 768px) {
     #mainArea > div { grid-template-columns: 1fr !important; }
@@ -242,6 +270,7 @@ function renderFiles(files) {
                 ${f.changelog ? `<div class="log">${escapeHTML(f.changelog)}</div>` : ''}
             </div>
             <div class="file-actions">
+                <button class="btn btn-outline btn-sm" onclick="editFile(${f.id},'${escapeHTML(f.version).replace(/'/g,"\\'")}','${escapeHTML(f.changelog||'').replace(/'/g,"\\'").replace(/\n/g,"\\n")}')" title="编辑"><i class="fas fa-edit"></i></button>
                 ${/\.(apk|ipa)$/i.test(f.file_url) ? `<button class="btn btn-outline btn-sm" onclick="showPackageInfo('${escapeHTML(f.file_url)}')" title="详细信息"><i class="fas fa-info-circle"></i></button>` : ''}
                 <button class="btn btn-outline btn-sm copy-btn" onclick="copyLink(this)" data-url="${escapeHTML(f.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
                 <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteFile(${f.id})" title="删除"><i class="fas fa-trash"></i></button>
@@ -462,6 +491,7 @@ async function loadImgFiles() {
             <span class="img-meta">${img.width && img.height ? img.width + '×' + img.height : ''}</span>
             <span class="img-meta">${escapeHTML(img.file_size)}</span>
             <span class="img-actions">
+                <button class="btn btn-outline btn-sm" onclick="editImgFile(${img.id},'${escapeHTML(img.filename||'').replace(/'/g,"\\'")}','${escapeHTML(img.remark||'').replace(/'/g,"\\'")}')" title="编辑"><i class="fas fa-edit"></i></button>
                 <button class="btn btn-outline btn-sm" onclick="previewImg('/${escapeHTML(img.file_url)}')" title="预览"><i class="fas fa-eye"></i></button>
                 <button class="btn btn-outline btn-sm copy-btn" onclick="copyLink(this)" data-url="${escapeHTML(img.file_url)}" title="复制链接"><i class="fas fa-copy"></i></button>
                 <button class="btn btn-outline btn-sm" style="color:#e74c3c;border-color:#e74c3c;" onclick="deleteImgFile(${img.id})" title="删除"><i class="fas fa-trash"></i></button>
@@ -596,6 +626,49 @@ function setupDropZone(zoneId, fileInputId, textId) {
 document.getElementById('uploadVersion').addEventListener('input', function() {
     this.style.borderColor = '';
 });
+
+// ===== 编辑附件版本 =====
+function editFile(id, version, changelog) {
+    document.getElementById('editFileId').value = id;
+    document.getElementById('editFileVersion').value = version;
+    document.getElementById('editFileChangelog').value = changelog;
+    Modal.show('editFileModal');
+}
+
+async function saveFileEdit() {
+    const id = parseInt(document.getElementById('editFileId').value);
+    const version = document.getElementById('editFileVersion').value.trim();
+    const changelog = document.getElementById('editFileChangelog').value.trim();
+    if (!version) { AlertModal.warning('请填写版本号', '版本号为必填项'); return; }
+    try {
+        await API.put('/admin/api/attachment-files.php', { id, version, changelog });
+        Toast.success('已保存');
+        Modal.hide('editFileModal');
+        await loadPlatforms();
+        selectPlatform(currentPlatId);
+    } catch(e) { /* error already toasted */ }
+}
+
+// ===== 编辑图片信息 =====
+function editImgFile(id, filename, remark) {
+    document.getElementById('editImgId').value = id;
+    document.getElementById('editImgFilename').value = filename;
+    document.getElementById('editImgRemark').value = remark;
+    Modal.show('editImgModal');
+}
+
+async function saveImgEdit() {
+    const id = parseInt(document.getElementById('editImgId').value);
+    const filename = document.getElementById('editImgFilename').value.trim();
+    const remark = document.getElementById('editImgRemark').value.trim();
+    try {
+        await API.put('/admin/api/image-library.php?action=images', { id, filename, remark });
+        Toast.success('已保存');
+        Modal.hide('editImgModal');
+        await loadImgCategories();
+        await loadImgFiles();
+    } catch(e) { /* error already toasted */ }
+}
 
 // ===== 安装包详细信息 =====
 async function showPackageInfo(fileUrl) {

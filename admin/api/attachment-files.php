@@ -52,6 +52,21 @@ if ($method === 'POST') {
     json_response(['ok' => true, 'id' => $pdo->lastInsertId(), 'url' => $upload['url'], 'file_size' => $fileSize]);
 }
 
+if ($method === 'PUT') {
+    $data = get_json_input();
+    $id = (int)($data['id'] ?? 0);
+    $version = trim($data['version'] ?? '');
+    $changelog = trim($data['changelog'] ?? '');
+
+    if (!$id || $version === '') {
+        json_response(['error' => 'ID和版本号不能为空'], 400);
+    }
+
+    $stmt = $pdo->prepare('UPDATE app_attachments SET version = ?, changelog = ? WHERE id = ?');
+    $stmt->execute([$version, $changelog, $id]);
+    json_response(['ok' => true]);
+}
+
 if ($method === 'DELETE') {
     $data = get_json_input();
     $id = $data['id'] ?? 0;

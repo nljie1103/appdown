@@ -134,6 +134,19 @@ if ($action === 'images') {
         ]);
     }
 
+    if ($method === 'PUT') {
+        $data = get_json_input();
+        $id = (int)($data['id'] ?? 0);
+        $filename = trim($data['filename'] ?? '');
+        $remark = trim($data['remark'] ?? '');
+
+        if (!$id) json_response(['error' => '缺少图片ID'], 400);
+
+        $stmt = $pdo->prepare("UPDATE image_library SET filename = ?, remark = ? WHERE id = ?");
+        $stmt->execute([$filename, $remark, $id]);
+        json_response(['ok' => true]);
+    }
+
     if ($method === 'DELETE') {
         $data = get_json_input();
         $id = (int)($data['id'] ?? 0);
