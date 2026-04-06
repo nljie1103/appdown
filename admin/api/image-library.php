@@ -137,14 +137,63 @@ if ($action === 'images') {
     if ($method === 'PUT') {
         $data = get_json_input();
         $id = (int)($data['id'] ?? 0);
-        $filename = trim($data['filename'] ?? '');
+        $newName = trim($data['filename'] ?? '');
         $remark = trim($data['remark'] ?? '');
 
         if (!$id) json_response(['error' => '缺少图片ID'], 400);
 
-        $stmt = $pdo->prepare("UPDATE image_library SET filename = ?, remark = ? WHERE id = ?");
-        $stmt->execute([$filename, $remark, $id]);
-        json_response(['ok' => true]);
+        // 查询当前记录
+        $stmt = $pdo->prepare("SELECT file_url, filename FROM image_library WHERE id = ?");
+        $stmt->execute([$id]);
+        $img = $stmt->fetch();
+        if (!$img) json_response(['error' => '图片不存在'], 404);
+
+        $oldUrl = $img['file_url'];
+        $newUrl = $oldUrl; // 默认不变
+        $dbFilename = $newName;
+
+        // 如果文件名变了，执行物理重命名
+        if ($newName !== '' && $newName !== $img['filename']) {
+            $oldPath = __DIR__ . '/../../' . $oldUrl;
+            if (!file_exists($oldPath)) {
+                json_response(['error' => '源文件不存在，无法重命名'], 400);
+            }
+
+            $ext = strtolower(pathinfo($oldUrl, PATHINFO_EXTENSION));
+            // 如果用户输入带了正确后缀就用，否则自动补上原后缀
+            $inputExt = strtolower(pathinfo($newName, PATHINFO_EXTENSION));
+            if ($inputExt === $ext) {
+                $cleanBase = pathinfo($newName, PATHINFO_FILENAME);
+            } else {
+                $cleanBase = pathinfo($newName, PATHINFO_FILENAME) ?: $newName;
+            }
+            $cleanBase = preg_replace('/[^\w\x{4e00}-\x{9fff}.\-]/u', '_', $cleanBase);
+            if ($cleanBase === '' || $cleanBase === '_') {
+                $cleanBase = time() . '_' . bin2hex(random_bytes(4));
+            }
+            $safeName = $cleanBase . '.' . $ext;
+            $dir = dirname($oldPath);
+            $newPath = $dir . '/' . $safeName;
+
+            // 避免同名冲突（排除自己）
+            if ($newPath !== $oldPath && file_exists($newPath)) {
+                $safeName = $cleanBase . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+                $newPath = $dir . '/' . $safeName;
+            }
+
+            if ($newPath !== $oldPath) {
+                if (!rename($oldPath, $newPath)) {
+                    json_response(['error' => '文件重命名失败'], 500);
+                }
+                $newUrl = 'uploads/images/' . $safeName;
+            }
+
+            $dbFilename = $cleanBase . '.' . $ext;
+        }
+
+        $stmt = $pdo->prepare("UPDATE image_library SET filename = ?, file_url = ?, remark = ? WHERE id = ?");
+        $stmt->execute([$dbFilename, $newUrl, $remark, $id]);
+        json_response(['ok' => true, 'file_url' => $newUrl, 'filename' => $dbFilename]);
     }
 
     if ($method === 'DELETE') {

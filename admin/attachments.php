@@ -151,7 +151,7 @@ admin_header('附件管理', 'attachments');
     <div class="modal" style="max-width:420px;">
         <h3>编辑图片信息</h3>
         <input type="hidden" id="editImgId">
-        <div class="form-group"><label>文件名</label><input type="text" class="form-control" id="editImgFilename"></div>
+        <div class="form-group"><label>重命名 <small style="color:var(--text-secondary);">(修改后文件链接地址同步变更)</small></label><input type="text" class="form-control" id="editImgFilename"></div>
         <div class="form-group"><label>备注 <small style="color:var(--text-secondary);">(可选)</small></label><input type="text" class="form-control" id="editImgRemark"></div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('editImgModal')">取消</button>
