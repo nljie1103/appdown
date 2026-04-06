@@ -828,9 +828,42 @@ function renderPackageInfo(info) {
                 certRows.push(['序列号', cert.serial || '—']);
                 certRows.push(['生效日期', cert.valid_from || '—']);
                 certRows.push(['到期日期', cert.valid_to || '—']);
-                const vc = cert.is_valid ? '#27ae60' : '#e74c3c';
-                const vi = cert.is_valid ? 'fa-check-circle' : 'fa-times-circle';
-                certRows.push(['有效性', `<span style="color:${vc};"><i class="fas ${vi}"></i> ${cert.is_valid ? '有效' : '已过期'}</span>`]);
+                if (cert.days_remaining && cert.is_valid) {
+                    certRows.push(['剩余天数', cert.days_remaining + ' 天']);
+                }
+
+                // 有效性（综合时间 + OCSP 吊销状态）
+                let validLabel = '有效';
+                let validColor = '#27ae60';
+                let validIcon = 'fa-check-circle';
+                if (cert.is_revoked === true) {
+                    validLabel = '已被吊销（掉签）';
+                    validColor = '#e74c3c';
+                    validIcon = 'fa-ban';
+                } else if (!cert.is_valid) {
+                    validLabel = '已过期';
+                    validColor = '#e74c3c';
+                    validIcon = 'fa-times-circle';
+                }
+                certRows.push(['有效性', `<span style="color:${validColor};font-weight:600;"><i class="fas ${validIcon}"></i> ${validLabel}</span>`]);
+
+                // OCSP 实时状态
+                if (cert.ocsp_status) {
+                    let ocspColor = '#95a5a6';
+                    let ocspIcon = 'fa-question-circle';
+                    if (cert.ocsp_status === 'good') {
+                        ocspColor = '#27ae60'; ocspIcon = 'fa-shield-alt';
+                    } else if (cert.ocsp_status === 'revoked') {
+                        ocspColor = '#e74c3c'; ocspIcon = 'fa-shield-alt';
+                    } else if (cert.ocsp_status === 'error' || cert.ocsp_status === 'unknown') {
+                        ocspColor = '#f39c12'; ocspIcon = 'fa-exclamation-triangle';
+                    }
+                    certRows.push(['OCSP 状态', `<span style="color:${ocspColor};"><i class="fas ${ocspIcon}"></i> ${cert.ocsp_detail || cert.ocsp_status}</span>`]);
+                }
+                if (cert.revocation_time) {
+                    certRows.push(['吊销时间', `<span style="color:#e74c3c;">${cert.revocation_time}</span>`]);
+                }
+
                 if (cert.fingerprint_sha1) certRows.push(['指纹 SHA-1', `<code style="font-size:0.78em;word-break:break-all;">${escapeHTML(cert.fingerprint_sha1)}</code>`]);
                 html += renderInfoSection(`开发者证书 #${idx + 1}`, 'fa-certificate', certRows);
             });

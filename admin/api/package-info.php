@@ -905,7 +905,27 @@ function parseMobileProvision(string $data): ?array {
                 $cert['fingerprint_sha1'] = strtoupper(implode(':', str_split(sha1($certDer), 2)));
 
                 $now = time();
-                $cert['is_valid'] = ($now >= ($certInfo['validFrom_time_t'] ?? 0) && $now <= ($certInfo['validTo_time_t'] ?? 0));
+                $validTo = $certInfo['validTo_time_t'] ?? 0;
+                $cert['is_valid'] = ($now >= ($certInfo['validFrom_time_t'] ?? 0) && $now <= $validTo);
+                if ($cert['is_valid']) {
+                    $cert['days_remaining'] = (int)ceil(($validTo - $now) / 86400);
+                }
+
+                // OCSP 证书吊销检测
+                $ocspResult = checkCertOcsp($certDer, $data);
+                if ($ocspResult) {
+                    $cert['ocsp_status'] = $ocspResult['status'];
+                    $cert['ocsp_detail'] = $ocspResult['detail'];
+                    $cert['is_revoked'] = $ocspResult['is_revoked'] ?? null;
+                    if (isset($ocspResult['revocation_time'])) {
+                        $cert['revocation_time'] = $ocspResult['revocation_time'];
+                    }
+                    // 如果证书时间上有效但已被吊销，覆盖有效性
+                    if ($cert['is_valid'] && ($ocspResult['is_revoked'] ?? false)) {
+                        $cert['is_valid'] = false;
+                    }
+                }
+
                 $certs[] = $cert;
             }
         }
@@ -948,4 +968,350 @@ function formatSize(int $bytes): string {
     if ($bytes >= 1048576) return round($bytes / 1048576, 2) . ' MB';
     if ($bytes >= 1024) return round($bytes / 1024, 2) . ' KB';
     return $bytes . ' B';
+}
+
+// ==================== OCSP 证书吊销检测 ====================
+
+/**
+ * 检查证书是否被苹果吊销（通过 OCSP 协议实时查询）
+ */
+function checkCertOcsp(string $certDer, string $provisionData): ?array {
+    if (!function_exists('curl_init')) {
+        return ['status' => 'error', 'detail' => 'cURL 扩展未启用', 'is_revoked' => null];
+    }
+    if (!extension_loaded('openssl')) {
+        return ['status' => 'error', 'detail' => 'OpenSSL 扩展未启用', 'is_revoked' => null];
+    }
+
+    // 1. 解析证书，提取 OCSP URL
+    $certPem = "-----BEGIN CERTIFICATE-----\n" . chunk_split(base64_encode($certDer), 64) . "-----END CERTIFICATE-----\n";
+    $certInfo = openssl_x509_parse($certPem);
+    if (!$certInfo) return null;
+
+    $ocspUrl = null;
+    $extensions = $certInfo['extensions'] ?? [];
+    if (isset($extensions['authorityInfoAccess'])) {
+        if (preg_match('/OCSP\s*-\s*URI:(\S+)/i', $extensions['authorityInfoAccess'], $m)) {
+            $ocspUrl = trim($m[1]);
+        }
+    }
+    if (!$ocspUrl) {
+        return ['status' => 'unknown', 'detail' => '证书中未包含 OCSP 地址', 'is_revoked' => null];
+    }
+
+    // 2. 从 mobileprovision PKCS7 链中查找颁发者证书
+    $issuerCertDer = findIssuerCertFromPkcs7($certPem, $provisionData);
+    if (!$issuerCertDer) {
+        return ['status' => 'unknown', 'detail' => '无法提取颁发者证书', 'is_revoked' => null];
+    }
+
+    // 3. 提取 OCSP 请求所需字段
+    $issuerNameDer = derExtractIssuerName($certDer);
+    $issuerKeyBits = derExtractSubjectPubKeyBits($issuerCertDer);
+    $serialRaw = derExtractSerialNumber($certDer);
+
+    if (!$issuerNameDer || !$issuerKeyBits || !$serialRaw) {
+        return ['status' => 'unknown', 'detail' => '证书字段提取失败', 'is_revoked' => null];
+    }
+
+    $issuerNameHash = sha1($issuerNameDer, true);
+    $issuerKeyHash = sha1($issuerKeyBits, true);
+
+    // 4. 构建并发送 OCSP 请求
+    $ocspReq = ocspBuildRequest($issuerNameHash, $issuerKeyHash, $serialRaw);
+    $ocspResp = ocspSendRequest($ocspUrl, $ocspReq);
+
+    if (!$ocspResp) {
+        return ['status' => 'unknown', 'detail' => 'OCSP 服务器无响应（网络不通或超时）', 'is_revoked' => null];
+    }
+
+    // 5. 解析响应
+    return ocspParseResponse($ocspResp);
+}
+
+/**
+ * 从 mobileprovision 的 PKCS7 证书链中查找颁发者证书
+ */
+function findIssuerCertFromPkcs7(string $leafCertPem, string $provisionData): ?string {
+    $p7pem = "-----BEGIN PKCS7-----\n" . chunk_split(base64_encode($provisionData), 64) . "-----END PKCS7-----\n";
+    $certs = [];
+    if (!openssl_pkcs7_read($p7pem, $certs)) return null;
+
+    $leafInfo = openssl_x509_parse($leafCertPem);
+    if (!$leafInfo) return null;
+    $wantIssuer = $leafInfo['issuer'] ?? [];
+
+    foreach ($certs as $pem) {
+        $info = openssl_x509_parse($pem);
+        if (!$info) continue;
+        if (($info['subject'] ?? []) == $wantIssuer) {
+            // 转回 DER
+            $clean = preg_replace('/-----[^-]+-----/', '', $pem);
+            return base64_decode(str_replace(["\n", "\r", " "], '', $clean));
+        }
+    }
+    return null;
+}
+
+// ===== DER 解析工具 =====
+
+function derParseEl(string $data, int $offset): ?array {
+    $len = strlen($data);
+    if ($offset >= $len) return null;
+    $start = $offset;
+    $tag = ord($data[$offset++]);
+    if ($offset >= $len) return null;
+    $lb = ord($data[$offset++]);
+    if ($lb < 128) {
+        $cLen = $lb;
+    } elseif ($lb === 0x80) {
+        return null; // indefinite length not supported
+    } else {
+        $nb = $lb & 0x7F;
+        if ($offset + $nb > $len) return null;
+        $cLen = 0;
+        for ($i = 0; $i < $nb; $i++) $cLen = ($cLen << 8) | ord($data[$offset++]);
+    }
+    return ['tag' => $tag, 'start' => $start, 'vOff' => $offset, 'vLen' => $cLen, 'total' => $offset - $start + $cLen];
+}
+
+function derParseChildren(string $data, int $offset, int $length): array {
+    $children = [];
+    $end = $offset + $length;
+    while ($offset < $end) {
+        $el = derParseEl($data, $offset);
+        if (!$el) break;
+        $children[] = $el;
+        $offset = $el['vOff'] + $el['vLen'];
+    }
+    return $children;
+}
+
+/**
+ * 从证书 DER 中提取 issuer Name 的完整 DER 编码
+ */
+function derExtractIssuerName(string $certDer): ?string {
+    $cert = derParseEl($certDer, 0);
+    if (!$cert || $cert['tag'] !== 0x30) return null;
+    $kids = derParseChildren($certDer, $cert['vOff'], $cert['vLen']);
+    if (empty($kids)) return null;
+
+    // TBSCertificate
+    $tbs = $kids[0];
+    $tbsKids = derParseChildren($certDer, $tbs['vOff'], $tbs['vLen']);
+    $idx = 0;
+    if (!empty($tbsKids) && ($tbsKids[0]['tag'] & 0xE0) === 0xA0) $idx++; // skip version [0]
+    $idx++; // serial
+    $idx++; // sigAlg
+    // issuer Name
+    if (!isset($tbsKids[$idx])) return null;
+    $n = $tbsKids[$idx];
+    return substr($certDer, $n['start'], $n['total']);
+}
+
+/**
+ * 从证书 DER 中提取序列号原始字节
+ */
+function derExtractSerialNumber(string $certDer): ?string {
+    $cert = derParseEl($certDer, 0);
+    if (!$cert || $cert['tag'] !== 0x30) return null;
+    $kids = derParseChildren($certDer, $cert['vOff'], $cert['vLen']);
+    if (empty($kids)) return null;
+
+    $tbs = $kids[0];
+    $tbsKids = derParseChildren($certDer, $tbs['vOff'], $tbs['vLen']);
+    $idx = 0;
+    if (!empty($tbsKids) && ($tbsKids[0]['tag'] & 0xE0) === 0xA0) $idx++;
+    // serial INTEGER
+    if (!isset($tbsKids[$idx])) return null;
+    $s = $tbsKids[$idx];
+    return substr($certDer, $s['vOff'], $s['vLen']);
+}
+
+/**
+ * 从证书 DER 中提取 SubjectPublicKey 比特串内容（去掉 unused bits 字节）
+ */
+function derExtractSubjectPubKeyBits(string $certDer): ?string {
+    $cert = derParseEl($certDer, 0);
+    if (!$cert || $cert['tag'] !== 0x30) return null;
+    $kids = derParseChildren($certDer, $cert['vOff'], $cert['vLen']);
+    if (empty($kids)) return null;
+
+    $tbs = $kids[0];
+    $tbsKids = derParseChildren($certDer, $tbs['vOff'], $tbs['vLen']);
+    $idx = 0;
+    if (!empty($tbsKids) && ($tbsKids[0]['tag'] & 0xE0) === 0xA0) $idx++;
+    $idx++; // serial
+    $idx++; // sigAlg
+    $idx++; // issuer
+    $idx++; // validity
+    $idx++; // subject
+    // SubjectPublicKeyInfo SEQUENCE { algorithm, subjectPublicKey BIT STRING }
+    if (!isset($tbsKids[$idx])) return null;
+    $spki = $tbsKids[$idx];
+    $spkiKids = derParseChildren($certDer, $spki['vOff'], $spki['vLen']);
+    if (count($spkiKids) < 2) return null;
+    $bs = $spkiKids[1]; // BIT STRING
+    if ($bs['vLen'] < 2) return null;
+    // skip unused-bits byte
+    return substr($certDer, $bs['vOff'] + 1, $bs['vLen'] - 1);
+}
+
+// ===== DER 编码工具 =====
+
+function derEncLen(int $len): string {
+    if ($len < 128) return chr($len);
+    $b = '';
+    $t = $len;
+    while ($t > 0) { $b = chr($t & 0xFF) . $b; $t >>= 8; }
+    return chr(0x80 | strlen($b)) . $b;
+}
+
+function derSeq(string $content): string {
+    return "\x30" . derEncLen(strlen($content)) . $content;
+}
+
+function derOctet(string $data): string {
+    return "\x04" . derEncLen(strlen($data)) . $data;
+}
+
+function derInt(string $raw): string {
+    return "\x02" . derEncLen(strlen($raw)) . $raw;
+}
+
+function derOid(string $oid): string {
+    $p = array_map('intval', explode('.', $oid));
+    $enc = chr($p[0] * 40 + $p[1]);
+    for ($i = 2; $i < count($p); $i++) {
+        $v = $p[$i];
+        if ($v < 128) { $enc .= chr($v); }
+        else {
+            $bytes = [];
+            while ($v > 0) { $bytes[] = $v & 0x7F; $v >>= 7; }
+            $bytes = array_reverse($bytes);
+            for ($j = 0; $j < count($bytes); $j++) {
+                $enc .= chr($bytes[$j] | ($j < count($bytes) - 1 ? 0x80 : 0));
+            }
+        }
+    }
+    return "\x06" . derEncLen(strlen($enc)) . $enc;
+}
+
+// ===== OCSP 请求构建与响应解析 =====
+
+function ocspBuildRequest(string $issuerNameHash, string $issuerKeyHash, string $serialRaw): string {
+    // SHA-1 AlgorithmIdentifier: OID 1.3.14.3.2.26 + NULL
+    $sha1AlgId = derSeq(derOid('1.3.14.3.2.26') . "\x05\x00");
+    // CertID
+    $certId = derSeq($sha1AlgId . derOctet($issuerNameHash) . derOctet($issuerKeyHash) . derInt($serialRaw));
+    // Request -> SEQUENCE { certID }
+    $request = derSeq($certId);
+    // RequestList -> SEQUENCE OF Request
+    $requestList = derSeq($request);
+    // TBSRequest -> SEQUENCE { requestList }
+    $tbsRequest = derSeq($requestList);
+    // OCSPRequest -> SEQUENCE { tbsRequest }
+    return derSeq($tbsRequest);
+}
+
+function ocspSendRequest(string $url, string $requestDer): ?string {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $requestDer,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/ocsp-request', 'Accept: application/ocsp-response'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ($code === 200 && $resp !== false && $resp !== '') ? $resp : null;
+}
+
+function ocspParseResponse(string $data): ?array {
+    $len = strlen($data);
+    if ($len < 3) return null;
+
+    // OCSPResponse -> SEQUENCE { responseStatus ENUMERATED, responseBytes [0]? }
+    $resp = derParseEl($data, 0);
+    if (!$resp || $resp['tag'] !== 0x30) return null;
+    $respKids = derParseChildren($data, $resp['vOff'], $resp['vLen']);
+    if (empty($respKids)) return null;
+
+    // responseStatus
+    $status = ord(substr($data, $respKids[0]['vOff'], 1));
+    if ($status !== 0) {
+        $names = [0 => 'successful', 1 => 'malformedRequest', 2 => 'internalError', 3 => 'tryLater', 5 => 'sigRequired', 6 => 'unauthorized'];
+        return ['status' => 'error', 'detail' => 'OCSP 错误: ' . ($names[$status] ?? "code $status"), 'is_revoked' => null];
+    }
+    if (count($respKids) < 2) return null;
+
+    // responseBytes [0] -> SEQUENCE { responseType OID, response OCTET STRING }
+    $rbCtx = $respKids[1];
+    $rbSeq = derParseEl($data, $rbCtx['vOff']);
+    if (!$rbSeq) return null;
+    $rbKids = derParseChildren($data, $rbSeq['vOff'], $rbSeq['vLen']);
+    if (count($rbKids) < 2) return null;
+
+    // BasicOCSPResponse inside the OCTET STRING
+    $basicRaw = substr($data, $rbKids[1]['vOff'], $rbKids[1]['vLen']);
+
+    // BasicOCSPResponse -> SEQUENCE { tbsResponseData, sigAlg, sig, ... }
+    $basic = derParseEl($basicRaw, 0);
+    if (!$basic) return null;
+    $basicKids = derParseChildren($basicRaw, $basic['vOff'], $basic['vLen']);
+    if (empty($basicKids)) return null;
+
+    // tbsResponseData -> SEQUENCE { version?, responderID, producedAt, responses SEQUENCE }
+    $tbsResp = $basicKids[0];
+    $tbsKids = derParseChildren($basicRaw, $tbsResp['vOff'], $tbsResp['vLen']);
+
+    // 找到 responses：第一个 tag=0x30 的子元素，其内部也包含 SEQUENCE 子元素
+    $responsesSeq = null;
+    foreach ($tbsKids as $kid) {
+        if ($kid['tag'] === 0x30) {
+            $inner = derParseChildren($basicRaw, $kid['vOff'], $kid['vLen']);
+            if (!empty($inner) && $inner[0]['tag'] === 0x30) {
+                $responsesSeq = $kid;
+                break;
+            }
+        }
+    }
+    if (!$responsesSeq) return null;
+
+    $singles = derParseChildren($basicRaw, $responsesSeq['vOff'], $responsesSeq['vLen']);
+    if (empty($singles)) return null;
+
+    // SingleResponse -> SEQUENCE { certID, certStatus, thisUpdate, ... }
+    $sr = $singles[0];
+    $srKids = derParseChildren($basicRaw, $sr['vOff'], $sr['vLen']);
+    if (count($srKids) < 2) return null;
+
+    $csEl = $srKids[1];
+    $csTag = $csEl['tag'] & 0x1F;
+
+    // [0] good, [1] revoked, [2] unknown
+    if ($csTag === 0) {
+        return ['status' => 'good', 'detail' => '证书有效（未被吊销）', 'is_revoked' => false];
+    }
+    if ($csTag === 1) {
+        $revokedTime = '未知';
+        if ($csEl['vLen'] > 0) {
+            $rvKids = derParseChildren($basicRaw, $csEl['vOff'], $csEl['vLen']);
+            if (!empty($rvKids)) {
+                $timeRaw = substr($basicRaw, $rvKids[0]['vOff'], $rvKids[0]['vLen']);
+                $clean = rtrim($timeRaw, 'Z');
+                if (strlen($clean) >= 14) {
+                    $revokedTime = substr($clean, 0, 4) . '-' . substr($clean, 4, 2) . '-' . substr($clean, 6, 2) . ' ' .
+                                   substr($clean, 8, 2) . ':' . substr($clean, 10, 2) . ':' . substr($clean, 12, 2) . ' UTC';
+                }
+            }
+        }
+        return ['status' => 'revoked', 'detail' => '证书已被吊销（掉签）', 'is_revoked' => true, 'revocation_time' => $revokedTime];
+    }
+    return ['status' => 'unknown', 'detail' => '证书状态未知', 'is_revoked' => null];
 }

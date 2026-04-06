@@ -88,6 +88,15 @@ function check_environment(): array {
         'optional' => true,
     ];
 
+    // cURL (可选 - OCSP证书吊销检测)
+    $checks['curl'] = [
+        'name' => 'cURL 扩展（可选，证书吊销检测）',
+        'required' => '建议启用',
+        'current' => function_exists('curl_init') ? '已启用' : '未启用',
+        'pass' => true,
+        'optional' => true,
+    ];
+
     // data 目录可写
     $dataDir = dirname(__DIR__) . '/data';
     if (!is_dir($dataDir)) @mkdir($dataDir, 0755, true);
