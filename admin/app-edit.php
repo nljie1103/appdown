@@ -296,13 +296,15 @@ function updateIconPreview(val, previewId) {
 }
 
 function onDlTypeChange(typeId, iconId, previewId) {
-    const type = document.getElementById(typeId).value;
+    const sel = document.getElementById(typeId);
+    const type = sel.value;
     const defaultIcon = TYPE_ICON_MAP[type] || 'fas fa-download';
     document.getElementById(iconId).value = defaultIcon;
     updateIconPreview(defaultIcon, previewId);
-    // iOS类型自动填充安装页地址（仅添加模态框，编辑时不覆盖已有值）
+    // 自动填充按钮文本为选中项的显示名称（仅添加模态框）
     const isAddModal = typeId === 'dlType';
     if (isAddModal) {
+        document.getElementById('dlText').value = sel.options[sel.selectedIndex].text;
         const hrefInput = document.getElementById('dlHref');
         const hint = document.getElementById('dlHrefAutoHint');
         if (type === 'ios' && appSlug && (!hrefInput.value || hrefInput.value === '')) {
@@ -317,7 +319,7 @@ function onDlTypeChange(typeId, iconId, previewId) {
 function openAddDlModal() {
     document.getElementById('dlType').value = 'android';
     document.getElementById('dlIcon').value = 'fab fa-android';
-    document.getElementById('dlText').value = '';
+    document.getElementById('dlText').value = 'Android';
     document.getElementById('dlSubtext').value = '';
     document.getElementById('dlHref').value = '';
     document.getElementById('dlHrefPicker').style.display = 'none';
