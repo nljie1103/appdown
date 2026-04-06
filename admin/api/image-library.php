@@ -94,14 +94,104 @@ if ($action === 'images') {
 
         $customName = trim($_POST['rename'] ?? '');
         $remark = trim($_POST['remark'] ?? '');
+        $targetFormat = strtolower(trim($_POST['format'] ?? 'webp'));
+        $quality = (int)($_POST['quality'] ?? 80);
+        if ($quality < 1) $quality = 1;
+        if ($quality > 100) $quality = 100;
 
         $result = handle_upload('file', 'image', $customName);
         if (!$result['ok']) {
             json_response(['ok' => false, 'error' => $result['error']], 400);
         }
 
-        // 获取图片尺寸
         $fullPath = __DIR__ . '/../../' . $result['url'];
+        $originalExt = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+
+        // 图片格式转换与压缩
+        $needConvert = ($targetFormat !== 'original' && $targetFormat !== $originalExt && $originalExt !== 'svg' && $originalExt !== 'ico');
+        $needCompress = ($targetFormat !== 'original' && $originalExt !== 'svg' && $originalExt !== 'ico');
+
+        if (($needConvert || $needCompress) && extension_loaded('gd')) {
+            $gdImage = null;
+            switch ($originalExt) {
+                case 'jpg': case 'jpeg':
+                    $gdImage = @imagecreatefromjpeg($fullPath);
+                    break;
+                case 'png':
+                    $gdImage = @imagecreatefrompng($fullPath);
+                    break;
+                case 'gif':
+                    $gdImage = @imagecreatefromgif($fullPath);
+                    break;
+                case 'webp':
+                    $gdImage = @imagecreatefromwebp($fullPath);
+                    break;
+                // bmp 需要 PHP 7.2+
+                case 'bmp':
+                    if (function_exists('imagecreatefrombmp')) {
+                        $gdImage = @imagecreatefrombmp($fullPath);
+                    }
+                    break;
+            }
+
+            if ($gdImage) {
+                // 保持透明通道
+                imagealphablending($gdImage, false);
+                imagesavealpha($gdImage, true);
+
+                $outExt = $needConvert ? $targetFormat : $originalExt;
+                if ($outExt === 'jpeg') $outExt = 'jpg';
+
+                // 生成新文件名
+                $baseName = pathinfo($fullPath, PATHINFO_FILENAME);
+                $dir = dirname($fullPath);
+                $newPath = $dir . '/' . $baseName . '.' . $outExt;
+
+                // 如果格式变了，新旧路径可能不同
+                if ($newPath !== $fullPath && file_exists($newPath)) {
+                    $newPath = $dir . '/' . $baseName . '_' . bin2hex(random_bytes(2)) . '.' . $outExt;
+                }
+
+                $saved = false;
+                switch ($outExt) {
+                    case 'webp':
+                        $saved = @imagewebp($gdImage, $newPath, $quality);
+                        break;
+                    case 'jpg':
+                        // JPG 不支持透明，需要填充白色背景
+                        $w = imagesx($gdImage);
+                        $h = imagesy($gdImage);
+                        $bg = imagecreatetruecolor($w, $h);
+                        $white = imagecolorallocate($bg, 255, 255, 255);
+                        imagefill($bg, 0, 0, $white);
+                        imagecopy($bg, $gdImage, 0, 0, 0, 0, $w, $h);
+                        $saved = @imagejpeg($bg, $newPath, $quality);
+                        imagedestroy($bg);
+                        break;
+                    case 'png':
+                        // PNG 压缩级别 0-9，quality 映射：100→0(无压缩), 1→9(最大压缩)
+                        $pngLevel = (int)round((100 - $quality) / 100 * 9);
+                        $saved = @imagepng($gdImage, $newPath, $pngLevel);
+                        break;
+                    case 'gif':
+                        $saved = @imagegif($gdImage, $newPath);
+                        break;
+                }
+
+                imagedestroy($gdImage);
+
+                if ($saved) {
+                    // 如果格式变了，删除旧文件
+                    if ($newPath !== $fullPath) {
+                        @unlink($fullPath);
+                    }
+                    $fullPath = $newPath;
+                    $result['url'] = 'uploads/images/' . basename($newPath);
+                }
+            }
+        }
+
+        // 获取图片尺寸
         $size = @getimagesize($fullPath);
         $width = $size ? (int)$size[0] : 0;
         $height = $size ? (int)$size[1] : 0;
@@ -117,7 +207,8 @@ if ($action === 'images') {
             }
         }
 
-        $originalName = $customName !== '' ? ($customName . '.' . pathinfo($_FILES['file']['name'] ?? '', PATHINFO_EXTENSION)) : ($_FILES['file']['name'] ?? '');
+        $actualExt = strtolower(pathinfo($result['url'], PATHINFO_EXTENSION));
+        $originalName = $customName !== '' ? ($customName . '.' . $actualExt) : basename($result['url']);
 
         $max = $pdo->query("SELECT COALESCE(MAX(sort_order),0) FROM image_library WHERE category_id = $categoryId")->fetchColumn();
         $stmt = $pdo->prepare("INSERT INTO image_library (category_id, file_url, filename, file_size, width, height, sort_order, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");

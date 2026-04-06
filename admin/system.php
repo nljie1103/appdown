@@ -28,6 +28,19 @@ $checks[] = ['JSON 扩展', '已启用', extension_loaded('json') ? '已启用' 
 // Session
 $checks[] = ['Session 支持', '已启用', extension_loaded('session') ? '已启用' : '未启用', extension_loaded('session')];
 
+// GD
+$gdStatus = extension_loaded('gd') ? '已启用' : '未启用';
+if (extension_loaded('gd') && function_exists('gd_info')) {
+    $gi = gd_info();
+    $gdFormats = [];
+    if (!empty($gi['WebP Support'])) $gdFormats[] = 'WebP';
+    if (!empty($gi['JPEG Support'] ?? $gi['JPG Support'] ?? false)) $gdFormats[] = 'JPEG';
+    if (!empty($gi['PNG Support'])) $gdFormats[] = 'PNG';
+    if (!empty($gi['GIF Read Support'])) $gdFormats[] = 'GIF';
+    $gdStatus .= ' (' . implode(', ', $gdFormats) . ')';
+}
+$checks[] = ['GD 扩展（图片压缩转换）', '已启用', $gdStatus, extension_loaded('gd')];
+
 // data 目录
 $dataDir = __DIR__ . '/../data';
 $checks[] = ['data/ 目录可写', '可写', is_writable($dataDir) ? '可写' : '不可写', is_writable($dataDir)];

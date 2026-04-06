@@ -107,6 +107,28 @@ admin_header('附件管理', 'attachments');
                 <input type="file" id="imgFileInput2" accept="image/*" style="display:none;">
             </div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label><span style="color:#e74c3c;">*</span> 输出格式</label>
+                <select class="form-control" id="imgFormat">
+                    <option value="webp" selected>WebP（推荐）</option>
+                    <option value="png">PNG</option>
+                    <option value="jpg">JPG</option>
+                    <option value="gif">GIF</option>
+                    <option value="original">保持原格式</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label><span style="color:#e74c3c;">*</span> 压缩质量 <small id="imgQualityHint" style="color:var(--text-secondary);">(推荐: 80)</small></label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="range" id="imgQualityRange" min="1" max="100" value="80" style="flex:1;">
+                    <input type="number" class="form-control" id="imgQuality" min="1" max="100" value="80" style="width:60px;text-align:center;padding:6px;">
+                </div>
+            </div>
+        </div>
+        <div id="imgConvertNote" style="margin:8px 0 4px;padding:8px 12px;background:var(--bg);border-radius:6px;font-size:0.8em;color:var(--text-secondary);display:none;">
+            <i class="fas fa-info-circle" style="color:var(--primary);"></i> <span id="imgConvertNoteText"></span>
+        </div>
         <div class="form-group"><label>备注 <small style="color:var(--text-secondary);">(可选)</small></label><input type="text" class="form-control" id="imgRemark" placeholder="图片用途说明"></div>
         <div id="imgUploadProgress" style="display:none;margin:8px 0;">
             <div style="background:var(--border);border-radius:4px;overflow:hidden;height:6px;">
@@ -537,12 +559,16 @@ async function doImgUpload() {
     }
     const rename = document.getElementById('imgRename').value.trim();
     const remark = document.getElementById('imgRemark').value.trim();
+    const format = document.getElementById('imgFormat').value;
+    const quality = parseInt(document.getElementById('imgQuality').value) || 80;
 
     const fd = new FormData();
     fd.append('file', file);
     fd.append('category_id', currentImgCatId);
     fd.append('rename', rename);
     fd.append('remark', remark);
+    fd.append('format', format);
+    fd.append('quality', quality);
     fd.append('_csrf', CSRF_TOKEN);
 
     document.getElementById('imgUploadProgress').style.display = '';
@@ -575,6 +601,11 @@ async function doImgUpload() {
             document.getElementById('imgRemark').value = '';
             document.getElementById('imgFileInput2').value = '';
             document.getElementById('imgDropText').textContent = '点击选择或拖拽图片到此处';
+            document.getElementById('imgFormat').value = 'webp';
+            document.getElementById('imgQualityRange').value = 80;
+            document.getElementById('imgQuality').value = 80;
+            document.getElementById('imgQualityHint').textContent = '(推荐: 80)';
+            document.getElementById('imgConvertNote').style.display = 'none';
             await loadImgCategories();
             await loadImgFiles();
         } else {
@@ -877,6 +908,51 @@ function renderInfoSection(title, icon, rows, monospace) {
 
 setupDropZone('uploadDropZone', 'uploadFile', 'uploadDropText');
 setupDropZone('imgDropZone', 'imgFileInput2', 'imgDropText');
+
+// ===== 图片格式/压缩联动 =====
+(function() {
+    const range = document.getElementById('imgQualityRange');
+    const num = document.getElementById('imgQuality');
+    const fmt = document.getElementById('imgFormat');
+    const note = document.getElementById('imgConvertNote');
+    const noteText = document.getElementById('imgConvertNoteText');
+    const hint = document.getElementById('imgQualityHint');
+
+    range.oninput = () => { num.value = range.value; };
+    num.oninput = () => {
+        let v = parseInt(num.value) || 1;
+        if (v < 1) v = 1; if (v > 100) v = 100;
+        range.value = v; num.value = v;
+    };
+
+    function updateNote() {
+        const f = fmt.value;
+        if (f === 'png') {
+            note.style.display = '';
+            noteText.textContent = 'PNG 为无损格式，压缩质量值影响压缩级别（值越低文件越小，不影响画质）';
+        } else if (f === 'gif') {
+            note.style.display = '';
+            noteText.textContent = 'GIF 最多支持 256 色，转换后可能丢失色彩细节';
+        } else {
+            note.style.display = 'none';
+        }
+    }
+    fmt.onchange = updateNote;
+
+    // 选择文件后自动推荐压缩质量
+    document.getElementById('imgFileInput2').addEventListener('change', function() {
+        if (!this.files.length) return;
+        const file = this.files[0];
+        const sizeMB = file.size / 1048576;
+        let recommended = 80;
+        if (sizeMB > 5) recommended = 60;
+        else if (sizeMB > 2) recommended = 70;
+        else if (sizeMB < 0.1) recommended = 90;
+        range.value = recommended;
+        num.value = recommended;
+        hint.textContent = `(推荐: ${recommended})`;
+    });
+})();
 
 init();
 </script>
