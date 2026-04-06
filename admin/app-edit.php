@@ -301,10 +301,12 @@ function onDlTypeChange(typeId, iconId, previewId) {
     const defaultIcon = TYPE_ICON_MAP[type] || 'fas fa-download';
     document.getElementById(iconId).value = defaultIcon;
     updateIconPreview(defaultIcon, previewId);
-    // 自动填充按钮文本为选中项的显示名称（仅添加模态框）
+    // 自动填充按钮文本为选中项的显示名称（仅添加模态框）+ 更新placeholder
+    const typeName = sel.options[sel.selectedIndex].text;
     const isAddModal = typeId === 'dlType';
     if (isAddModal) {
-        document.getElementById('dlText').value = sel.options[sel.selectedIndex].text;
+        document.getElementById('dlText').value = typeName;
+        document.getElementById('dlText').placeholder = '如: ' + typeName;
         const hrefInput = document.getElementById('dlHref');
         const hint = document.getElementById('dlHrefAutoHint');
         if (type === 'ios' && appSlug) {
