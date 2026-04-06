@@ -201,12 +201,12 @@ admin_header('编辑应用', 'apps');
                 <button class="btn btn-outline" type="button" onclick="IconPicker.open(cls => { document.getElementById('editDlIcon').value=cls; updateIconPreview(cls,'editDlIconPreview'); })"><i class="fas fa-icons"></i> 选择</button>
             </div>
         </div>
-        <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="editDlText"></div>
-        <div class="form-group"><label>副标题</label><input type="text" class="form-control" id="editDlSubtext"></div>
+        <div class="form-group"><label>按钮文本</label><input type="text" class="form-control" id="editDlText" placeholder="如: Android"></div>
+        <div class="form-group"><label>副标题</label><input type="text" class="form-control" id="editDlSubtext" placeholder="如: 点击下载"></div>
         <div class="form-group">
             <label>下载链接</label>
             <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" class="form-control" id="editDlHref" style="flex:1;">
+                <input type="text" class="form-control" id="editDlHref" placeholder="如: android/app.apk 或 https://..." style="flex:1;">
                 <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('editDlHref')" title="从附件选择"><i class="fas fa-paperclip"></i> 选择附件</button>
             </div>
             <select class="form-control att-picker" id="editDlHrefPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'editDlHref')">
@@ -301,11 +301,12 @@ function onDlTypeChange(typeId, iconId, previewId) {
     const defaultIcon = TYPE_ICON_MAP[type] || 'fas fa-download';
     document.getElementById(iconId).value = defaultIcon;
     updateIconPreview(defaultIcon, previewId);
-    // 更新按钮文本placeholder提示（仅添加模态框）
+    // 更新按钮文本placeholder提示
     const typeName = sel.options[sel.selectedIndex].text;
     const isAddModal = typeId === 'dlType';
+    const textId = isAddModal ? 'dlText' : 'editDlText';
+    document.getElementById(textId).placeholder = '如: ' + typeName;
     if (isAddModal) {
-        document.getElementById('dlText').placeholder = '如: ' + typeName;
         const hrefInput = document.getElementById('dlHref');
         const hint = document.getElementById('dlHrefAutoHint');
         if (type === 'ios' && appSlug) {
@@ -503,6 +504,7 @@ function editDownload(d) {
     updateIconPreview(icon, 'editDlIconPreview');
 
     document.getElementById('editDlText').value = d.btn_text;
+    document.getElementById('editDlText').placeholder = '如: ' + typeSelect.options[typeSelect.selectedIndex].text;
     document.getElementById('editDlSubtext').value = d.btn_subtext;
     document.getElementById('editDlHref').value = d.href;
     document.getElementById('editDlHrefPicker').style.display = 'none';
