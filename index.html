@@ -1105,22 +1105,37 @@
 
             function inappTryOpen() {
                 const url = location.href;
-                // Android: 尝试 intent scheme
-                if (/android/i.test(navigator.userAgent)) {
+                const ua = navigator.userAgent;
+                const btn = document.getElementById('inappBtn');
+
+                // Android: intent scheme 调起默认浏览器
+                if (/android/i.test(ua)) {
                     const intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') +
-                        '#Intent;scheme=https;action=android.intent.action.VIEW;end';
+                        '#Intent;scheme=https;action=android.intent.action.VIEW;' +
+                        'category=android.intent.category.BROWSABLE;end';
                     location.href = intentUrl;
+                    // intent 失败则 1.5s 后复制链接兜底
+                    setTimeout(() => { copyAndNotify(url, btn); }, 1500);
                     return;
                 }
-                // iOS: 复制链接提示
-                const ta = document.createElement('textarea');
-                ta.value = url;
-                ta.style.cssText = 'position:fixed;left:-9999px;';
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                const btn = document.getElementById('inappBtn');
+
+                // iOS/其他: 尝试 window.open，同时复制链接兜底
+                try { window.open(url, '_blank'); } catch(e) {}
+                copyAndNotify(url, btn);
+            }
+
+            function copyAndNotify(url, btn) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).catch(() => {});
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = url;
+                    ta.style.cssText = 'position:fixed;left:-9999px;';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                }
                 btn.textContent = '链接已复制，请在浏览器中粘贴打开';
                 btn.style.background = '#27ae60';
                 setTimeout(() => {
