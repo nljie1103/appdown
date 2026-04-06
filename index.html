@@ -2082,7 +2082,7 @@
 
                     const downloadButtons = (app.downloads || []).map(btn => {
                         const safeHref = escapeHTML((btn.url || '#').trim());
-                        const safeText = escapeHTML(btn.label || btn.type);
+                        const safeText = escapeHTML(btn.label || '');
                         const safeSubtext = escapeHTML(btn.sub_label || '');
                         const safeName = escapeHTML(app.name);
                         const dlType = (btn.type || 'web').toLowerCase();
