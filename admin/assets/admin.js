@@ -429,7 +429,7 @@ const ImagePicker = {
                 <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
                     <h3 style="margin:0;">从图片库选择</h3>
                     <div style="display:flex;gap:8px;align-items:center;">
-                        <button class="btn btn-primary btn-sm" id="_ipUploadBtn" style="display:none;" onclick="document.getElementById('_ipFileInput').click()"><i class="fas fa-upload"></i> 上传新图片</button>
+                        <button class="btn btn-primary btn-sm" id="_ipUploadBtn" style="display:none;" onclick="ImagePicker._showUploadDialog()"><i class="fas fa-upload"></i> 上传新图片</button>
                         <button class="btn btn-outline btn-sm" onclick="ImagePicker.close()">✕</button>
                     </div>
                 </div>
@@ -439,7 +439,54 @@ const ImagePicker = {
                         <div style="text-align:center;color:var(--text-secondary);padding:40px 0;">请先选择左侧分类</div>
                     </div>
                 </div>
-                <input type="file" id="_ipFileInput" accept="image/*" style="display:none;" onchange="ImagePicker._upload(this)">
+            </div>
+            <!-- 上传子弹窗 -->
+            <div id="_ipUploadDialog" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center;">
+                <div class="modal" style="max-width:420px;position:relative;">
+                    <h3>上传图片</h3>
+                    <div class="form-group"><label>重命名 <small style="color:var(--text-secondary);">(可选，不含后缀)</small></label><input type="text" class="form-control" id="_ipRename" placeholder="留空则使用原文件名"></div>
+                    <div class="form-group">
+                        <label>选择图片</label>
+                        <div id="_ipDropZone" style="border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;" onclick="document.getElementById('_ipFileInput').click()">
+                            <i class="fas fa-cloud-upload-alt" style="font-size:1.5em;color:var(--text-secondary);"></i>
+                            <p style="margin:8px 0 0;color:var(--text-secondary);font-size:0.9em;" id="_ipDropText">点击选择或拖拽图片到此处</p>
+                            <input type="file" id="_ipFileInput" accept="image/*" style="display:none;" onchange="ImagePicker._onFileChosen(this)">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label><span style="color:#e74c3c;">*</span> 输出格式</label>
+                            <select class="form-control" id="_ipFormat">
+                                <option value="webp" selected>WebP（推荐）</option>
+                                <option value="png">PNG</option>
+                                <option value="jpg">JPG</option>
+                                <option value="gif">GIF</option>
+                                <option value="original">保持原格式</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label><span style="color:#e74c3c;">*</span> 压缩质量 <small id="_ipQualityHint" style="color:var(--text-secondary);">(推荐: 80)</small></label>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <input type="range" id="_ipQualityRange" min="1" max="100" value="80" style="flex:1;">
+                                <input type="number" class="form-control" id="_ipQuality" min="1" max="100" value="80" style="width:60px;text-align:center;padding:6px;">
+                            </div>
+                        </div>
+                    </div>
+                    <div id="_ipConvertNote" style="margin:8px 0 4px;padding:8px 12px;background:var(--bg);border-radius:6px;font-size:0.8em;color:var(--text-secondary);display:none;">
+                        <i class="fas fa-info-circle" style="color:var(--primary);"></i> <span id="_ipConvertNoteText"></span>
+                    </div>
+                    <div class="form-group"><label>备注 <small style="color:var(--text-secondary);">(可选)</small></label><input type="text" class="form-control" id="_ipRemark" placeholder="图片用途说明"></div>
+                    <div id="_ipProgress" style="display:none;margin:8px 0;">
+                        <div style="background:var(--border);border-radius:4px;overflow:hidden;height:6px;">
+                            <div id="_ipProgressBar" style="width:0%;height:100%;background:var(--primary);transition:width 0.3s;"></div>
+                        </div>
+                        <p style="font-size:0.8em;color:var(--text-secondary);margin-top:4px;" id="_ipProgressText">上传中...</p>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-outline" onclick="ImagePicker._hideUploadDialog()">取消</button>
+                        <button class="btn btn-primary" id="_ipSubmitBtn" onclick="ImagePicker._doUpload()">上传</button>
+                    </div>
+                </div>
             </div>`;
         document.body.appendChild(o);
         this._overlay = o;
@@ -507,19 +554,87 @@ const ImagePicker = {
         this.close();
     },
 
-    async _upload(input) {
-        if (!input.files[0] || !this._currentCatId) return;
+    _showUploadDialog() {
+        const dlg = document.getElementById('_ipUploadDialog');
+        // 重置表单
+        document.getElementById('_ipRename').value = '';
+        document.getElementById('_ipRemark').value = '';
+        document.getElementById('_ipFormat').value = 'webp';
+        document.getElementById('_ipQualityRange').value = 80;
+        document.getElementById('_ipQuality').value = 80;
+        document.getElementById('_ipQualityHint').textContent = '(推荐: 80)';
+        document.getElementById('_ipDropText').textContent = '点击选择或拖拽图片到此处';
+        document.getElementById('_ipFileInput').value = '';
+        document.getElementById('_ipConvertNote').style.display = 'none';
+        document.getElementById('_ipProgress').style.display = 'none';
+        document.getElementById('_ipSubmitBtn').disabled = false;
+        dlg.style.display = 'flex';
+        // 绑定拖拽（仅首次）
+        if (!this._dropBound) {
+            this._dropBound = true;
+            const zone = document.getElementById('_ipDropZone');
+            zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--primary)'; zone.style.background = 'rgba(var(--primary-rgb,59,130,246),0.05)'; });
+            zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; zone.style.background = ''; });
+            zone.addEventListener('drop', e => { e.preventDefault(); zone.style.borderColor = ''; zone.style.background = ''; if (e.dataTransfer.files[0]) { document.getElementById('_ipFileInput').files = e.dataTransfer.files; ImagePicker._onFileChosen(document.getElementById('_ipFileInput')); } });
+            // 格式/质量联动
+            const range = document.getElementById('_ipQualityRange');
+            const num = document.getElementById('_ipQuality');
+            const fmt = document.getElementById('_ipFormat');
+            const hint = document.getElementById('_ipQualityHint');
+            const note = document.getElementById('_ipConvertNote');
+            const noteText = document.getElementById('_ipConvertNoteText');
+            range.addEventListener('input', () => { num.value = range.value; });
+            num.addEventListener('input', () => { let v = Math.min(100, Math.max(1, parseInt(num.value)||1)); num.value = v; range.value = v; });
+            fmt.addEventListener('change', () => {
+                note.style.display = 'none';
+                if (fmt.value === 'png') { note.style.display = ''; noteText.textContent = 'PNG 为无损格式，压缩质量值影响压缩级别（值越低文件越小，不影响画质）'; hint.textContent = '(推荐: 80)'; }
+                else if (fmt.value === 'original') { note.style.display = ''; noteText.textContent = '保持原格式将不做任何转换和压缩'; hint.textContent = ''; }
+                else { hint.textContent = fmt.value === 'webp' ? '(推荐: 80)' : '(推荐: 85)'; }
+            });
+        }
+    },
+
+    _hideUploadDialog() {
+        document.getElementById('_ipUploadDialog').style.display = 'none';
+    },
+
+    _onFileChosen(input) {
+        const name = input.files[0]?.name;
+        if (name) document.getElementById('_ipDropText').textContent = name;
+    },
+
+    async _doUpload() {
+        const fileInput = document.getElementById('_ipFileInput');
+        if (!fileInput.files[0]) { Toast.error('请先选择图片'); return; }
+        if (!this._currentCatId) { Toast.error('请先选择分类'); return; }
+
         const fd = new FormData();
-        fd.append('file', input.files[0]);
+        fd.append('file', fileInput.files[0]);
         fd.append('category_id', this._currentCatId);
         fd.append('_csrf', CSRF_TOKEN);
+        const rename = document.getElementById('_ipRename').value.trim();
+        const remark = document.getElementById('_ipRemark').value.trim();
+        const format = document.getElementById('_ipFormat').value;
+        const quality = parseInt(document.getElementById('_ipQuality').value) || 80;
+        if (rename) fd.append('rename', rename);
+        if (remark) fd.append('remark', remark);
+        fd.append('format', format);
+        fd.append('quality', quality);
+
+        document.getElementById('_ipProgress').style.display = '';
+        document.getElementById('_ipProgressBar').style.width = '100%';
+        document.getElementById('_ipProgressText').textContent = '上传中...';
+        document.getElementById('_ipSubmitBtn').disabled = true;
+
         try {
             await API.upload('/admin/api/image-library.php?action=images', fd);
             Toast.success('图片已上传');
+            this._hideUploadDialog();
             await this._selectCat(this._currentCatId);
             await this._loadCategories();
         } catch(e) {}
-        input.value = '';
+        document.getElementById('_ipProgress').style.display = 'none';
+        document.getElementById('_ipSubmitBtn').disabled = false;
     },
 };
 
