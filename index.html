@@ -1107,35 +1107,89 @@
                 const url = location.href;
                 const ua = navigator.userAgent;
                 const btn = document.getElementById('inappBtn');
+                const isAndroid = /android/i.test(ua);
+                const isIOS = /iPhone|iPad|iPod/i.test(ua);
+                const isWeixin = /MicroMessenger/i.test(ua);
+                const isQQ = /\bQQ\b/i.test(ua) && !/MQQBrowser/i.test(ua);
 
-                // Android: intent scheme 调起默认浏览器
-                if (/android/i.test(ua)) {
+                // 方案1: Android 尝试多种 scheme
+                if (isAndroid) {
+                    // QQ 浏览器可用 openExternal
+                    if (isQQ && window.mqq && window.mqq.ui) {
+                        try { window.mqq.ui.openUrl({ url: url, target: 1 }); return; } catch(e) {}
+                    }
+
+                    // 尝试 intent，不指定具体 component，让系统选择
                     const intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') +
                         '#Intent;scheme=https;action=android.intent.action.VIEW;' +
                         'category=android.intent.category.BROWSABLE;end';
                     location.href = intentUrl;
-                    // intent 失败则 1.5s 后复制链接兜底
+
+                    // 兜底: 1.5s后复制链接
                     setTimeout(() => { copyAndNotify(url, btn); }, 1500);
                     return;
                 }
 
-                // iOS/其他: 尝试 window.open，同时复制链接兜底
+                // 方案2: iOS
+                if (isIOS) {
+                    // 微信iOS: 提示用户使用右上角菜单
+                    if (isWeixin) {
+                        btn.textContent = '请点击右上角 ··· 选择「在Safari中打开」';
+                        btn.style.background = '#f39c12';
+                        copyLink(url);
+                        setTimeout(() => {
+                            btn.textContent = '链接已复制，也可粘贴到浏览器打开';
+                            btn.style.background = '#27ae60';
+                        }, 3000);
+                        setTimeout(() => {
+                            btn.textContent = '点击尝试打开浏览器';
+                            btn.style.background = '';
+                        }, 6000);
+                        return;
+                    }
+
+                    // QQ iOS: 提示用户使用右上角菜单
+                    if (isQQ) {
+                        btn.textContent = '请点击右上角 ··· 选择「在浏览器打开」';
+                        btn.style.background = '#f39c12';
+                        copyLink(url);
+                        setTimeout(() => {
+                            btn.textContent = '链接已复制，也可粘贴到Safari打开';
+                            btn.style.background = '#27ae60';
+                        }, 3000);
+                        setTimeout(() => {
+                            btn.textContent = '点击尝试打开浏览器';
+                            btn.style.background = '';
+                        }, 6000);
+                        return;
+                    }
+                }
+
+                // 方案3: 通用兜底 - 尝试 window.open + 复制链接
                 try { window.open(url, '_blank'); } catch(e) {}
                 copyAndNotify(url, btn);
             }
 
-            function copyAndNotify(url, btn) {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(url).catch(() => {});
-                } else {
+            function copyLink(url) {
+                // 应用内WebView通常不支持 navigator.clipboard，直接用 execCommand
+                try {
                     const ta = document.createElement('textarea');
                     ta.value = url;
-                    ta.style.cssText = 'position:fixed;left:-9999px;';
+                    ta.setAttribute('readonly', '');
+                    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
                     document.body.appendChild(ta);
                     ta.select();
+                    ta.setSelectionRange(0, url.length);
                     document.execCommand('copy');
                     document.body.removeChild(ta);
+                    return true;
+                } catch(e) {
+                    return false;
                 }
+            }
+
+            function copyAndNotify(url, btn) {
+                copyLink(url);
                 btn.textContent = '链接已复制，请在浏览器中粘贴打开';
                 btn.style.background = '#27ae60';
                 setTimeout(() => {
