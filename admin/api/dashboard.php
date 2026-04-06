@@ -39,39 +39,75 @@ while ($r = $dl_detail->fetch()) {
     $todayDlByApp[$name][$r['btn_type']] = (int)$r['c'];
 }
 
-// 来源 TOP10（按域名合并 http/https，识别来源类型）
-$referers = $pdo->prepare("SELECT referer, COUNT(*) as c FROM page_visits WHERE visit_date = ? AND referer != '' AND referer != 'direct' GROUP BY referer ORDER BY c DESC");
-$referers->execute([$today]);
+// 来源 TOP10（域名 + UA 综合识别）
+// 获取当前站点域名，用于排除自身引用
+$siteHost = preg_replace('/^www\./', '', strtolower($_SERVER['HTTP_HOST'] ?? ''));
 
-// 先按域名聚合
-$domainCounts = [];
-while ($r = $referers->fetch()) {
-    $parsed = parse_url($r['referer']);
-    $host = $parsed['host'] ?? $r['referer'];
-    $host = preg_replace('/^www\./', '', strtolower($host));
-    if (!isset($domainCounts[$host])) {
-        $domainCounts[$host] = ['count' => 0, 'raw' => $r['referer']];
+$allVisits = $pdo->prepare("SELECT referer, user_agent FROM page_visits WHERE visit_date = ?");
+$allVisits->execute([$today]);
+
+// UA 特征规则（应用内浏览器 / 客户端）
+$uaRules = [
+    ['pattern' => '/MicroMessenger/i', 'key' => 'ua:wechat'],
+    ['pattern' => '/\bQQ\//i', 'key' => 'ua:qq'],
+    ['pattern' => '/\bQQ\b/i', 'key' => 'ua:qq', 'exclude' => '/MQQBrowser/i'],
+    ['pattern' => '/Weibo/i', 'key' => 'ua:weibo'],
+    ['pattern' => '/DingTalk/i', 'key' => 'ua:dingtalk'],
+    ['pattern' => '/AlipayClient/i', 'key' => 'ua:alipay'],
+    ['pattern' => '/BytedanceWebview|ToutiaoMicroApp|aweme/i', 'key' => 'ua:douyin'],
+    ['pattern' => '/XiaoHongShu|discover/i', 'key' => 'ua:xiaohongshu'],
+    ['pattern' => '/BaiduBoxApp/i', 'key' => 'ua:baiduapp'],
+    ['pattern' => '/Douban/i', 'key' => 'ua:douban'],
+    ['pattern' => '/FBAN|FBAV/i', 'key' => 'ua:facebook'],
+    ['pattern' => '/Instagram/i', 'key' => 'ua:instagram'],
+    ['pattern' => '/Line\//i', 'key' => 'ua:line'],
+    ['pattern' => '/Telegram/i', 'key' => 'ua:telegram'],
+];
+
+$sourceCounts = [];
+while ($r = $allVisits->fetch()) {
+    $referer = $r['referer'];
+    $ua = $r['user_agent'];
+
+    // 1. 先提取 referer 域名
+    $host = 'direct';
+    if ($referer !== 'direct' && $referer !== '') {
+        $parsed = parse_url($referer);
+        $host = $parsed['host'] ?? $referer;
+        $host = preg_replace('/^www\./', '', strtolower($host));
     }
-    $domainCounts[$host]['count'] += (int)$r['c'];
-}
 
-// 加上 direct 访问
-$directCount = $pdo->prepare("SELECT COUNT(*) as c FROM page_visits WHERE visit_date = ? AND referer = 'direct'");
-$directCount->execute([$today]);
-$dc = (int)$directCount->fetch()['c'];
-if ($dc > 0) {
-    $domainCounts['direct'] = ['count' => $dc, 'raw' => 'direct'];
+    // 2. 如果 referer 是直接访问或来自自身站点，尝试用 UA 识别来源
+    $key = $host;
+    if ($host === 'direct' || $host === $siteHost) {
+        $uaDetected = false;
+        foreach ($uaRules as $rule) {
+            if (isset($rule['exclude']) && preg_match($rule['exclude'], $ua)) continue;
+            if (preg_match($rule['pattern'], $ua)) {
+                $key = $rule['key'];
+                $uaDetected = true;
+                break;
+            }
+        }
+        if (!$uaDetected) {
+            $key = 'direct';
+        }
+    }
+
+    if (!isset($sourceCounts[$key])) {
+        $sourceCounts[$key] = 0;
+    }
+    $sourceCounts[$key]++;
 }
 
 // 排序取 TOP10
-arsort($domainCounts);
+arsort($sourceCounts);
 $topReferers = [];
-$i = 0;
-foreach (array_slice($domainCounts, 0, 10, true) as $host => $info) {
-    $source = identifySource($host);
+foreach (array_slice($sourceCounts, 0, 10, true) as $key => $count) {
+    $source = identifySource($key);
     $topReferers[] = [
-        'referer'       => $host,
-        'count'         => $info['count'],
+        'referer'       => $key,
+        'count'         => $count,
         'source_name'   => $source['name'],
         'source_type'   => $source['type'],
         'source_icon'   => $source['icon'],
@@ -99,8 +135,27 @@ for ($i = 6; $i >= 0; $i--) {
 $totalVisits = (int)$pdo->query('SELECT COUNT(*) as c FROM page_visits')->fetch()['c'];
 $totalDownloads = (int)$pdo->query('SELECT COUNT(*) as c FROM download_clicks')->fetch()['c'];
 
-// 来源识别函数
-function identifySource(string $host): array {
+// 来源识别函数（支持域名和 UA 标识 key）
+function identifySource(string $key): array {
+    // UA 标识 key 直接映射
+    $uaMap = [
+        'ua:wechat'      => ['name' => '微信', 'type' => 'social', 'icon' => 'fab fa-weixin'],
+        'ua:qq'          => ['name' => 'QQ', 'type' => 'social', 'icon' => 'fab fa-qq'],
+        'ua:weibo'       => ['name' => '微博', 'type' => 'social', 'icon' => 'fab fa-weibo'],
+        'ua:dingtalk'    => ['name' => '钉钉', 'type' => 'social', 'icon' => 'fas fa-comment-dots'],
+        'ua:alipay'      => ['name' => '支付宝', 'type' => 'social', 'icon' => 'fab fa-alipay'],
+        'ua:douyin'      => ['name' => '抖音', 'type' => 'social', 'icon' => 'fab fa-tiktok'],
+        'ua:xiaohongshu' => ['name' => '小红书', 'type' => 'social', 'icon' => 'fas fa-book-open'],
+        'ua:baiduapp'    => ['name' => '百度APP', 'type' => 'social', 'icon' => 'fas fa-paw'],
+        'ua:douban'      => ['name' => '豆瓣', 'type' => 'social', 'icon' => 'fas fa-seedling'],
+        'ua:facebook'    => ['name' => 'Facebook', 'type' => 'social', 'icon' => 'fab fa-facebook'],
+        'ua:instagram'   => ['name' => 'Instagram', 'type' => 'social', 'icon' => 'fab fa-instagram'],
+        'ua:line'        => ['name' => 'LINE', 'type' => 'social', 'icon' => 'fab fa-line'],
+        'ua:telegram'    => ['name' => 'Telegram', 'type' => 'social', 'icon' => 'fab fa-telegram'],
+    ];
+    if (isset($uaMap[$key])) return $uaMap[$key];
+
+    // 域名匹配规则
     $rules = [
         // 搜索引擎
         ['keywords' => ['google.'], 'name' => 'Google 搜索', 'type' => 'search', 'icon' => 'fab fa-google'],
@@ -143,13 +198,13 @@ function identifySource(string $host): array {
 
     foreach ($rules as $rule) {
         foreach ($rule['keywords'] as $kw) {
-            if (str_contains($host, $kw) || $host === $kw) {
+            if (str_contains($key, $kw) || $key === $kw) {
                 return ['name' => $rule['name'], 'type' => $rule['type'], 'icon' => $rule['icon']];
             }
         }
     }
 
-    return ['name' => $host, 'type' => 'other', 'icon' => 'fas fa-globe'];
+    return ['name' => $key, 'type' => 'other', 'icon' => 'fas fa-globe'];
 }
 
 json_response([
