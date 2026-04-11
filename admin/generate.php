@@ -259,14 +259,40 @@ async function loadApps() {
 async function loadApks() {
     const el = document.getElementById('apkList');
     try {
-        const rows = await API.get('/admin/api/generate.php?action=list_apks');
-        if (!rows.length) {
+        // 同时请求已完成APK和所有任务
+        const [rows, tasks] = await Promise.all([
+            API.get('/admin/api/generate.php?action=list_apks'),
+            API.get('/admin/api/generate.php?action=list_tasks'),
+        ]);
+        const runningTasks = tasks.filter(t => t.status === 'pending' || t.status === 'building');
+
+        if (!rows.length && !runningTasks.length) {
             el.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:20px;">暂无生成记录</p>';
             return;
         }
         let html = '<table class="data-table"><thead><tr>' +
             '<th>应用名</th><th>包名</th><th>版本</th><th>URL</th><th>大小</th><th>签名密钥</th><th>关联应用</th><th>创建时间</th><th>操作</th>' +
             '</tr></thead><tbody>';
+
+        // 先渲染进行中的任务（黄色高亮行）
+        for (const t of runningTasks) {
+            const statusLabel = t.status === 'building'
+                ? `<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.8em;"><i class="fas fa-spinner fa-spin"></i> 构建中 ${t.progress}%</span>`
+                : `<span style="background:#6366f1;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.8em;"><i class="fas fa-clock"></i> 等待中</span>`;
+            html += `<tr style="background:#fffbeb;">
+                <td>${escapeHTML(t.app_name || '-')}</td>
+                <td><code style="font-size:0.8em;">${escapeHTML(t.package_name || '-')}</code></td>
+                <td>-</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${statusLabel}</td>
+                <td>${escapeHTML(t.progress_msg || '')}</td>
+                <td>-</td>
+                <td>-</td>
+                <td style="white-space:nowrap;">${t.created_at || ''}</td>
+                <td>-</td>
+            </tr>`;
+        }
+
+        // 再渲染已完成的APK
         for (const r of rows) {
             html += `<tr>
                 <td>${escapeHTML(r.app_name)}</td>
@@ -372,6 +398,13 @@ async function loadKeystoreSelect() {
 }
 
 async function startBuild() {
+    // 防重复提交
+    const btn = document.getElementById('buildStartBtn');
+    if (btn.disabled) {
+        Toast.error('正在生成中，请耐心等待，请勿重复点击');
+        return;
+    }
+
     const url = document.getElementById('buildUrl').value.trim();
     const appName = document.getElementById('buildAppName').value.trim();
     const packageName = document.getElementById('buildPackage').value.trim();
@@ -393,6 +426,7 @@ async function startBuild() {
     if (!keystoreId) { Toast.error('请选择签名密钥'); return; }
 
     document.getElementById('buildStartBtn').disabled = true;
+    document.getElementById('buildStartBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在生成中...';
     document.getElementById('buildProgressCard').style.display = '';
     document.getElementById('buildResult').style.display = 'none';
     updateProgress(0, '提交构建任务...');
@@ -424,6 +458,7 @@ function pollBuildStatus(taskId) {
                 clearInterval(buildPolling);
                 buildPolling = null;
                 document.getElementById('buildStartBtn').disabled = false;
+                document.getElementById('buildStartBtn').innerHTML = '<i class="fas fa-hammer"></i> 开始生成APK';
                 const rd = document.getElementById('buildResult');
                 rd.style.display = '';
                 rd.style.background = '#ecfdf5';
@@ -436,6 +471,7 @@ function pollBuildStatus(taskId) {
                 clearInterval(buildPolling);
                 buildPolling = null;
                 document.getElementById('buildStartBtn').disabled = false;
+                document.getElementById('buildStartBtn').innerHTML = '<i class="fas fa-hammer"></i> 开始生成APK';
                 const rd = document.getElementById('buildResult');
                 rd.style.display = '';
                 rd.style.background = '#fef2f2';
@@ -574,6 +610,25 @@ async function doUploadKey() {
 loadApps();
 loadApks();
 loadKeystoreSelect();
+checkRunningTask();
+
+// 页面加载时检查是否有进行中的构建任务
+async function checkRunningTask() {
+    try {
+        const tasks = await API.get('/admin/api/generate.php?action=list_tasks');
+        const running = tasks.find(t => t.status === 'pending' || t.status === 'building');
+        if (running) {
+            // 自动切到生成选项卡，恢复进度显示
+            switchTab('build');
+            document.getElementById('buildStartBtn').disabled = true;
+            document.getElementById('buildStartBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在生成中...';
+            document.getElementById('buildProgressCard').style.display = '';
+            document.getElementById('buildResult').style.display = 'none';
+            updateProgress(running.progress, running.progress_msg);
+            pollBuildStatus(running.id);
+        }
+    } catch(e) {}
+}
 </script>
 
 <?php admin_footer(); ?>
