@@ -41,6 +41,7 @@ if ($method === 'POST') {
         $keyPwd = $_POST['key_password'] ?? '';
 
         if (empty($name) || empty($alias) || empty($storePwd) || empty($keyPwd)) {
+            delete_upload($result['url']);
             json_response(['error' => '名称、别名和密码为必填项'], 400);
         }
 

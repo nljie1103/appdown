@@ -153,7 +153,7 @@ if ($method === 'PUT') {
 
     if ($action === 'associate') {
         $apkId = (int)($data['apk_id'] ?? 0);
-        $appId = $data['app_id'] !== null ? (int)$data['app_id'] : null;
+        $appId = isset($data['app_id']) && $data['app_id'] !== null && $data['app_id'] !== '' ? (int)$data['app_id'] : null;
 
         if (!$apkId) json_response(['error' => '缺少apk_id'], 400);
 
@@ -177,7 +177,7 @@ if ($method === 'DELETE') {
     $id = (int)($data['id'] ?? 0);
     if (!$id) json_response(['error' => '缺少id'], 400);
 
-    $stmt = $pdo->prepare('SELECT apk_url FROM generated_apks WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT apk_url, task_id FROM generated_apks WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
     if (!$row) json_response(['error' => '记录不存在'], 404);
@@ -188,11 +188,8 @@ if ($method === 'DELETE') {
     }
 
     // 删除关联的构建任务
-    $taskStmt = $pdo->prepare('SELECT task_id FROM generated_apks WHERE id = ?');
-    $taskStmt->execute([$id]);
-    $taskRow = $taskStmt->fetch();
-    if ($taskRow && $taskRow['task_id']) {
-        $pdo->prepare('DELETE FROM build_tasks WHERE id = ?')->execute([$taskRow['task_id']]);
+    if ($row['task_id']) {
+        $pdo->prepare('DELETE FROM build_tasks WHERE id = ?')->execute([$row['task_id']]);
     }
 
     $pdo->prepare('DELETE FROM generated_apks WHERE id = ?')->execute([$id]);

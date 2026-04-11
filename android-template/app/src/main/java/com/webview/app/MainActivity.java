@@ -1,13 +1,10 @@
 package com.webview.app;
 
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
-import android.view.View;
 import android.view.Window;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
@@ -58,7 +55,6 @@ public class MainActivity extends AppCompatActivity {
 
         loadConfig();
         setupWebView();
-        setupSwipeRefresh();
 
         webView.loadUrl(targetUrl);
     }
@@ -82,6 +78,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupWebView() {
         webView = findViewById(R.id.webView);
+        swipeRefresh = findViewById(R.id.swipeRefresh);
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -97,54 +95,6 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                // 外部链接使用系统浏览器
-                if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                    try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                        startActivity(intent);
-                    } catch (Exception ignored) {}
-                    return true;
-                }
-                return false;
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) {
-                    view.loadData(
-                        "<html><body style='display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0;background:#f5f5f5;'>" +
-                        "<p style='font-size:18px;color:#666;'>网络连接失败</p>" +
-                        "<button onclick='location.reload()' style='padding:12px 32px;font-size:16px;border:none;background:#2196F3;color:white;border-radius:8px;cursor:pointer;margin-top:16px;'>重试</button>" +
-                        "</body></html>",
-                        "text/html", "utf-8");
-                }
-            }
-        });
-
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> callback, FileChooserParams params) {
-                if (fileChooserCallback != null) {
-                    fileChooserCallback.onReceiveValue(null);
-                }
-                fileChooserCallback = callback;
-                Intent intent = params.createIntent();
-                fileChooserLauncher.launch(intent);
-                return true;
-            }
-        });
-    }
-
-    private void setupSwipeRefresh() {
-        swipeRefresh = findViewById(R.id.swipeRefresh);
-        swipeRefresh.setOnRefreshListener(() -> {
-            webView.reload();
-        });
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -182,6 +132,23 @@ public class MainActivity extends AppCompatActivity {
                         "text/html", "utf-8");
                 }
             }
+        });
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileChooserCallback != null) {
+                    fileChooserCallback.onReceiveValue(null);
+                }
+                fileChooserCallback = callback;
+                Intent intent = params.createIntent();
+                fileChooserLauncher.launch(intent);
+                return true;
+            }
+        });
+
+        swipeRefresh.setOnRefreshListener(() -> {
+            webView.reload();
         });
     }
 
