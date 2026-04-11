@@ -1,0 +1,31 @@
+#!/bin/sh
+# Gradle wrapper bootstrap script
+# If gradle-wrapper.jar doesn't exist, download it
+
+WRAPPER_JAR="$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar"
+WRAPPER_PROPS="$(dirname "$0")/gradle/wrapper/gradle-wrapper.properties"
+
+if [ ! -f "$WRAPPER_JAR" ]; then
+    echo "Downloading Gradle wrapper..."
+    DIST_URL=$(grep distributionUrl "$WRAPPER_PROPS" | sed 's/.*=//;s/\\:/:/g')
+    GRADLE_VERSION=$(echo "$DIST_URL" | grep -oP 'gradle-\K[0-9.]+')
+    WRAPPER_URL="https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
+    curl -sL -o "$WRAPPER_JAR" "$WRAPPER_URL" 2>/dev/null || \
+    wget -q -O "$WRAPPER_JAR" "$WRAPPER_URL" 2>/dev/null
+    if [ ! -s "$WRAPPER_JAR" ]; then
+        echo "Failed to download gradle-wrapper.jar. Please run: gradle wrapper --gradle-version $GRADLE_VERSION"
+        exit 1
+    fi
+fi
+
+# Determine the Java command to use
+if [ -n "$JAVA_HOME" ]; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD="java"
+fi
+
+exec "$JAVACMD" \
+    $JAVA_OPTS \
+    -classpath "$WRAPPER_JAR" \
+    org.gradle.wrapper.GradleWrapperMain "$@"

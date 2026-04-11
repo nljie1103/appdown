@@ -207,6 +207,55 @@ function init_schema(PDO $pdo): void {
             sort_order  INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS keystores (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL,
+            file_url        TEXT NOT NULL,
+            alias           TEXT NOT NULL,
+            store_password  TEXT NOT NULL,
+            key_password    TEXT NOT NULL,
+            validity_years  INTEGER NOT NULL DEFAULT 25,
+            org_name        TEXT NOT NULL DEFAULT '',
+            org_unit        TEXT NOT NULL DEFAULT '',
+            country         TEXT NOT NULL DEFAULT '',
+            state_name      TEXT NOT NULL DEFAULT '',
+            locality        TEXT NOT NULL DEFAULT '',
+            common_name     TEXT NOT NULL DEFAULT '',
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS build_tasks (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            status          TEXT NOT NULL DEFAULT 'pending',
+            progress        INTEGER NOT NULL DEFAULT 0,
+            progress_msg    TEXT NOT NULL DEFAULT '',
+            params          TEXT NOT NULL DEFAULT '{}',
+            keystore_id     INTEGER NOT NULL,
+            result_url      TEXT NOT NULL DEFAULT '',
+            result_size     TEXT NOT NULL DEFAULT '',
+            error_msg       TEXT NOT NULL DEFAULT '',
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS generated_apks (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id         INTEGER NOT NULL,
+            app_id          INTEGER DEFAULT NULL,
+            app_name        TEXT NOT NULL,
+            package_name    TEXT NOT NULL,
+            version_name    TEXT NOT NULL DEFAULT '1.0.0',
+            version_code    INTEGER NOT NULL DEFAULT 1,
+            url             TEXT NOT NULL,
+            icon_url        TEXT NOT NULL DEFAULT '',
+            splash_url      TEXT NOT NULL DEFAULT '',
+            apk_url         TEXT NOT NULL DEFAULT '',
+            apk_size        TEXT NOT NULL DEFAULT '',
+            keystore_id     INTEGER NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     ");
 
     // 默认自定义代码位置
@@ -389,5 +438,55 @@ function migrate_schema(PDO $pdo): void {
             attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, attempted_at);
+    ");
+
+    // APK生成器相关表
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS keystores (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL,
+            file_url        TEXT NOT NULL,
+            alias           TEXT NOT NULL,
+            store_password  TEXT NOT NULL,
+            key_password    TEXT NOT NULL,
+            validity_years  INTEGER NOT NULL DEFAULT 25,
+            org_name        TEXT NOT NULL DEFAULT '',
+            org_unit        TEXT NOT NULL DEFAULT '',
+            country         TEXT NOT NULL DEFAULT '',
+            state_name      TEXT NOT NULL DEFAULT '',
+            locality        TEXT NOT NULL DEFAULT '',
+            common_name     TEXT NOT NULL DEFAULT '',
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS build_tasks (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            status          TEXT NOT NULL DEFAULT 'pending',
+            progress        INTEGER NOT NULL DEFAULT 0,
+            progress_msg    TEXT NOT NULL DEFAULT '',
+            params          TEXT NOT NULL DEFAULT '{}',
+            keystore_id     INTEGER NOT NULL,
+            result_url      TEXT NOT NULL DEFAULT '',
+            result_size     TEXT NOT NULL DEFAULT '',
+            error_msg       TEXT NOT NULL DEFAULT '',
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS generated_apks (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id         INTEGER NOT NULL,
+            app_id          INTEGER DEFAULT NULL,
+            app_name        TEXT NOT NULL,
+            package_name    TEXT NOT NULL,
+            version_name    TEXT NOT NULL DEFAULT '1.0.0',
+            version_code    INTEGER NOT NULL DEFAULT 1,
+            url             TEXT NOT NULL,
+            icon_url        TEXT NOT NULL DEFAULT '',
+            splash_url      TEXT NOT NULL DEFAULT '',
+            apk_url         TEXT NOT NULL DEFAULT '',
+            apk_size        TEXT NOT NULL DEFAULT '',
+            keystore_id     INTEGER NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     ");
 }

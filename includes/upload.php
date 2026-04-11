@@ -97,6 +97,10 @@ function get_upload_rules(string $category): ?array {
             'extensions' => ['pem', 'crt', 'key', 'p12'],
             'max_size'   => $php_max,
         ],
+        'keystore' => [
+            'extensions' => ['jks', 'keystore', 'p12', 'pfx', 'bks'],
+            'max_size'   => $php_max,
+        ],
         default => null,
     };
 }

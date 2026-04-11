@@ -1,0 +1,8 @@
+{
+    "url": "https://example.com",
+    "app_name": "My App",
+    "splash_color": "#FFFFFF",
+    "status_bar_color": "#000000",
+    "enable_splash": true,
+    "splash_duration": 2000
+}

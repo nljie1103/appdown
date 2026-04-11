@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.webview.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId project.hasProperty('appId') ? project.property('appId') : 'com.webview.app'
+        minSdk 21
+        targetSdk 34
+        versionCode project.hasProperty('vCode') ? project.property('vCode').toInteger() : 1
+        versionName project.hasProperty('vName') ? project.property('vName') : '1.0.0'
+    }
+
+    signingConfigs {
+        release {
+            if (project.hasProperty('ksFile')) {
+                storeFile file(project.property('ksFile'))
+                storePassword project.property('ksPwd')
+                keyAlias project.property('ksAlias')
+                keyPassword project.property('ksKeyPwd')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (project.hasProperty('ksFile')) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.9.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+}
