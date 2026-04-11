@@ -638,7 +638,7 @@ async function doImgUpload() {
 }
 
 async function deleteImgFile(id) {
-    if (!confirmAction('确定删除此图片？')) return;
+    if (!await confirmAction('确定删除此图片？')) return;
     await API.del('/admin/api/image-library.php?action=images', { id });
     Toast.success('已删除');
     await loadImgCategories();

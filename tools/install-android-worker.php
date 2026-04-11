@@ -50,7 +50,7 @@ try {
     }
 
     // 检测当前是否已经是 root
-    $isRoot = (posix_getuid() === 0);
+    $isRoot = function_exists('posix_getuid') ? (posix_getuid() === 0) : (trim(shell_exec('id -u') ?? '') === '0');
 
     if ($isRoot) {
         // 已经是 root，直接运行

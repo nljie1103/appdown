@@ -320,7 +320,7 @@ async function loadApks() {
 }
 
 async function cancelTask(taskId) {
-    if (!confirm('确定要取消这个构建任务吗？')) return;
+    if (!await ConfirmModal.open('确定要取消这个构建任务吗？')) return;
     try {
         await API.post('/admin/api/generate.php', { action: 'cancel_task', task_id: taskId });
         Toast.success('任务已取消');
@@ -337,7 +337,7 @@ async function cancelTask(taskId) {
 }
 
 async function deleteApk(id) {
-    if (!confirmAction('确定要删除此APK及其文件？')) return;
+    if (!await confirmAction('确定要删除此APK及其文件？')) return;
     try {
         await API.del('/admin/api/generate.php', { id });
         Toast.success('已删除');
@@ -542,7 +542,7 @@ async function loadKeys() {
 }
 
 async function deleteKey(id) {
-    if (!confirmAction('确定要删除此签名密钥？')) return;
+    if (!await confirmAction('确定要删除此签名密钥？')) return;
     try {
         await API.del('/admin/api/keystores.php', { id });
         Toast.success('已删除');

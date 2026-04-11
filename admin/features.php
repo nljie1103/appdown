@@ -265,7 +265,7 @@ async function toggleCard(id, active) {
 }
 
 async function delCard(id) {
-    if (!confirmAction('确定删除此卡片？')) return;
+    if (!await confirmAction('确定删除此卡片？')) return;
     await API.del('/admin/api/features.php', { id });
     Toast.success('已删除');
     await loadCards();
@@ -290,7 +290,7 @@ async function renameCategory(id, oldName) {
 }
 
 async function deleteCategory(id, name) {
-    if (!confirmAction(`确定删除分类「${name}」？该分类下的卡片将变为未分类。`)) return;
+    if (!await confirmAction(`确定删除分类「${name}」？该分类下的卡片将变为未分类。`)) return;
     await API.del('/admin/api/features.php?action=categories', { id });
     if (currentCat == id) currentCat = 'all';
     Toast.success('已删除');

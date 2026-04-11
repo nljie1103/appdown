@@ -872,7 +872,7 @@ async function saveEditDownload() {
 }
 
 async function deleteDownload(id) {
-    if (!confirmAction('确定删除此下载按钮？')) return;
+    if (!await confirmAction('确定删除此下载按钮？')) return;
     await API.del('/admin/api/downloads.php', { id });
     Toast.success('已删除');
     loadApp();
@@ -933,7 +933,7 @@ async function addImageFromPicker(url) {
 }
 
 async function deleteImage(id) {
-    if (!confirmAction('确定删除此图片？')) return;
+    if (!await confirmAction('确定删除此图片？')) return;
     await API.del('/admin/api/images.php', { id });
     Toast.success('已删除');
     loadApp();

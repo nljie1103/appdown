@@ -217,7 +217,7 @@ async function toggleApp(id, active) {
 }
 
 async function deleteApp(id, name) {
-    if (!confirmAction(`确定删除「${name}」？该应用下的所有下载按钮和轮播图也会被删除。`)) return;
+    if (!await confirmAction(`确定删除「${name}」？该应用下的所有下载按钮和轮播图也会被删除。`)) return;
     await API.del('/admin/api/apps.php', { id });
     Toast.success('已删除');
     loadApps();

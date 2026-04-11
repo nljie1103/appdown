@@ -42,14 +42,40 @@ try {
     // 标记为构建中
     update_task($pdo, $taskId, ['status' => 'building', 'progress' => 5, 'progress_msg' => '准备构建环境...']);
 
-    // 验证环境
+    // 验证环境（使用exec绕过open_basedir限制）
     $javaHome = getenv('JAVA_HOME') ?: '/usr/lib/jvm/java-17-openjdk-amd64';
     $androidHome = getenv('ANDROID_HOME') ?: '/opt/android-sdk';
-    if (!is_dir($javaHome)) {
+
+    // open_basedir 限制下 is_dir() 无法检测外部目录，改用 exec+test
+    $javaHomeExists = false;
+    @exec('test -d ' . escapeshellarg($javaHome) . ' && echo 1', $jhOut);
+    $javaHomeExists = (trim($jhOut[0] ?? '') === '1');
+    if (!$javaHomeExists) {
+        // 尝试常见 JDK 路径
+        $jdkCandidates = [
+            '/usr/lib/jvm/java-17-openjdk-amd64',
+            '/usr/lib/jvm/java-17-openjdk',
+            '/usr/lib/jvm/java-17',
+        ];
+        foreach ($jdkCandidates as $candidate) {
+            $testOut = [];
+            @exec('test -d ' . escapeshellarg($candidate) . ' && echo 1', $testOut);
+            if (trim($testOut[0] ?? '') === '1') {
+                $javaHome = $candidate;
+                $javaHomeExists = true;
+                break;
+            }
+        }
+    }
+    if (!$javaHomeExists) {
         fail_task($pdo, $taskId, "JAVA_HOME 不存在: $javaHome\n请安装: sudo apt install openjdk-17-jdk");
         exit(1);
     }
-    if (!is_dir($androidHome)) {
+
+    $androidHomeExists = false;
+    @exec('test -d ' . escapeshellarg($androidHome) . ' && echo 1', $ahOut);
+    $androidHomeExists = (trim($ahOut[0] ?? '') === '1');
+    if (!$androidHomeExists) {
         fail_task($pdo, $taskId, "ANDROID_HOME 不存在: $androidHome\n请参照文档安装 Android SDK 命令行工具");
         exit(1);
     }

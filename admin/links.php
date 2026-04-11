@@ -203,7 +203,7 @@ async function toggleIcon(id, show) {
 }
 
 async function del(id) {
-    if (!confirmAction('确定删除此链接？')) return;
+    if (!await confirmAction('确定删除此链接？')) return;
     await API.del('/admin/api/links.php', { id });
     Toast.success('已删除');
     load();

@@ -162,13 +162,21 @@ if ($method === 'POST') {
     }
 
     // 后台启动 worker
-    $phpBin = PHP_BINARY ?: 'php';
+    // PHP_BINARY 在 FPM 环境返回 php-fpm 路径，需要用 PHP_BINDIR 获取 CLI php
+    $phpBin = PHP_BINDIR . '/php';
+    if (!file_exists($phpBin)) $phpBin = 'php'; // fallback
     $workerScript = realpath(__DIR__ . '/../../tools/build-worker.php');
+    if (!$workerScript) {
+        json_response(['error' => 'build-worker.php 不存在'], 500);
+    }
+    $dataDir = realpath(__DIR__ . '/../../data');
+    $debugLog = $dataDir . '/build_worker_' . $taskId . '.log';
     $cmd = sprintf(
-        'nohup %s %s %d > /dev/null 2>&1 &',
+        'nohup %s %s %d > %s 2>&1 &',
         escapeshellarg($phpBin),
         escapeshellarg($workerScript),
-        $taskId
+        $taskId,
+        escapeshellarg($debugLog)
     );
     exec($cmd);
 

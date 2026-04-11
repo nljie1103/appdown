@@ -246,7 +246,7 @@ admin_header('系统信息', 'system');
 let _installPollTimer = null;
 
 async function uninstallAndroidEnv() {
-    if (!confirm('确定要卸载 Android 构建环境吗？\n\n将删除 Android SDK 和 OpenJDK 17。')) return;
+    if (!await ConfirmModal.open('确定要卸载 Android 构建环境吗？', '将删除 Android SDK 和 OpenJDK 17，此操作不可逆。', { icon: 'danger', okText: '确定卸载', okClass: 'btn-danger' })) return;
 
     // 显示日志区域
     const progress = document.getElementById('android-install-progress');
@@ -259,7 +259,7 @@ async function uninstallAndroidEnv() {
 }
 
 async function installAndroidEnv() {
-    if (!confirm('确定要安装 Android 构建环境吗？\n\n安装过程需要下载约 1GB 文件，可能需要几分钟时间。')) return;
+    if (!await ConfirmModal.open('确定要安装 Android 构建环境吗？', '安装过程需要下载约 1GB 文件，可能需要几分钟时间。')) return;
 
     const btn = document.getElementById('btn-install-android');
     btn.disabled = true;

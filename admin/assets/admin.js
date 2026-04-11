@@ -215,6 +215,67 @@ const PromptModal = {
     }
 };
 
+// 自定义确认弹窗（替代浏览器confirm，Promise-based）
+const ConfirmModal = {
+    _overlay: null,
+    _resolve: null,
+
+    _ensure() {
+        if (this._overlay) return;
+        const o = document.createElement('div');
+        o.className = 'modal-overlay';
+        o.id = '_confirmModal';
+        o.innerHTML = `
+            <div class="modal" style="max-width:420px;text-align:center;">
+                <div id="_confirmIcon" style="font-size:2.8em;margin-bottom:12px;">
+                    <span style="color:#f59e0b;">&#9888;</span>
+                </div>
+                <div id="_confirmMsg" style="font-size:1.05em;font-weight:600;margin-bottom:8px;"></div>
+                <div id="_confirmDetail" style="font-size:0.85em;color:#666;margin-bottom:24px;white-space:pre-line;"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-outline" onclick="ConfirmModal._cancel()">取消</button>
+                    <button class="btn btn-primary" id="_confirmOkBtn" onclick="ConfirmModal._ok()">确定</button>
+                </div>
+            </div>`;
+        document.body.appendChild(o);
+        this._overlay = o;
+    },
+
+    /**
+     * @param {string} msg 主提示语
+     * @param {string} detail 详细描述（可选）
+     * @param {object} opts  可选配置 { okText, okClass, icon }
+     * @returns {Promise<boolean>}
+     */
+    open(msg, detail, opts) {
+        this._ensure();
+        opts = opts || {};
+        document.getElementById('_confirmMsg').textContent = msg || '确定要执行此操作吗？';
+        document.getElementById('_confirmDetail').textContent = detail || '';
+        const okBtn = document.getElementById('_confirmOkBtn');
+        okBtn.textContent = opts.okText || '确定';
+        okBtn.className = 'btn ' + (opts.okClass || 'btn-primary');
+        if (opts.icon) {
+            const iconColors = { warning: '#f59e0b', danger: '#ef4444', info: '#3b82f6' };
+            const iconChars = { warning: '&#9888;', danger: '&#10008;', info: '&#8505;' };
+            document.getElementById('_confirmIcon').innerHTML =
+                `<span style="color:${iconColors[opts.icon] || '#f59e0b'};">${iconChars[opts.icon] || '&#9888;'}</span>`;
+        }
+        this._overlay.classList.add('active');
+        return new Promise(resolve => { this._resolve = resolve; });
+    },
+
+    _ok() {
+        this._overlay.classList.remove('active');
+        if (this._resolve) { this._resolve(true); this._resolve = null; }
+    },
+
+    _cancel() {
+        this._overlay.classList.remove('active');
+        if (this._resolve) { this._resolve(false); this._resolve = null; }
+    }
+};
+
 // 模态框
 const Modal = {
     show(id) {
@@ -225,9 +286,9 @@ const Modal = {
     },
 };
 
-// 确认对话框
-function confirmAction(message) {
-    return confirm(message);
+// 确认对话框（已改为 UI 弹窗，返回 Promise<boolean>）
+async function confirmAction(message) {
+    return ConfirmModal.open(message);
 }
 
 // 拖拽排序
