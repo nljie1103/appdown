@@ -64,6 +64,11 @@ function init_schema(PDO $pdo): void {
             mc_fullscreen   INTEGER NOT NULL DEFAULT 1,
             mc_description  TEXT NOT NULL DEFAULT '',
             mc_template     TEXT NOT NULL DEFAULT 'modern',
+            mc_sign_cert    TEXT NOT NULL DEFAULT '',
+            mc_sign_key     TEXT NOT NULL DEFAULT '',
+            mc_sign_chain   TEXT NOT NULL DEFAULT '',
+            mc_sign_mode    TEXT NOT NULL DEFAULT '',
+            mc_payload_org  TEXT NOT NULL DEFAULT '',
             android_template TEXT NOT NULL DEFAULT 'modern',
             feature_category_id INTEGER NOT NULL DEFAULT 0,
             sort_order      INTEGER NOT NULL DEFAULT 0,
@@ -264,6 +269,21 @@ function migrate_schema(PDO $pdo): void {
     }
     if (!in_array('mc_template', $colNames)) {
         $pdo->exec("ALTER TABLE apps ADD COLUMN mc_template TEXT NOT NULL DEFAULT 'modern'");
+    }
+    if (!in_array('mc_sign_cert', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_cert TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_sign_key', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_key TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_sign_chain', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_chain TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_sign_mode', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_mode TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_payload_org', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_payload_org TEXT NOT NULL DEFAULT ''");
     }
     if (!in_array('android_template', $colNames)) {
         $pdo->exec("ALTER TABLE apps ADD COLUMN android_template TEXT NOT NULL DEFAULT 'modern'");

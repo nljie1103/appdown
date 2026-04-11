@@ -93,6 +93,10 @@ function get_upload_rules(string $category): ?array {
             'extensions' => ['apk', 'ipa', 'exe', 'dmg', 'zip'],
             'max_size'   => $php_max,
         ],
+        'cert' => [
+            'extensions' => ['pem', 'crt', 'key', 'p12'],
+            'max_size'   => $php_max,
+        ],
         default => null,
     };
 }

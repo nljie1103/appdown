@@ -154,6 +154,51 @@ admin_header('编辑应用', 'apps');
             </div>
         </div>
         <div class="form-group"><label>应用简介</label><textarea class="form-control" id="mcDesc" rows="3" placeholder="描述文件的应用描述"></textarea></div>
+
+        <!-- 签名设置折叠区 -->
+        <div style="margin:16px 0;">
+            <div style="cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:0.9em;" onclick="toggleMcSign()">
+                <i class="fas fa-chevron-right" id="mcSignArrow" style="transition:transform 0.2s;font-size:0.8em;"></i>
+                <i class="fas fa-certificate" style="color:#e53e3e;"></i>
+                <span>签名设置（可选，不填则使用全局证书）</span>
+            </div>
+            <div id="mcSignPanel" style="display:none;margin-top:12px;padding:16px;background:#f9f9f9;border-radius:8px;">
+                <div class="form-group">
+                    <label>签名来源</label>
+                    <select class="form-control" id="appMcSignMode" onchange="toggleAppMcSign()">
+                        <option value="">使用全局证书</option>
+                        <option value="text">独立证书 — 文本粘贴</option>
+                        <option value="path">独立证书 — 服务器路径</option>
+                        <option value="upload">独立证书 — 文件上传</option>
+                    </select>
+                </div>
+                <div id="appMcSignFields" style="display:none;">
+                    <div class="form-group">
+                        <label>组织名称 <small style="color:var(--text-secondary);">覆盖全局组织名</small></label>
+                        <input type="text" class="form-control" id="appMcPayloadOrg" placeholder="留空则使用全局设置">
+                    </div>
+                    <!-- 文本粘贴 -->
+                    <div id="appMcSignText">
+                        <div class="form-group"><label>签名证书 (PEM)</label><textarea class="form-control" id="appMcCertText" rows="3" style="font-family:monospace;font-size:0.85em;" placeholder="-----BEGIN CERTIFICATE-----"></textarea></div>
+                        <div class="form-group"><label>私钥 (PEM)</label><textarea class="form-control" id="appMcKeyText" rows="3" style="font-family:monospace;font-size:0.85em;" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></div>
+                        <div class="form-group"><label>证书链 (PEM，可选)</label><textarea class="form-control" id="appMcChainText" rows="2" style="font-family:monospace;font-size:0.85em;" placeholder="中间证书"></textarea></div>
+                    </div>
+                    <!-- 服务器路径 -->
+                    <div id="appMcSignPath" style="display:none;">
+                        <div class="form-group"><label>证书文件路径</label><input type="text" class="form-control" id="appMcCertPath" placeholder="/etc/ssl/certs/cert.pem"></div>
+                        <div class="form-group"><label>私钥文件路径</label><input type="text" class="form-control" id="appMcKeyPath" placeholder="/etc/ssl/private/key.pem"></div>
+                        <div class="form-group"><label>证书链路径 (可选)</label><input type="text" class="form-control" id="appMcChainPath" placeholder="/etc/ssl/certs/chain.pem"></div>
+                    </div>
+                    <!-- 文件上传 -->
+                    <div id="appMcSignUpload" style="display:none;">
+                        <div class="form-group"><label>签名证书</label><div style="display:flex;gap:8px;"><input type="text" class="form-control" id="appMcCertUpload" style="flex:1;" readonly placeholder="点击上传"><button class="btn btn-outline" onclick="uploadAppCert('appMcCertUpload')"><i class="fas fa-upload"></i></button></div></div>
+                        <div class="form-group"><label>私钥</label><div style="display:flex;gap:8px;"><input type="text" class="form-control" id="appMcKeyUpload" style="flex:1;" readonly placeholder="点击上传"><button class="btn btn-outline" onclick="uploadAppCert('appMcKeyUpload')"><i class="fas fa-upload"></i></button></div></div>
+                        <div class="form-group"><label>证书链 (可选)</label><div style="display:flex;gap:8px;"><input type="text" class="form-control" id="appMcChainUpload" style="flex:1;" readonly placeholder="点击上传"><button class="btn btn-outline" onclick="uploadAppCert('appMcChainUpload')"><i class="fas fa-upload"></i></button></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="mcPreview" style="display:none;margin-bottom:12px;">
             <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的下载链接：</label>
             <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="mcUrlDisplay"></div>
@@ -507,6 +552,20 @@ async function loadApp() {
     }
     updateMcPreview();
 
+    // Mobileconfig签名配置
+    const signMode = app.mc_sign_mode || '';
+    document.getElementById('appMcSignMode').value = signMode;
+    document.getElementById('appMcPayloadOrg').value = app.mc_payload_org || '';
+    toggleAppMcSign();
+    if (signMode) {
+        const suffix = signMode === 'text' ? 'Text' : signMode === 'path' ? 'Path' : 'Upload';
+        const certEl = document.getElementById('appMcCert' + suffix);
+        const keyEl = document.getElementById('appMcKey' + suffix);
+        const chainEl = document.getElementById('appMcChain' + suffix);
+        if (certEl) certEl.value = app.mc_sign_cert || '';
+        if (keyEl) keyEl.value = app.mc_sign_key || '';
+        if (chainEl) chainEl.value = app.mc_sign_chain || '';
+    }
     // Android配置
     document.getElementById('androidTemplate').value = app.android_template || 'modern';
 
@@ -591,7 +650,64 @@ function pickMcIconFromLibrary(url) {
     img.src = '/' + url;
 }
 
+function toggleMcSign() {
+    const panel = document.getElementById('mcSignPanel');
+    const arrow = document.getElementById('mcSignArrow');
+    const show = panel.style.display === 'none';
+    panel.style.display = show ? '' : 'none';
+    arrow.style.transform = show ? 'rotate(90deg)' : '';
+}
+
+function toggleAppMcSign() {
+    const mode = document.getElementById('appMcSignMode').value;
+    const fields = document.getElementById('appMcSignFields');
+    fields.style.display = mode ? '' : 'none';
+    document.getElementById('appMcSignText').style.display = mode === 'text' ? '' : 'none';
+    document.getElementById('appMcSignPath').style.display = mode === 'path' ? '' : 'none';
+    document.getElementById('appMcSignUpload').style.display = mode === 'upload' ? '' : 'none';
+}
+
+let appCertTarget = '';
+function uploadAppCert(targetId) {
+    appCertTarget = targetId;
+    let input = document.getElementById('appCertFileInput');
+    if (!input) {
+        input = document.createElement('input');
+        input.type = 'file'; input.id = 'appCertFileInput';
+        input.accept = '.pem,.crt,.key,.p12'; input.style.display = 'none';
+        input.addEventListener('change', async function() {
+            if (!this.files.length || !appCertTarget) return;
+            const fd = new FormData();
+            fd.append('file', this.files[0]);
+            fd.append('category', 'cert');
+            fd.append('_csrf', CSRF_TOKEN);
+            try {
+                const res = await API.upload('/admin/api/upload.php', fd);
+                document.getElementById(appCertTarget).value = res.url;
+                Toast.success('证书文件已上传');
+            } catch(e) { Toast.error('上传失败'); }
+            this.value = '';
+        });
+        document.body.appendChild(input);
+    }
+    input.click();
+}
+
+function getAppSignData() {
+    const mode = document.getElementById('appMcSignMode').value;
+    if (!mode) return { mc_sign_mode: '', mc_sign_cert: '', mc_sign_key: '', mc_sign_chain: '', mc_payload_org: '' };
+    const suffix = mode === 'text' ? 'Text' : mode === 'path' ? 'Path' : 'Upload';
+    return {
+        mc_sign_mode: mode,
+        mc_sign_cert: (document.getElementById('appMcCert' + suffix)?.value || '').trim(),
+        mc_sign_key: (document.getElementById('appMcKey' + suffix)?.value || '').trim(),
+        mc_sign_chain: (document.getElementById('appMcChain' + suffix)?.value || '').trim(),
+        mc_payload_org: document.getElementById('appMcPayloadOrg').value.trim(),
+    };
+}
+
 async function saveMcConfig() {
+    const signData = getAppSignData();
     await API.put('/admin/api/apps.php', {
         id: APP_ID,
         mc_url: document.getElementById('mcUrl').value.trim(),
@@ -601,6 +717,7 @@ async function saveMcConfig() {
         mc_fullscreen: parseInt(document.getElementById('mcFullscreen').value),
         mc_description: document.getElementById('mcDesc').value.trim(),
         mc_template: document.getElementById('mcTemplate').value,
+        ...signData,
     });
     AlertModal.success('保存成功', 'Mobileconfig配置已保存');
     updateMcPreview();

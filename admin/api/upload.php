@@ -9,7 +9,7 @@ csrf_validate();
 require_method('POST');
 
 $category = $_POST['category'] ?? '';
-if (!in_array($category, ['image', 'font', 'app'], true)) {
+if (!in_array($category, ['image', 'font', 'app', 'cert'], true)) {
     json_response(['ok' => false, 'error' => '无效的上传类型'], 400);
 }
 

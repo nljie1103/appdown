@@ -31,7 +31,8 @@ if ($method === 'POST') {
                 'copyright','carousel_interval','stats_downloads','stats_rating','stats_daily_active',
                 'font_url','font_family','captcha_enabled',
                 'bg_type','bg_color','bg_gradient','bg_image',
-                'effects_config','inapp_redirect'];
+                'effects_config','inapp_redirect',
+                'mc_sign_cert','mc_sign_key','mc_sign_chain','mc_sign_mode','mc_payload_org'];
 
     foreach ($settings as $key => $val) {
         if (in_array($key, $allowed, true)) {
