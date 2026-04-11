@@ -64,6 +64,26 @@ if ($method === 'POST') {
     }
 
     if ($action !== 'build') {
+        // 取消构建任务
+        if ($action === 'cancel_task') {
+            $taskId = (int)($data['task_id'] ?? 0);
+            if (!$taskId) json_response(['error' => '缺少task_id'], 400);
+
+            $stmt = $pdo->prepare('SELECT id, status FROM build_tasks WHERE id = ?');
+            $stmt->execute([$taskId]);
+            $task = $stmt->fetch();
+            if (!$task) json_response(['error' => '任务不存在'], 404);
+            if (!in_array($task['status'], ['pending', 'building'])) {
+                json_response(['error' => '任务已结束，无需取消'], 400);
+            }
+
+            // 标记为失败（用户取消）
+            $stmt = $pdo->prepare("UPDATE build_tasks SET status = 'failed', error_msg = '用户手动取消', progress_msg = '已取消', updated_at = datetime('now') WHERE id = ?");
+            $stmt->execute([$taskId]);
+
+            json_response(['ok' => true]);
+        }
+
         json_response(['error' => '无效的action'], 400);
     }
 

@@ -288,7 +288,9 @@ async function loadApks() {
                 <td>-</td>
                 <td>-</td>
                 <td style="white-space:nowrap;">${t.created_at || ''}</td>
-                <td>-</td>
+                <td style="white-space:nowrap;">
+                    <button class="btn btn-outline btn-sm" onclick="cancelTask(${t.id})" title="取消生成" style="color:#e74c3c;"><i class="fas fa-stop-circle"></i> 取消</button>
+                </td>
             </tr>`;
         }
 
@@ -315,6 +317,23 @@ async function loadApks() {
     } catch(e) {
         el.innerHTML = '<p style="color:#e74c3c;text-align:center;padding:20px;">加载失败</p>';
     }
+}
+
+async function cancelTask(taskId) {
+    if (!confirm('确定要取消这个构建任务吗？')) return;
+    try {
+        await API.post('/admin/api/generate.php', { action: 'cancel_task', task_id: taskId });
+        Toast.success('任务已取消');
+        // 停止轮询并恢复按钮
+        if (buildPolling) {
+            clearInterval(buildPolling);
+            buildPolling = null;
+        }
+        document.getElementById('buildStartBtn').disabled = false;
+        document.getElementById('buildStartBtn').innerHTML = '<i class="fas fa-hammer"></i> 开始生成APK';
+        document.getElementById('buildProgressCard').style.display = 'none';
+        loadApks();
+    } catch(e) {}
 }
 
 async function deleteApk(id) {

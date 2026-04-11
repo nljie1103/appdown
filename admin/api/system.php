@@ -122,6 +122,43 @@ if ($method === 'POST') {
         json_response(['ok' => true]);
     }
 
+    // 一键卸载 Android 环境
+    if ($action === 'uninstall_android') {
+        $currentStatus = get_setting($pdo, 'android_install_status', 'idle');
+        if ($currentStatus === 'running') {
+            json_response(['error' => '当前有安装/卸载任务正在运行'], 400);
+        }
+
+        $workerScript = realpath(__DIR__ . '/../../tools/install-android-worker.php');
+        if (!$workerScript) {
+            json_response(['error' => 'worker 脚本不存在'], 500);
+        }
+
+        $uninstallScript = realpath(__DIR__ . '/../../tools/uninstall-android-env.sh');
+        if (!$uninstallScript) {
+            json_response(['error' => '卸载脚本不存在'], 500);
+        }
+
+        $dataDir = realpath(__DIR__ . '/../../data');
+        $logFile = $dataDir . '/android_install.log';
+        file_put_contents($logFile, "正在启动卸载...\n");
+
+        set_setting($pdo, 'android_install_status', 'running');
+
+        // 复用 install worker，传 uninstall 脚本路径
+        $phpBin = PHP_BINARY ?: 'php';
+        $cmd = sprintf(
+            'nohup %s %s %s %s > /dev/null 2>&1 &',
+            escapeshellarg($phpBin),
+            escapeshellarg($workerScript),
+            escapeshellarg($logFile),
+            escapeshellarg($uninstallScript)
+        );
+        exec($cmd);
+
+        json_response(['ok' => true]);
+    }
+
     json_response(['error' => '无效的action'], 400);
 }
 

@@ -164,14 +164,27 @@ admin_header('系统信息', 'system');
         </tbody>
     </table>
     <?php if ($androidAllOk): ?>
-    <div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;color:#27ae60;">
-        <i class="fas fa-check-circle"></i> Android 构建环境已就绪
+    <div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:#27ae60;"><i class="fas fa-check-circle"></i> Android 构建环境已就绪</span>
+        <button class="btn btn-outline btn-sm" onclick="uninstallAndroidEnv()" style="color:#e74c3c;border-color:#e74c3c;">
+            <i class="fas fa-trash-alt"></i> 一键卸载
+        </button>
+    </div>
+    <div id="android-install-progress" style="display:none;margin-top:12px;">
+        <div style="font-weight:600;margin-bottom:8px;">操作日志：</div>
+        <pre id="android-install-log" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;max-height:400px;overflow-y:auto;font-size:0.8em;white-space:pre-wrap;line-height:1.6;"></pre>
+        <div id="android-install-status" style="margin-top:8px;"></div>
     </div>
     <?php else: ?>
     <div id="android-install-area" style="margin-top:16px;padding:16px;background:#f8f9fa;border-radius:8px;">
-        <button id="btn-install-android" class="btn btn-primary" onclick="installAndroidEnv()">
-            <i class="fas fa-download"></i> 一键安装 Android 环境
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button id="btn-install-android" class="btn btn-primary" onclick="installAndroidEnv()">
+                <i class="fas fa-download"></i> 一键安装 Android 环境
+            </button>
+            <button id="btn-uninstall-android" class="btn btn-outline btn-sm" onclick="uninstallAndroidEnv()" style="color:#e74c3c;border-color:#e74c3c;">
+                <i class="fas fa-trash-alt"></i> 一键卸载
+            </button>
+        </div>
         <div id="android-install-progress" style="display:none;margin-top:12px;">
             <div style="font-weight:600;margin-bottom:8px;">安装日志：</div>
             <pre id="android-install-log" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;max-height:400px;overflow-y:auto;font-size:0.8em;white-space:pre-wrap;line-height:1.6;"></pre>
@@ -228,9 +241,22 @@ admin_header('系统信息', 'system');
     </p>
 </div>
 
-<?php if (!$androidAllOk): ?>
+<?php /* Android 环境安装/卸载 JS */ ?>
 <script>
 let _installPollTimer = null;
+
+async function uninstallAndroidEnv() {
+    if (!confirm('确定要卸载 Android 构建环境吗？\n\n将删除 Android SDK 和 OpenJDK 17。')) return;
+
+    // 显示日志区域
+    const progress = document.getElementById('android-install-progress');
+    if (progress) progress.style.display = 'block';
+
+    try {
+        await API.post('/admin/api/system.php?action=uninstall_android', {});
+        startPolling();
+    } catch (e) {}
+}
 
 async function installAndroidEnv() {
     if (!confirm('确定要安装 Android 构建环境吗？\n\n安装过程需要下载约 1GB 文件，可能需要几分钟时间。')) return;
@@ -271,12 +297,12 @@ async function pollInstallLog() {
         const statusEl = document.getElementById('android-install-status');
         if (data.status === 'done') {
             clearInterval(_installPollTimer);
-            if (statusEl) statusEl.innerHTML = '<span style="color:#27ae60;font-weight:600;"><i class="fas fa-check-circle"></i> 安装完成！请刷新页面查看检测结果</span>';
+            if (statusEl) statusEl.innerHTML = '<span style="color:#27ae60;font-weight:600;"><i class="fas fa-check-circle"></i> 操作完成！请刷新页面查看结果</span>';
             const btn = document.getElementById('btn-install-android');
             if (btn) btn.style.display = 'none';
         } else if (data.status === 'failed') {
             clearInterval(_installPollTimer);
-            if (statusEl) statusEl.innerHTML = '<span style="color:#e74c3c;font-weight:600;"><i class="fas fa-times-circle"></i> 安装失败，请查看上方日志</span>';
+            if (statusEl) statusEl.innerHTML = '<span style="color:#e74c3c;font-weight:600;"><i class="fas fa-times-circle"></i> 操作失败，请查看上方日志</span>';
             const btn = document.getElementById('btn-install-android');
             if (btn) {
                 btn.disabled = false;
@@ -300,6 +326,5 @@ async function pollInstallLog() {
     }
 })();
 </script>
-<?php endif; ?>
 
 <?php admin_footer(); ?>
