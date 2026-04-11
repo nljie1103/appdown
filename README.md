@@ -240,6 +240,18 @@ location ~* ^/uploads/.*\.php$ {
     deny all;
     return 404;
 }
+
+# 禁止直接下载签名密钥和证书文件
+location ~* ^/uploads/(keystores|certs)/ {
+    deny all;
+    return 404;
+}
+
+# 禁止访问构建工具目录
+location ~* ^/(tools|android-template)/ {
+    deny all;
+    return 404;
+}
 ```
 
 ## 📡 API 接口

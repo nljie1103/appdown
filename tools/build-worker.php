@@ -75,7 +75,10 @@ try {
         'enable_splash' => !empty($params['splash_url']),
         'splash_duration' => 2000,
     ];
-    file_put_contents($buildDir . '/app/src/main/assets/config.json', json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    if (file_put_contents($buildDir . '/app/src/main/assets/config.json', json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) === false) {
+        fail_task($pdo, $taskId, '写入 config.json 失败');
+        exit(1);
+    }
 
     // 更新 strings.xml
     $stringsXml = '<?xml version="1.0" encoding="utf-8"?>' . "\n" .
@@ -196,7 +199,10 @@ try {
     $safeName = preg_replace('/[^\w\-]/', '_', $params['app_name']);
     $apkFilename = $safeName . '_' . ($params['version_name'] ?? '1.0.0') . '_' . time() . '.apk';
     $destPath = $apkDir . '/' . $apkFilename;
-    copy($apkPath, $destPath);
+    if (!copy($apkPath, $destPath)) {
+        fail_task($pdo, $taskId, 'APK复制到目标目录失败');
+        exit(1);
+    }
     $apkUrl = 'uploads/apks/' . $apkFilename;
     $apkSize = format_size(filesize($destPath));
 

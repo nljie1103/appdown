@@ -198,8 +198,15 @@ function resolve_cert_content(string $mode, string $value): string {
         case 'text':
             return $value;
         case 'path':
-            if (file_exists($value) && is_readable($value)) {
-                return file_get_contents($value);
+            // 仅允许读取项目目录内或 /etc/ssl 下的证书文件
+            $realPath = realpath($value);
+            $projectRoot = realpath(__DIR__ . '/..');
+            if ($realPath && is_readable($realPath) && (
+                str_starts_with($realPath, $projectRoot) ||
+                str_starts_with($realPath, '/etc/ssl') ||
+                str_starts_with($realPath, '/etc/pki')
+            )) {
+                return file_get_contents($realPath);
             }
             return '';
         case 'upload':
@@ -313,15 +320,18 @@ function extract_der_from_smime(string $smime): string|false {
 
     if (empty($boundary)) {
         // 非 multipart，可能是直接的 PKCS#7
-        $pos = strpos($smime, "\n\n");
-        if ($pos === false) $pos = strpos($smime, "\r\n\r\n");
-        if ($pos !== false) {
-            $base64Data = substr($smime, $pos + 2);
-            $base64Data = trim(str_replace(["\r", "\n"], '', $base64Data));
-            $der = base64_decode($base64Data);
-            return $der !== false ? $der : false;
+        $posLF = strpos($smime, "\n\n");
+        $posCRLF = strpos($smime, "\r\n\r\n");
+        if ($posLF !== false) {
+            $base64Data = substr($smime, $posLF + 2);
+        } elseif ($posCRLF !== false) {
+            $base64Data = substr($smime, $posCRLF + 4);
+        } else {
+            return false;
         }
-        return false;
+        $base64Data = trim(str_replace(["\r", "\n"], '', $base64Data));
+        $der = base64_decode($base64Data);
+        return $der !== false ? $der : false;
     }
 
     // 找到 pkcs7-signature 部分
@@ -329,14 +339,18 @@ function extract_der_from_smime(string $smime): string|false {
     foreach ($parts as $part) {
         if (stripos($part, 'pkcs7-signature') !== false || stripos($part, 'application/pkcs7') !== false) {
             // 提取空行后的 base64 数据
-            $pos = strpos($part, "\n\n");
-            if ($pos === false) $pos = strpos($part, "\r\n\r\n");
-            if ($pos !== false) {
-                $base64Data = substr($part, $pos + 2);
-                $base64Data = trim(str_replace(["\r", "\n", " "], '', $base64Data));
-                $der = base64_decode($base64Data);
-                return $der !== false ? $der : false;
+            $posLF = strpos($part, "\n\n");
+            $posCRLF = strpos($part, "\r\n\r\n");
+            if ($posLF !== false) {
+                $base64Data = substr($part, $posLF + 2);
+            } elseif ($posCRLF !== false) {
+                $base64Data = substr($part, $posCRLF + 4);
+            } else {
+                continue;
             }
+            $base64Data = trim(str_replace(["\r", "\n", " "], '', $base64Data));
+            $der = base64_decode($base64Data);
+            return $der !== false ? $der : false;
         }
     }
 

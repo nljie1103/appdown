@@ -208,6 +208,13 @@ function init_schema(PDO $pdo): void {
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip          TEXT NOT NULL,
+            attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, attempted_at);
+
         CREATE TABLE IF NOT EXISTS keystores (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             name            TEXT NOT NULL,

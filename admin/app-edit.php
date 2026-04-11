@@ -778,7 +778,7 @@ async function uploadIcon(input) {
     fd.append('file', input.files[0]);
     fd.append('category', 'image');
     const res = await API.upload('/admin/api/upload.php', fd);
-    if (res.ok) {
+    if (res && res.url) {
         document.getElementById('appIconUrl').value = res.url;
         document.getElementById('iconPreview').src = '/' + res.url;
         document.getElementById('iconPreview').style.display = '';
@@ -787,7 +787,9 @@ async function uploadIcon(input) {
 }
 
 // === 下载按钮 ===
+let _downloads = [];
 function renderDownloads(list) {
+    _downloads = list;
     const body = document.getElementById('dlList');
     if (list.length === 0) {
         body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);">暂无下载按钮</td></tr>';
@@ -804,7 +806,7 @@ function renderDownloads(list) {
             <td>${escapeHTML(d.btn_subtext)}</td>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHTML(d.href)}">${escapeHTML(d.href)}</td>
             <td>
-                <button class="btn btn-outline btn-sm" onclick='editDownload(${JSON.stringify(d)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-outline btn-sm" onclick="editDownload(${d.id})"><i class="fas fa-edit"></i></button>
                 <button class="btn btn-danger btn-sm" onclick="deleteDownload(${d.id})"><i class="fas fa-trash"></i></button>
             </td>
         </tr>
@@ -833,7 +835,9 @@ async function addDownload() {
     loadApp();
 }
 
-function editDownload(d) {
+function editDownload(id) {
+    const d = _downloads.find(x => x.id === id);
+    if (!d) return;
     document.getElementById('editDlId').value = d.id;
     // 如果btn_type不在预定义列表中，设为other
     const typeSelect = document.getElementById('editDlType');

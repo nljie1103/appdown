@@ -67,11 +67,15 @@ if ($method === 'POST') {
         json_response(['error' => '无效的action'], 400);
     }
 
-    // 检查是否有正在构建的任务
-    $running = $pdo->query("SELECT COUNT(*) FROM build_tasks WHERE status IN ('pending','building')")->fetchColumn();
-    if ($running > 0) {
-        json_response(['error' => '当前有任务正在构建中，请等待完成后再试'], 400);
-    }
+    // 使用事务防止并发创建多个任务
+    $pdo->beginTransaction();
+    try {
+        // 检查是否有正在构建的任务
+        $running = $pdo->query("SELECT COUNT(*) FROM build_tasks WHERE status IN ('pending','building')")->fetchColumn();
+        if ($running > 0) {
+            $pdo->rollBack();
+            json_response(['error' => '当前有任务正在构建中，请等待完成后再试'], 400);
+        }
 
     // 验证参数
     $url = trim($data['url'] ?? '');
@@ -131,6 +135,11 @@ if ($method === 'POST') {
     $stmt = $pdo->prepare('INSERT INTO build_tasks (status, params, keystore_id) VALUES (?, ?, ?)');
     $stmt->execute(['pending', $params, $keystoreId]);
     $taskId = $pdo->lastInsertId();
+    $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        json_response(['error' => '创建任务失败: ' . $e->getMessage()], 500);
+    }
 
     // 后台启动 worker
     $phpBin = PHP_BINARY ?: 'php';

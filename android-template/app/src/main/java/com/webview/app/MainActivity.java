@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.Window;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -32,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
     private SwipeRefreshLayout swipeRefresh;
     private ValueCallback<Uri[]> fileChooserCallback;
     private String targetUrl = "https://example.com";
+    private String failedUrl = null;
     private long lastBackPressTime = 0;
 
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
@@ -84,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
+        settings.setAllowFileAccess(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(true);
@@ -124,10 +126,11 @@ public class MainActivity extends AppCompatActivity {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
                     swipeRefresh.setRefreshing(false);
+                    failedUrl = request.getUrl().toString();
                     view.loadData(
                         "<html><body style='display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0;background:#f5f5f5;'>" +
                         "<p style='font-size:18px;color:#666;'>网络连接失败</p>" +
-                        "<button onclick='location.reload()' style='padding:12px 32px;font-size:16px;border:none;background:#2196F3;color:white;border-radius:8px;cursor:pointer;margin-top:16px;'>重试</button>" +
+                        "<button onclick='window._retry()' style='padding:12px 32px;font-size:16px;border:none;background:#2196F3;color:white;border-radius:8px;cursor:pointer;margin-top:16px;'>重试</button>" +
                         "</body></html>",
                         "text/html", "utf-8");
                 }
@@ -150,6 +153,33 @@ public class MainActivity extends AppCompatActivity {
         swipeRefresh.setOnRefreshListener(() -> {
             webView.reload();
         });
+
+        // 为错误页的重试按钮提供回调
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void _retry() {
+                runOnUiThread(() -> {
+                    if (failedUrl != null) {
+                        webView.loadUrl(failedUrl);
+                        failedUrl = null;
+                    } else {
+                        webView.loadUrl(targetUrl);
+                    }
+                });
+            }
+        }, "window");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) webView.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.onResume();
     }
 
     @Override

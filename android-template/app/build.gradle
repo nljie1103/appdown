@@ -16,7 +16,7 @@ android {
 
     signingConfigs {
         release {
-            if (project.hasProperty('ksFile')) {
+            if (project.hasProperty('ksFile') && project.hasProperty('ksPwd') && project.hasProperty('ksAlias') && project.hasProperty('ksKeyPwd')) {
                 storeFile file(project.property('ksFile'))
                 storePassword project.property('ksPwd')
                 keyAlias project.property('ksAlias')
@@ -29,7 +29,7 @@ android {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            if (project.hasProperty('ksFile')) {
+            if (project.hasProperty('ksFile') && project.hasProperty('ksPwd') && project.hasProperty('ksAlias') && project.hasProperty('ksKeyPwd')) {
                 signingConfig signingConfigs.release
             }
         }
