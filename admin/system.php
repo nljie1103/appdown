@@ -66,19 +66,19 @@ $javaVer = '';
 if (preg_match('/version\s+"([^"]+)"/', $javaVerLine, $m)) $javaVer = $m[1];
 $androidChecks[] = ['Java 17 (JDK)', '已安装', $hasJava ? $javaVer : '未安装', $hasJava];
 
-$hasHome = is_dir($androidHome);
+$hasHome = @is_dir($androidHome);
 $androidChecks[] = ['Android SDK 目录', '存在', $hasHome ? $androidHome : '不存在', $hasHome];
 
 $sdkMgr = $androidHome . '/cmdline-tools/latest/bin/sdkmanager';
-$hasSdk = file_exists($sdkMgr);
+$hasSdk = @file_exists($sdkMgr);
 $androidChecks[] = ['SDK Manager', '已安装', $hasSdk ? '已安装' : '未安装', $hasSdk];
 
 $btDir = $androidHome . '/build-tools/34.0.0';
-$hasBt = is_dir($btDir);
+$hasBt = @is_dir($btDir);
 $androidChecks[] = ['Build Tools 34.0.0', '已安装', $hasBt ? '已安装' : '未安装', $hasBt];
 
 $pfDir = $androidHome . '/platforms/android-34';
-$hasPf = is_dir($pfDir);
+$hasPf = @is_dir($pfDir);
 $androidChecks[] = ['Platform android-34', '已安装', $hasPf ? '已安装' : '未安装', $hasPf];
 
 $ktOut = [];
