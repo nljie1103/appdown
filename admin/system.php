@@ -54,7 +54,7 @@ $lockFile = __DIR__ . '/../install/install.lock';
 $lockExists = file_exists($lockFile);
 $checks[] = ['安装锁定文件', '已锁定', $lockExists ? '已锁定' : '未锁定', $lockExists];
 
-// Android 构建环境检测
+// Android 构建环境检测（使用exec绕过open_basedir限制）
 $androidChecks = [];
 $androidHome = getenv('ANDROID_HOME') ?: '/opt/android-sdk';
 
@@ -66,19 +66,23 @@ $javaVer = '';
 if (preg_match('/version\s+"([^"]+)"/', $javaVerLine, $m)) $javaVer = $m[1];
 $androidChecks[] = ['Java 17 (JDK)', '已安装', $hasJava ? $javaVer : '未安装', $hasJava];
 
-$hasHome = @is_dir($androidHome);
+@exec('test -d ' . escapeshellarg($androidHome) . ' && echo 1', $homeOut);
+$hasHome = (trim($homeOut[0] ?? '') === '1');
 $androidChecks[] = ['Android SDK 目录', '存在', $hasHome ? $androidHome : '不存在', $hasHome];
 
 $sdkMgr = $androidHome . '/cmdline-tools/latest/bin/sdkmanager';
-$hasSdk = @file_exists($sdkMgr);
+@exec('test -f ' . escapeshellarg($sdkMgr) . ' && echo 1', $sdkOut);
+$hasSdk = (trim($sdkOut[0] ?? '') === '1');
 $androidChecks[] = ['SDK Manager', '已安装', $hasSdk ? '已安装' : '未安装', $hasSdk];
 
 $btDir = $androidHome . '/build-tools/34.0.0';
-$hasBt = @is_dir($btDir);
+@exec('test -d ' . escapeshellarg($btDir) . ' && echo 1', $btOut);
+$hasBt = (trim($btOut[0] ?? '') === '1');
 $androidChecks[] = ['Build Tools 34.0.0', '已安装', $hasBt ? '已安装' : '未安装', $hasBt];
 
 $pfDir = $androidHome . '/platforms/android-34';
-$hasPf = @is_dir($pfDir);
+@exec('test -d ' . escapeshellarg($pfDir) . ' && echo 1', $pfOut);
+$hasPf = (trim($pfOut[0] ?? '') === '1');
 $androidChecks[] = ['Platform android-34', '已安装', $hasPf ? '已安装' : '未安装', $hasPf];
 
 $ktOut = [];

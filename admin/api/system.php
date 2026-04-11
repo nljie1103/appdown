@@ -25,20 +25,24 @@ if ($method === 'GET') {
         $javaVer = '';
         if (preg_match('/version\s+"([^"]+)"/', $javaVerLine, $m)) $javaVer = $m[1];
 
-        // Android SDK
-        $hasHome = is_dir($androidHome);
+        // Android SDK（使用exec绕过open_basedir限制）
+        @exec('test -d ' . escapeshellarg($androidHome) . ' && echo 1', $homeOut);
+        $hasHome = (trim($homeOut[0] ?? '') === '1');
 
         // sdkmanager
         $sdkMgr = $androidHome . '/cmdline-tools/latest/bin/sdkmanager';
-        $hasSdk = file_exists($sdkMgr);
+        @exec('test -f ' . escapeshellarg($sdkMgr) . ' && echo 1', $sdkOut);
+        $hasSdk = (trim($sdkOut[0] ?? '') === '1');
 
         // build-tools
         $btDir = $androidHome . '/build-tools/34.0.0';
-        $hasBt = is_dir($btDir);
+        @exec('test -d ' . escapeshellarg($btDir) . ' && echo 1', $btOut);
+        $hasBt = (trim($btOut[0] ?? '') === '1');
 
         // platform
         $pfDir = $androidHome . '/platforms/android-34';
-        $hasPf = is_dir($pfDir);
+        @exec('test -d ' . escapeshellarg($pfDir) . ' && echo 1', $pfOut);
+        $hasPf = (trim($pfOut[0] ?? '') === '1');
 
         // keytool
         $ktOut = [];
