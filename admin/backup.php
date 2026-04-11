@@ -272,7 +272,7 @@ async function doImport() {
     if (!tables.length && !includeUploads) { AlertModal.error('请选择导入内容'); return; }
 
     const hasAdmin = tables.includes('admin_users');
-    if (!await ConfirmModal.open('确定导入选中的数据吗？', hasAdmin
+    if (!await AlertModal.confirm('确定导入选中的数据吗？', hasAdmin
         ? '你选择了导入管理员账户，这将覆盖当前登录信息，可能导致无法登录！'
         : '选中的类别将覆盖现有数据，此操作不可逆！',
         { icon: hasAdmin ? 'danger' : 'warning', okText: '确定导入', okClass: hasAdmin ? 'btn-danger' : 'btn-primary' }

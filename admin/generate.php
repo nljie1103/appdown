@@ -320,7 +320,7 @@ async function loadApks() {
 }
 
 async function cancelTask(taskId) {
-    if (!await ConfirmModal.open('确定要取消这个构建任务吗？')) return;
+    if (!await AlertModal.confirm('确定要取消这个构建任务吗？')) return;
     try {
         await API.post('/admin/api/generate.php', { action: 'cancel_task', task_id: taskId });
         Toast.success('任务已取消');
