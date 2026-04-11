@@ -22,11 +22,21 @@
 - 多应用管理，独立图标 / 主题色 / 下载按钮
 - 拖拽排序，实时预览
 
-**📱 iOS 企业签分发**
-- 自动生成 plist 文件
+**📱 iOS 分发**
+- 自动生成 plist 文件（IPA 企业签分发）
+- Mobileconfig WebClip 描述文件（免签安装到桌面）
+- SSL 证书签名（全局 / 单应用独立证书）
 - 双模板可选（毛玻璃 / 仿 App Store）
 - 内置安装图文教程引导
 - 微信 / QQ 自动提示跳转 Safari
+
+**🤖 APK 生成器（URL 转 APK）**
+- 输入网址自动封装为 Android WebView 应用
+- 自定义应用名称、图标、启动图、包名、版本号
+- 签名密钥管理（在线生成 / 导入已有密钥）
+- 后台构建 + 实时进度轮询
+- 生成结果管理（下载 / 关联到应用 / 删除）
+- 一键环境部署脚本
 
 **📊 数据统计**
 - 页面访问量 / 下载次数
@@ -75,6 +85,7 @@
 | 前端 | 原生 JS + CSS（无构建步骤） |
 | 管理面板 | 自定义 UI + Chart.js (CDN) |
 | 图标 | Font Awesome 7.1.0（本地） |
+| APK 构建 | OpenJDK 17 + Android SDK + Gradle 8.5 |
 
 ## 🚀 快速开始
 
@@ -84,9 +95,11 @@
 - 导入导出功能需启用 `zip` 扩展
 - 安装包解析功能需启用 `zip` 和 `openssl` 扩展
 - OCSP 证书吊销检测需启用 `curl` 和 `openssl` 扩展
+- Mobileconfig 签名需启用 `openssl` 扩展
 - 图片格式转换压缩需启用 `gd` 扩展（支持 WebP/JPEG/PNG/GIF）
 - Nginx 或 Apache
 - **无需** MySQL、Composer、Node.js
+- **APK 生成功能**（可选）需额外安装 JDK 17 + Android SDK，见下方说明
 
 ### 一键部署
 
@@ -109,6 +122,38 @@ git clone https://github.com/nljie1103/appdown.git
 
 > 💡 安装后访问 `https://你的域名/admin/` 进入后台管理
 
+### APK 生成环境部署（可选）
+
+如需使用「生成应用」功能（URL 转 APK），需要额外安装 JDK 和 Android SDK。
+
+**方式一：一键部署脚本（推荐）**
+
+```bash
+sudo bash tools/setup-android-env.sh
+```
+
+脚本会自动完成：安装 OpenJDK 17 → 下载 Android SDK 命令行工具（Google 源失败自动切换腾讯云镜像）→ 安装 Build Tools 和 Platform → 验证环境。
+
+**方式二：手动安装**
+
+```bash
+# 1. 安装 JDK 17
+sudo apt install openjdk-17-jdk
+
+# 2. 下载 Android SDK 命令行工具
+sudo mkdir -p /opt/android-sdk/cmdline-tools
+cd /opt/android-sdk/cmdline-tools
+sudo wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+sudo unzip commandlinetools-linux-*.zip
+sudo mv cmdline-tools latest
+
+# 3. 安装 SDK 组件
+sudo /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+  "build-tools;34.0.0" "platforms;android-34"
+```
+
+> ⚠️ 无需配置环境变量，构建脚本已内置默认路径（`/usr/lib/jvm/java-17-openjdk-amd64` 和 `/opt/android-sdk`）。如果安装在其他路径，可设置 `JAVA_HOME` 和 `ANDROID_HOME` 环境变量覆盖。
+
 ## 📂 项目结构
 
 ```
@@ -118,26 +163,33 @@ appdown/
 ├── api/                    # 公共API
 │   ├── config.php          #   站点配置JSON（带缓存）
 │   ├── plist.php           #   iOS plist动态生成
+│   ├── mobileconfig.php    #   iOS Mobileconfig 描述文件生成（支持签名）
 │   └── track.php           #   访问/下载事件追踪
 ├── ios/                    # iOS安装引导页
 │   ├── index.php           #   路由（根据模板分发）
 │   ├── template-modern.php #   毛玻璃风格模板
 │   ├── template-classic.php#   仿App Store模板
 │   └── static/             #   安装教程截图
+├── android/                # Android安装引导页
 ├── includes/               # PHP公共库（禁止Web访问）
 ├── admin/                  # 管理后台
 │   ├── dashboard.php       #   统计仪表盘
 │   ├── apps.php            #   应用列表
-│   ├── app-edit.php        #   应用编辑（下载+轮播+iOS）
+│   ├── app-edit.php        #   应用编辑（下载+轮播+iOS+MC签名）
+│   ├── generate.php        #   生成应用（APK管理/生成/签名密钥）
 │   ├── attachments.php     #   附件管理 + 公共图片库
 │   ├── features.php        #   特色卡片（分类管理）
 │   ├── links.php           #   友情链接（图标管理）
 │   ├── fonts.php           #   字体管理
-│   ├── settings.php        #   站点设置
+│   ├── settings.php        #   站点设置（含MC签名证书配置）
 │   ├── custom-code.php     #   自定义代码 + 特效配置
 │   ├── backup.php          #   数据导入导出
 │   ├── system.php          #   系统信息
 │   └── api/                #   后台AJAX接口
+├── android-template/       # Android WebView 模板项目（Gradle）
+├── tools/                  # 命令行工具
+│   ├── build-worker.php    #   APK后台构建脚本（CLI）
+│   └── setup-android-env.sh#   一键环境部署脚本
 ├── static/                 # 静态资源（FontAwesome）
 ├── data/                   # SQLite数据库（自动创建）
 └── uploads/                # 用户上传文件
@@ -149,7 +201,8 @@ appdown/
 |:---|:---|
 | 📊 仪表盘 | 今日访问/下载量、7天趋势图、来源 TOP10（智能识别）、下载明细 |
 | 📱 应用管理 | 添加/编辑/排序应用，支持自定义图标（FA图标或上传图片） |
-| ✏️ 应用编辑 | 下载按钮（图标可自定义）、轮播截图、iOS安装页配置 |
+| ✏️ 应用编辑 | 下载按钮（图标可自定义）、轮播截图、iOS安装页配置、MC签名证书 |
+| 🔨 生成应用 | URL转APK（构建/进度/下载）、APK管理、签名密钥管理（生成/导入） |
 | 📎 附件管理 | 按平台分类管理安装包，拖拽上传带进度条，上传后可编辑，安装包信息解析，公共图片库（格式转换压缩、真实重命名） |
 | ⭐ 特色卡片 | 首页亮点卡片，分类管理，FA图标/自定义图片图标 |
 | 🔗 友情链接 | 页脚链接管理，支持图标（FA/自定义图片），按链接开关图标显示 |
@@ -197,6 +250,7 @@ location ~* ^/uploads/.*\.php$ {
 |:---|:---|:---|
 | GET | `/api/config.php` | 返回完整站点配置 JSON |
 | GET | `/api/plist.php?app=slug` | 动态生成 iOS 安装 plist |
+| GET | `/api/mobileconfig.php?app=slug` | 生成 iOS Mobileconfig 描述文件（支持 SSL 签名） |
 | POST | `/api/track.php` | 记录访问 / 下载事件 |
 
 ### 后台接口（需登录 + CSRF）
@@ -218,6 +272,8 @@ location ~* ^/uploads/.*\.php$ {
 | `/admin/api/backup.php` | POST | 数据导入导出 |
 | `/admin/api/upload.php` | POST | 文件上传 |
 | `/admin/api/reorder.php` | POST | 拖拽排序 |
+| `/admin/api/generate.php` | CRUD | APK 构建任务 / 生成结果管理 |
+| `/admin/api/keystores.php` | CRUD | 签名密钥管理（生成 / 导入） |
 
 ## 💡 常见操作
 
