@@ -70,40 +70,110 @@ admin_header('编辑应用', 'apps');
 <!-- iOS安装页配置 -->
 <div class="card">
     <h3>iOS安装页配置</h3>
-    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后系统自动生成plist文件，用户可通过 <code style="color:#e53e3e;font-weight:700;">/ios/?app=应用标识</code> 访问iOS安装引导页</p>
-    <div class="form-row">
-        <div class="form-group">
-            <label>IPA文件地址</label>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" class="form-control" id="iosIpaUrl" placeholder="如: https://example.com/app.ipa 或选择附件" style="flex:1;">
-                <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('iosIpaUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
+    <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #e2e8f0;">
+        <button class="ios-tab active" id="tabIpa" onclick="switchIosTab('ipa')" style="padding:8px 20px;border:none;background:none;cursor:pointer;font-size:0.95em;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;">IPA配置</button>
+        <button class="ios-tab" id="tabMc" onclick="switchIosTab('mc')" style="padding:8px 20px;border:none;background:none;cursor:pointer;font-size:0.95em;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;">Mobileconfig配置</button>
+    </div>
+
+    <!-- IPA配置面板 -->
+    <div id="panelIpa">
+        <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后系统自动生成plist文件，用户可通过 <code style="color:#e53e3e;font-weight:700;">/ios/?app=应用标识</code> 访问iOS安装引导页</p>
+        <div class="form-row">
+            <div class="form-group">
+                <label>IPA文件地址</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" class="form-control" id="iosIpaUrl" placeholder="如: https://example.com/app.ipa 或选择附件" style="flex:1;">
+                    <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('iosIpaUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
+                </div>
+                <select class="form-control att-picker" id="iosIpaUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'iosIpaUrl')">
+                    <option value="">-- 选择一个版本 --</option>
+                </select>
             </div>
-            <select class="form-control att-picker" id="iosIpaUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'iosIpaUrl')">
-                <option value="">-- 选择一个版本 --</option>
-            </select>
+            <div class="form-group"><label>Bundle ID</label><input type="text" class="form-control" id="iosBundleId" placeholder="如: com.example.app"></div>
         </div>
-        <div class="form-group"><label>Bundle ID</label><input type="text" class="form-control" id="iosBundleId" placeholder="如: com.example.app"></div>
-    </div>
-    <div class="form-row">
-        <div class="form-group"><label>证书名称</label><input type="text" class="form-control" id="iosCert" placeholder="如: Etisalat - Emirates..."></div>
-        <div class="form-group"><label>应用版本</label><input type="text" class="form-control" id="iosVersion" placeholder="如: 7.2.3"></div>
-    </div>
-    <div class="form-row">
-        <div class="form-group"><label>应用大小</label><input type="text" class="form-control" id="iosSize" placeholder="如: 4.5 MB"></div>
-        <div class="form-group">
-            <label>安装页模板</label>
-            <select class="form-control" id="iosTemplate">
-                <option value="modern">现代风格（毛玻璃）</option>
-                <option value="classic">经典风格（仿App Store）</option>
-            </select>
+        <div class="form-row">
+            <div class="form-group"><label>证书名称</label><input type="text" class="form-control" id="iosCert" placeholder="如: Etisalat - Emirates..."></div>
+            <div class="form-group"><label>应用版本</label><input type="text" class="form-control" id="iosVersion" placeholder="如: 7.2.3"></div>
         </div>
+        <div class="form-row">
+            <div class="form-group"><label>应用大小</label><input type="text" class="form-control" id="iosSize" placeholder="如: 4.5 MB"></div>
+            <div class="form-group">
+                <label>安装页模板</label>
+                <select class="form-control" id="iosTemplate">
+                    <option value="modern">现代风格（毛玻璃）</option>
+                    <option value="classic">经典风格（仿App Store）</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group"><label>应用简介</label><textarea class="form-control" id="iosDesc" rows="3" placeholder="iOS安装页展示的应用描述"></textarea></div>
+        <div id="plistPreview" style="display:none;margin-bottom:12px;">
+            <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的安装链接：</label>
+            <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="plistUrlDisplay"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveIosConfig()"><i class="fas fa-save"></i> 保存IPA配置</button>
     </div>
-    <div class="form-group"><label>应用简介</label><textarea class="form-control" id="iosDesc" rows="3" placeholder="iOS安装页展示的应用描述"></textarea></div>
-    <div id="plistPreview" style="display:none;margin-bottom:12px;">
-        <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的安装链接：</label>
-        <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="plistUrlDisplay"></div>
+
+    <!-- Mobileconfig配置面板 -->
+    <div id="panelMc" style="display:none;">
+        <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后系统自动生成描述文件，用户可通过 <code style="color:#e53e3e;font-weight:700;">/api/mobileconfig.php?app=应用标识</code> 下载，或通过 <code style="color:#e53e3e;font-weight:700;">/ios/?app=应用标识&amp;type=mobileconfig</code> 访问安装引导页</p>
+        <div class="form-row">
+            <div class="form-group">
+                <label>目标URL <small style="color:var(--text-secondary);">WebClip打开的网址</small></label>
+                <input type="text" class="form-control" id="mcUrl" placeholder="如: https://example.com/webapp">
+            </div>
+            <div class="form-group"><label>Bundle ID</label><input type="text" class="form-control" id="mcBundleId" placeholder="如: com.webclip.appname"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>版本</label><input type="text" class="form-control" id="mcVersion" placeholder="1" value="1"></div>
+            <div class="form-group">
+                <label>全屏模式</label>
+                <select class="form-control" id="mcFullscreen">
+                    <option value="1">是（全屏显示，隐藏地址栏）</option>
+                    <option value="0">否（保留地址栏）</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>WebClip图标 <small style="color:var(--text-secondary);">会嵌入到描述文件中</small></label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <img id="mcIconPreview" src="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid #ddd;display:none;">
+                    <button class="btn btn-outline" type="button" onclick="document.getElementById('mcIconUpload').click()"><i class="fas fa-upload"></i> 上传图标</button>
+                    <button class="btn btn-outline" type="button" onclick="ImagePicker.open(url => pickMcIconFromLibrary(url))"><i class="fas fa-images"></i> 图片库</button>
+                    <input type="file" id="mcIconUpload" accept="image/png,image/jpeg" style="display:none;" onchange="uploadMcIcon(this)">
+                    <input type="hidden" id="mcIconData">
+                    <span id="mcIconStatus" style="font-size:0.85em;color:var(--text-secondary);"></span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>安装页模板</label>
+                <select class="form-control" id="mcTemplate">
+                    <option value="modern">现代风格（毛玻璃）</option>
+                    <option value="classic">经典风格（仿App Store）</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group"><label>应用简介</label><textarea class="form-control" id="mcDesc" rows="3" placeholder="描述文件的应用描述"></textarea></div>
+        <div id="mcPreview" style="display:none;margin-bottom:12px;">
+            <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的下载链接：</label>
+            <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="mcUrlDisplay"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveMcConfig()"><i class="fas fa-save"></i> 保存Mobileconfig配置</button>
     </div>
-    <button class="btn btn-primary" onclick="saveIosConfig()"><i class="fas fa-save"></i> 保存iOS配置</button>
+</div>
+
+<!-- Android安装页配置 -->
+<div class="card">
+    <h3>Android安装页配置</h3>
+    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">用户可通过 <code style="color:#e53e3e;font-weight:700;">/android/?app=应用标识</code> 访问Android安装引导页，下载链接会自动获取第一个Android类型的下载按钮地址</p>
+    <div class="form-group">
+        <label>安装页模板</label>
+        <select class="form-control" id="androidTemplate">
+            <option value="modern">现代风格</option>
+            <option value="classic">经典风格（仿Play Store）</option>
+        </select>
+    </div>
+    <button class="btn btn-primary" onclick="saveAndroidConfig()"><i class="fas fa-save"></i> 保存Android配置</button>
 </div>
 
 <!-- 下载按钮 -->
@@ -141,8 +211,12 @@ admin_header('编辑应用', 'apps');
         <div class="form-group">
             <label>平台类型</label>
             <select class="form-control" id="dlType" onchange="onDlTypeChange('dlType','dlIcon','dlIconPreview')">
-                <option value="android">Android</option>
-                <option value="ios">iOS</option>
+                <option value="android">Android 直接下载</option>
+                <option value="android-install">Android 安装页</option>
+                <option value="ios-ipa">iOS IPA 直接安装</option>
+                <option value="ios-ipa-install">iOS IPA 安装页</option>
+                <option value="ios-mobileconfig">iOS Mobileconfig 直接下载</option>
+                <option value="ios-mobileconfig-install">iOS Mobileconfig 安装页</option>
                 <option value="windows">Windows</option>
                 <option value="web">Web</option>
                 <option value="tv">TV</option>
@@ -185,12 +259,17 @@ admin_header('编辑应用', 'apps');
         <div class="form-group">
             <label>平台类型</label>
             <select class="form-control" id="editDlType" onchange="onDlTypeChange('editDlType','editDlIcon','editDlIconPreview')">
-                <option value="android">Android</option>
-                <option value="ios">iOS</option>
+                <option value="android">Android 直接下载</option>
+                <option value="android-install">Android 安装页</option>
+                <option value="ios-ipa">iOS IPA 直接安装</option>
+                <option value="ios-ipa-install">iOS IPA 安装页</option>
+                <option value="ios-mobileconfig">iOS Mobileconfig 直接下载</option>
+                <option value="ios-mobileconfig-install">iOS Mobileconfig 安装页</option>
                 <option value="windows">Windows</option>
                 <option value="web">Web</option>
                 <option value="tv">TV</option>
                 <option value="other">其他</option>
+                <option value="ios" style="color:#999;">iOS (旧版，建议更换)</option>
             </select>
         </div>
         <div class="form-group">
@@ -240,8 +319,13 @@ let appSlug = '';
 
 // 预定义类型→图标映射
 const TYPE_ICON_MAP = {
-    android: 'fab fa-android',
-    ios: 'fab fa-apple',
+    'android': 'fab fa-android',
+    'android-install': 'fab fa-android',
+    'ios-ipa': 'fab fa-apple',
+    'ios-ipa-install': 'fab fa-apple',
+    'ios-mobileconfig': 'fab fa-apple',
+    'ios-mobileconfig-install': 'fab fa-apple',
+    'ios': 'fab fa-apple',
     windows: 'fab fa-windows',
     web: 'fas fa-globe',
     tv: 'fas fa-tv',
@@ -309,12 +393,48 @@ function onDlTypeChange(typeId, iconId, previewId) {
     if (isAddModal) {
         const hrefInput = document.getElementById('dlHref');
         const hint = document.getElementById('dlHrefAutoHint');
-        if (type === 'ios' && appSlug) {
-            hrefInput.value = '/ios/?app=' + appSlug;
-            if (hint) hint.style.display = '';
+        let autoUrl = '';
+        let hintText = '';
+
+        switch (type) {
+            case 'android-install':
+                autoUrl = '/android/?app=' + appSlug;
+                hintText = '已自动填写Android安装页地址';
+                break;
+            case 'ios-ipa':
+                if (appSlug) {
+                    autoUrl = 'itms-services://?action=download-manifest&url=' +
+                        encodeURIComponent(location.origin + '/api/plist.php?app=' + appSlug);
+                    hintText = '已自动填写IPA安装链接';
+                }
+                break;
+            case 'ios-ipa-install':
+                if (appSlug) {
+                    autoUrl = '/ios/?app=' + appSlug;
+                    hintText = '已自动填写iOS IPA安装页地址';
+                }
+                break;
+            case 'ios-mobileconfig':
+                if (appSlug) {
+                    autoUrl = '/api/mobileconfig.php?app=' + appSlug;
+                    hintText = '已自动填写Mobileconfig下载地址';
+                }
+                break;
+            case 'ios-mobileconfig-install':
+                if (appSlug) {
+                    autoUrl = '/ios/?app=' + appSlug + '&type=mobileconfig';
+                    hintText = '已自动填写Mobileconfig安装页地址';
+                }
+                break;
+        }
+
+        if (autoUrl && appSlug) {
+            hrefInput.value = autoUrl;
+            if (hint) { hint.innerHTML = '<i class="fas fa-check-circle"></i> ' + hintText; hint.style.display = ''; }
         } else {
-            // 切换非iOS时，清除之前自动填充的iOS链接
-            if (hrefInput.value.startsWith('/ios/?app=')) hrefInput.value = '';
+            // 切换到非自动填充类型时清除之前的自动填充链接
+            const autoPatterns = ['/ios/?app=', '/android/?app=', '/api/mobileconfig.php', 'itms-services://'];
+            if (autoPatterns.some(p => hrefInput.value.startsWith(p))) hrefInput.value = '';
             if (hint) hint.style.display = 'none';
         }
     }
@@ -372,6 +492,24 @@ async function loadApp() {
     document.getElementById('appFeatureCatId').value = app.feature_category_id || 0;
     updatePlistPreview();
 
+    // Mobileconfig配置
+    document.getElementById('mcUrl').value = app.mc_url || '';
+    document.getElementById('mcBundleId').value = app.mc_bundle_id || '';
+    document.getElementById('mcVersion').value = app.mc_version || '1';
+    document.getElementById('mcFullscreen').value = app.mc_fullscreen ? '1' : '0';
+    document.getElementById('mcDesc').value = app.mc_description || '';
+    document.getElementById('mcTemplate').value = app.mc_template || 'modern';
+    if (app.mc_icon_data) {
+        document.getElementById('mcIconData').value = app.mc_icon_data;
+        document.getElementById('mcIconPreview').src = 'data:image/png;base64,' + app.mc_icon_data;
+        document.getElementById('mcIconPreview').style.display = '';
+        document.getElementById('mcIconStatus').textContent = '已配置图标';
+    }
+    updateMcPreview();
+
+    // Android配置
+    document.getElementById('androidTemplate').value = app.android_template || 'modern';
+
     renderDownloads(app.downloads);
     renderImages(app.images);
 }
@@ -388,6 +526,92 @@ function updatePlistPreview() {
     } else {
         previewDiv.style.display = 'none';
     }
+}
+
+function updateMcPreview() {
+    const mcUrl = document.getElementById('mcUrl').value.trim();
+    const previewDiv = document.getElementById('mcPreview');
+    const urlDisplay = document.getElementById('mcUrlDisplay');
+    if (mcUrl && appSlug) {
+        urlDisplay.textContent = location.origin + '/api/mobileconfig.php?app=' + appSlug;
+        previewDiv.style.display = '';
+    } else {
+        previewDiv.style.display = 'none';
+    }
+}
+
+function switchIosTab(tab) {
+    document.getElementById('panelIpa').style.display = tab === 'ipa' ? '' : 'none';
+    document.getElementById('panelMc').style.display = tab === 'mc' ? '' : 'none';
+    document.getElementById('tabIpa').classList.toggle('active', tab === 'ipa');
+    document.getElementById('tabMc').classList.toggle('active', tab === 'mc');
+    document.getElementById('tabIpa').style.borderBottomColor = tab === 'ipa' ? 'var(--primary, #007AFF)' : 'transparent';
+    document.getElementById('tabIpa').style.color = tab === 'ipa' ? 'var(--primary, #007AFF)' : 'var(--text-secondary)';
+    document.getElementById('tabMc').style.borderBottomColor = tab === 'mc' ? 'var(--primary, #007AFF)' : 'transparent';
+    document.getElementById('tabMc').style.color = tab === 'mc' ? 'var(--primary, #007AFF)' : 'var(--text-secondary)';
+}
+// 初始化选项卡样式
+switchIosTab('ipa');
+
+function uploadMcIcon(input) {
+    if (!input.files[0]) return;
+    const file = input.files[0];
+    if (file.size > 2 * 1024 * 1024) { Toast.error('图标文件不能超过2MB'); return; }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result.split(',')[1]; // 去掉 data:image/...;base64, 前缀
+        document.getElementById('mcIconData').value = base64;
+        document.getElementById('mcIconPreview').src = e.target.result;
+        document.getElementById('mcIconPreview').style.display = '';
+        document.getElementById('mcIconStatus').textContent = '已选择图标';
+    };
+    reader.readAsDataURL(file);
+}
+
+function pickMcIconFromLibrary(url) {
+    // 从图片库选择后，需要fetch图片并转base64
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        document.getElementById('mcIconData').value = base64;
+        document.getElementById('mcIconPreview').src = dataUrl;
+        document.getElementById('mcIconPreview').style.display = '';
+        document.getElementById('mcIconStatus').textContent = '已选择图标';
+    };
+    img.onerror = function() {
+        Toast.error('加载图片失败');
+    };
+    img.src = '/' + url;
+}
+
+async function saveMcConfig() {
+    await API.put('/admin/api/apps.php', {
+        id: APP_ID,
+        mc_url: document.getElementById('mcUrl').value.trim(),
+        mc_icon_data: document.getElementById('mcIconData').value,
+        mc_bundle_id: document.getElementById('mcBundleId').value.trim(),
+        mc_version: document.getElementById('mcVersion').value.trim() || '1',
+        mc_fullscreen: parseInt(document.getElementById('mcFullscreen').value),
+        mc_description: document.getElementById('mcDesc').value.trim(),
+        mc_template: document.getElementById('mcTemplate').value,
+    });
+    AlertModal.success('保存成功', 'Mobileconfig配置已保存');
+    updateMcPreview();
+}
+
+async function saveAndroidConfig() {
+    await API.put('/admin/api/apps.php', {
+        id: APP_ID,
+        android_template: document.getElementById('androidTemplate').value,
+    });
+    AlertModal.success('保存成功', 'Android安装页配置已保存');
 }
 
 async function saveApp() {

@@ -1,8 +1,9 @@
 <?php
 /**
  * iOS安装引导页 - 经典风格（仿App Store）
- * 变量由 index.php 提供: $appName, $plistUrl, $certName, $description, $version, $size, $themeColor, $iconUrl, $siteName
+ * 变量由 index.php 提供: $appName, $plistUrl, $certName, $description, $version, $size, $themeColor, $iconUrl, $siteName, $installType
  */
+$isMc = ($installType ?? 'ipa') === 'mobileconfig';
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -13,7 +14,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="format-detection" content="telephone=no">
     <meta name="description" content="<?= $appName ?>iOS版下载，苹果手机安装教程">
-    <title><?= $appName ?> - iOS下载</title>
+    <title><?= $appName ?> - <?= $isMc ? '描述文件安装' : 'iOS下载' ?></title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, system-ui, sans-serif; background: #f2f2f7; color: #333; min-height: 100vh; -webkit-text-size-adjust: 100%; }
@@ -128,7 +129,7 @@
                 </div>
             </div>
             <div class="install-box">
-                <a class="install-btn" id="installBtn" href="<?= $plistUrl ?>">点击安装</a>
+                <a class="install-btn" id="installBtn" href="<?= $plistUrl ?>"><?= $isMc ? '安装描述文件' : '点击安装' ?></a>
             </div>
             <div class="app-rating">
                 <div class="col">
@@ -148,7 +149,17 @@
         </div>
 
         <!-- 安装引导 -->
-<?php if ($certName): ?>
+<?php if ($isMc): ?>
+        <a href="javascript:;" class="guide-btn" id="showGuide">📖 查看描述文件安装步骤指南</a>
+
+        <div class="faq">
+            <strong>安装须知：</strong>
+            <p>1. <span class="cert-name">请使用Safari浏览器打开下载安装</span></p>
+            <p>2. 点击安装后在弹窗中选择「允许」</p>
+            <p>3. 打开「设置」→ 点击顶部「已下载描述文件」</p>
+            <p>4. 点击「安装」并输入锁屏密码确认</p>
+        </div>
+<?php elseif ($certName): ?>
         <a href="javascript:;" class="guide-btn" id="showGuide">📖 查看iOS安装步骤指南</a>
 
         <div class="faq">
@@ -198,7 +209,17 @@
         </div>
 
         <!-- 详细FAQ -->
-<?php if ($certName): ?>
+<?php if ($isMc): ?>
+        <div class="faq">
+            <strong>常见问题解答：</strong>
+            <p>Q1：提示"此网站正尝试下载一个配置描述文件"？<br>
+            A：这是正常现象，点击「允许」即可继续安装</p>
+            <p>Q2：下载后在哪里安装？<br>
+            A：打开「设置」→ 顶部会出现「已下载描述文件」选项，点击安装即可</p>
+            <p>Q3：如何卸载？<br>
+            A：长按桌面图标选择删除，或在「设置 → 通用 → VPN与设备管理」中移除描述文件</p>
+        </div>
+<?php elseif ($certName): ?>
         <div class="faq">
             <strong>常见问题解答：</strong>
             <p>Q1：安装后提示"未受信任的开发者"怎么办？<br>
@@ -222,6 +243,32 @@
             <button class="modal-close" id="guideClose">✕</button>
             <div class="slider">
                 <div class="slider-track" id="sliderTrack">
+<?php if ($isMc): ?>
+                    <div class="slider-slide">
+                        <div class="text" style="padding-top:40px;font-size:1em;">
+                            <div style="font-size:3em;margin-bottom:16px;">📥</div>
+                            第一步<br>点击「安装描述文件」后，弹出提示框点击<strong>「允许」</strong>
+                        </div>
+                    </div>
+                    <div class="slider-slide">
+                        <div class="text" style="padding-top:40px;font-size:1em;">
+                            <div style="font-size:3em;margin-bottom:16px;">⚙️</div>
+                            第二步<br>打开<strong>「设置」</strong>，点击顶部<strong>「已下载描述文件」</strong>
+                        </div>
+                    </div>
+                    <div class="slider-slide">
+                        <div class="text" style="padding-top:40px;font-size:1em;">
+                            <div style="font-size:3em;margin-bottom:16px;">🔑</div>
+                            第三步<br>点击<strong>「安装」</strong>并输入<strong>锁屏密码</strong>确认
+                        </div>
+                    </div>
+                    <div class="slider-slide">
+                        <div class="text" style="padding-top:40px;font-size:1em;">
+                            <div style="font-size:3em;margin-bottom:16px;">✅</div>
+                            第四步<br>安装完成！桌面会出现应用图标，点击即可使用
+                        </div>
+                    </div>
+<?php else: ?>
                     <div class="slider-slide">
                         <img src="/ios/static/step1.jpg" alt="点击允许">
                         <div class="text">第一步<br>点击「点击安装」后，弹出提示框点击<strong>「允许」</strong></div>
@@ -242,6 +289,7 @@
                         <img src="/ios/static/step5.webp" alt="VPN与设备管理">
                         <div class="text">第五步<br>打开<strong>「设置 → 通用 → VPN与设备管理」</strong><br>在「企业级APP」中选择证书并点击信任</div>
                     </div>
+<?php endif; ?>
                 </div>
             </div>
             <div class="slider-dots" id="sliderDots"></div>
@@ -270,9 +318,10 @@
         document.getElementById('installBtn').addEventListener('click', function() {
             if (isWx || isQQ) return;
             var btn = this, text = btn.textContent;
+            var isMc = <?= $isMc ? 'true' : 'false' ?>;
             btn.textContent = '正在请求安装...';
             setTimeout(function() {
-                btn.textContent = '✅ 正在安装中，返回桌面查看进度';
+                btn.textContent = isMc ? '请前往「设置」安装描述文件' : '正在安装中，返回桌面查看进度';
                 btn.style.background = '#27ae60';
                 btn.style.boxShadow = '0 3px 8px rgba(39,174,96,0.3)';
             }, 2000);

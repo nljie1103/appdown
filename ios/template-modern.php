@@ -1,8 +1,9 @@
 <?php
 /**
  * iOS安装引导页 - 现代风格（毛玻璃）
- * 变量由 index.php 提供: $appName, $plistUrl, $certName, $description, $version, $size, $themeColor, $iconUrl, $siteName
+ * 变量由 index.php 提供: $appName, $plistUrl, $certName, $description, $version, $size, $themeColor, $iconUrl, $siteName, $installType
  */
+$isMc = ($installType ?? 'ipa') === 'mobileconfig';
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -13,7 +14,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="format-detection" content="telephone=no">
     <meta name="description" content="<?= $appName ?>iOS版下载，苹果手机安装教程">
-    <title><?= $appName ?> - iOS下载</title>
+    <title><?= $appName ?> - <?= $isMc ? '描述文件安装' : 'iOS下载' ?></title>
     <link rel="stylesheet" href="/static/fontawesome-free-7.1.0-web/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -71,16 +72,33 @@
                 <?php endif; ?>
                 <div class="app-meta">
                     <h1><?= $appName ?></h1>
+<?php if ($isMc): ?>
+                    <p>描述文件 · <?= $version ?: '最新版' ?></p>
+<?php else: ?>
                     <p>iOS版 · <?= $version ?: '最新版' ?></p>
+<?php endif; ?>
                     <div class="stars">★★★★★ <span style="color:#333;font-weight:600;">4.9</span></div>
                 </div>
             </div>
             <a class="install-btn" id="installBtn" href="<?= $plistUrl ?>">
+<?php if ($isMc): ?>
+                <i class="fas fa-file-shield"></i> 安装描述文件
+<?php else: ?>
                 <i class="fas fa-download"></i> 点击安装
+<?php endif; ?>
             </a>
         </div>
 
-<?php if ($certName): ?>
+<?php if ($isMc): ?>
+        <div class="guide-card">
+            <h2><i class="fas fa-book-open"></i> 安装步骤</h2>
+            <div class="step"><span class="step-num">1</span><span class="step-text">请使用 <strong>Safari浏览器</strong> 打开此页面，点击上方「安装描述文件」</span></div>
+            <div class="step"><span class="step-num">2</span><span class="step-text">弹出提示时选择「允许」下载配置描述文件</span></div>
+            <div class="step"><span class="step-num">3</span><span class="step-text">打开 <strong>设置 → 已下载描述文件</strong>（或 设置 → 通用 → VPN与设备管理）</span></div>
+            <div class="step"><span class="step-num">4</span><span class="step-text">点击「安装」并输入锁屏密码确认</span></div>
+            <div class="step"><span class="step-num">5</span><span class="step-text">安装完成后桌面会出现应用图标，点击即可使用</span></div>
+        </div>
+<?php elseif ($certName): ?>
         <div class="guide-card">
             <h2><i class="fas fa-book-open"></i> 安装步骤</h2>
             <div class="step"><span class="step-num">1</span><span class="step-text">请使用 <strong>Safari浏览器</strong> 打开此页面，点击上方「点击安装」</span></div>
@@ -97,13 +115,23 @@
 <?php if ($size): ?>    <li><span>大小</span><span><?= $size ?></span></li><?php endif; ?>
 <?php if ($version): ?> <li><span>版本</span><span><?= $version ?></span></li><?php endif; ?>
 <?php if ($description): ?><li><span>简介</span><span><?= $description ?></span></li><?php endif; ?>
+<?php if ($isMc): ?>
+                <li><span>类型</span><span>描述文件（WebClip）</span></li>
+<?php endif; ?>
                 <li><span>兼容性</span><span>需要 iOS 8.0 或更高版本</span></li>
                 <li><span>语言</span><span>简体中文</span></li>
                 <li><span>价格</span><span>免费</span></li>
             </ul>
         </div>
 
-<?php if ($certName): ?>
+<?php if ($isMc): ?>
+        <div class="faq-card">
+            <h2><i class="fas fa-circle-question"></i> 常见问题</h2>
+            <div class="faq-item"><strong>Q: 提示"此网站正尝试下载一个配置描述文件"？</strong><p>这是正常现象，点击「允许」即可继续安装</p></div>
+            <div class="faq-item"><strong>Q: 下载后在哪里安装？</strong><p>打开「设置」→ 顶部会出现「已下载描述文件」选项，点击安装即可</p></div>
+            <div class="faq-item"><strong>Q: 如何卸载？</strong><p>长按桌面图标选择删除，或在「设置 → 通用 → VPN与设备管理」中移除描述文件</p></div>
+        </div>
+<?php elseif ($certName): ?>
         <div class="faq-card">
             <h2><i class="fas fa-circle-question"></i> 常见问题</h2>
             <div class="faq-item"><strong>Q: 提示"未受信任的开发者"？</strong><p>进入「设置→通用→VPN与设备管理」→ 找到 <span class="cert-name"><?= $certName ?></span> → 点击信任</p></div>
@@ -131,9 +159,14 @@
         })();
         document.getElementById('installBtn').addEventListener('click', function() {
             var btn = this, text = btn.innerHTML;
+            var isMc = <?= $isMc ? 'true' : 'false' ?>;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在请求安装...';
             setTimeout(function() {
-                btn.innerHTML = '<i class="fas fa-check-circle"></i> 正在安装中，返回桌面查看进度';
+                if (isMc) {
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> 请前往「设置」安装描述文件';
+                } else {
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> 正在安装中，返回桌面查看进度';
+                }
                 btn.style.background = '#27ae60';
             }, 2000);
             setTimeout(function() {

@@ -71,7 +71,7 @@ if ($method === 'PUT') {
 
     $fields = [];
     $params = [];
-    foreach (['name', 'icon', 'icon_url', 'theme_color', 'ios_plist_url', 'ios_ipa_url', 'ios_bundle_id', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size', 'ios_template'] as $f) {
+    foreach (['name', 'icon', 'icon_url', 'theme_color', 'ios_plist_url', 'ios_ipa_url', 'ios_bundle_id', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size', 'ios_template', 'mc_url', 'mc_icon_data', 'mc_bundle_id', 'mc_version', 'mc_description', 'mc_template', 'android_template'] as $f) {
         if (isset($data[$f])) {
             $fields[] = "$f = ?";
             $params[] = trim($data[$f]);
@@ -80,6 +80,10 @@ if ($method === 'PUT') {
     if (isset($data['is_active'])) {
         $fields[] = "is_active = ?";
         $params[] = $data['is_active'] ? 1 : 0;
+    }
+    if (isset($data['mc_fullscreen'])) {
+        $fields[] = "mc_fullscreen = ?";
+        $params[] = $data['mc_fullscreen'] ? 1 : 0;
     }
     if (isset($data['feature_category_id'])) {
         $fields[] = "feature_category_id = ?";

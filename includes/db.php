@@ -57,6 +57,14 @@ function init_schema(PDO $pdo): void {
             ios_version     TEXT NOT NULL DEFAULT '',
             ios_size        TEXT NOT NULL DEFAULT '',
             ios_template    TEXT NOT NULL DEFAULT 'modern',
+            mc_url          TEXT NOT NULL DEFAULT '',
+            mc_icon_data    TEXT NOT NULL DEFAULT '',
+            mc_bundle_id    TEXT NOT NULL DEFAULT '',
+            mc_version      TEXT NOT NULL DEFAULT '1',
+            mc_fullscreen   INTEGER NOT NULL DEFAULT 1,
+            mc_description  TEXT NOT NULL DEFAULT '',
+            mc_template     TEXT NOT NULL DEFAULT 'modern',
+            android_template TEXT NOT NULL DEFAULT 'modern',
             feature_category_id INTEGER NOT NULL DEFAULT 0,
             sort_order      INTEGER NOT NULL DEFAULT 0,
             is_active       INTEGER NOT NULL DEFAULT 1,
@@ -233,6 +241,32 @@ function migrate_schema(PDO $pdo): void {
 
     if (!in_array('feature_category_id', $colNames)) {
         $pdo->exec("ALTER TABLE apps ADD COLUMN feature_category_id INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // Mobileconfig + Android 安装页相关字段
+    if (!in_array('mc_url', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_icon_data', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_icon_data TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_bundle_id', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_bundle_id TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_version', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_version TEXT NOT NULL DEFAULT '1'");
+    }
+    if (!in_array('mc_fullscreen', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_fullscreen INTEGER NOT NULL DEFAULT 1");
+    }
+    if (!in_array('mc_description', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_description TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('mc_template', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_template TEXT NOT NULL DEFAULT 'modern'");
+    }
+    if (!in_array('android_template', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN android_template TEXT NOT NULL DEFAULT 'modern'");
     }
 
     // app_downloads 增加 btn_icon 列

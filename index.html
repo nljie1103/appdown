@@ -1801,6 +1801,7 @@
             // ==================== 下载管理器 ====================
             const DownloadManager = (() => {
                 const isValidURL = (url) => {
+                    if (url.startsWith('itms-services://')) return true;
                     try {
                         const parsed = new URL(url, window.location.origin);
                         return ['http:', 'https:'].includes(parsed.protocol);
@@ -1849,6 +1850,13 @@
                             document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
+                        }, 600);
+                    } else if (originalHref.startsWith('itms-services://') || originalHref.endsWith('.mobileconfig')) {
+                        // iOS itms-services 和 mobileconfig 需要当前页面跳转
+                        setTimeout(() => {
+                            btn.style.pointerEvents = '';
+                            btn.innerHTML = originalHTML;
+                            location.href = originalHref;
                         }, 600);
                     } else {
                         // 其他链接使用window.open
@@ -1998,7 +2006,12 @@
                     if (customIcon) return customIcon;
                     const map = {
                         android: 'fab fa-android',
+                        'android-install': 'fab fa-android',
                         ios: 'fab fa-apple',
+                        'ios-ipa': 'fab fa-apple',
+                        'ios-ipa-install': 'fab fa-apple',
+                        'ios-mobileconfig': 'fab fa-apple',
+                        'ios-mobileconfig-install': 'fab fa-apple',
                         windows: 'fab fa-windows',
                         web: 'fas fa-globe',
                         tv: 'fas fa-tv'
