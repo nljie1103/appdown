@@ -120,7 +120,7 @@ function resolve_cert_content(string $mode, string $value): string {
 /**
  * 使用 OpenSSL PKCS#7 签名 mobileconfig
  */
-function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string $chainPem = ''): string|false {
+function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string $chainPem = '') {
     $tmpDir = sys_get_temp_dir();
     $tmpIn = tempnam($tmpDir, 'mc_in_');
     $tmpOut = tempnam($tmpDir, 'mc_out_');

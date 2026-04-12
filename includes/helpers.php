@@ -3,7 +3,7 @@
  * 工具函数
  */
 
-function json_response(mixed $data, int $code = 200): never {
+function json_response($data, int $code = 200): void {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
