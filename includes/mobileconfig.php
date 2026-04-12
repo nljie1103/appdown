@@ -183,7 +183,7 @@ function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string 
 /**
  * 从 S/MIME 输出中提取 DER 格式的签名数据（降级方案）
  */
-function extract_der_from_smime(string $smime): string|false {
+function extract_der_from_smime(string $smime) {
     $lines = explode("\n", $smime);
     $boundary = '';
     foreach ($lines as $line) {

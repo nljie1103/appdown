@@ -1297,7 +1297,7 @@ async function submitCert() {
 
 // ===== 初始化 =====
 loadApps();
-loadApks();
+switchTab('apks');
 loadKeystoreSelect();
 checkRunningTask();
 

@@ -5,6 +5,28 @@
 
 date_default_timezone_set('Asia/Shanghai');
 
+// API 请求的全局错误处理：捕获 PHP 错误，返回 JSON 而非 HTML
+if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+    set_error_handler(function ($severity, $message, $file, $line) {
+        if (!(error_reporting() & $severity)) return false;
+        throw new \ErrorException($message, 0, $severity, $file, $line);
+    });
+    set_exception_handler(function ($e) {
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode([
+            'error' => $e->getMessage(),
+            '_debug' => [
+                'file' => basename($e->getFile()),
+                'line' => $e->getLine(),
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    });
+}
+
 session_start([
     'cookie_httponly' => true,
     'cookie_samesite' => 'Lax',

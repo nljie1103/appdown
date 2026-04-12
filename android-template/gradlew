@@ -2,20 +2,55 @@
 # Gradle wrapper bootstrap script
 # If gradle-wrapper.jar doesn't exist, download it
 
-WRAPPER_JAR="$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar"
-WRAPPER_PROPS="$(dirname "$0")/gradle/wrapper/gradle-wrapper.properties"
+APP_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+WRAPPER_JAR="$APP_BASE_DIR/gradle/wrapper/gradle-wrapper.jar"
+WRAPPER_PROPS="$APP_BASE_DIR/gradle/wrapper/gradle-wrapper.properties"
 
 if [ ! -f "$WRAPPER_JAR" ]; then
     echo "Downloading Gradle wrapper..."
-    DIST_URL=$(grep distributionUrl "$WRAPPER_PROPS" | sed 's/.*=//;s/\\:/:/g')
-    GRADLE_VERSION=$(echo "$DIST_URL" | grep -oP 'gradle-\K[0-9.]+')
-    WRAPPER_URL="https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
-    curl -sL -o "$WRAPPER_JAR" "$WRAPPER_URL" 2>/dev/null || \
-    wget -q -O "$WRAPPER_JAR" "$WRAPPER_URL" 2>/dev/null
-    if [ ! -s "$WRAPPER_JAR" ]; then
-        echo "Failed to download gradle-wrapper.jar. Please run: gradle wrapper --gradle-version $GRADLE_VERSION"
+    DIST_URL=$(grep distributionUrl "$WRAPPER_PROPS" | sed 's/.*=//' | sed 's/\\:/:/g')
+    GRADLE_VERSION=$(echo "$DIST_URL" | sed 's/.*gradle-//' | sed 's/-bin.*//' | sed 's/-all.*//')
+
+    DOWNLOADED=0
+
+    # 1. Try custom mirror (set GRADLE_WRAPPER_MIRROR env var)
+    if [ -n "$GRADLE_WRAPPER_MIRROR" ] && [ $DOWNLOADED -eq 0 ]; then
+        echo "  Trying custom mirror..."
+        curl -sL --connect-timeout 10 -o "$WRAPPER_JAR" "${GRADLE_WRAPPER_MIRROR}" 2>/dev/null || \
+        wget -q --timeout=10 -O "$WRAPPER_JAR" "${GRADLE_WRAPPER_MIRROR}" 2>/dev/null
+        [ -s "$WRAPPER_JAR" ] && DOWNLOADED=1
+    fi
+
+    # 2. Try GitHub release (most reliable official source)
+    if [ $DOWNLOADED -eq 0 ]; then
+        echo "  Trying GitHub releases..."
+        GITHUB_URL="https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
+        curl -sL --connect-timeout 15 -o "$WRAPPER_JAR" "$GITHUB_URL" 2>/dev/null || \
+        wget -q --timeout=15 -O "$WRAPPER_JAR" "$GITHUB_URL" 2>/dev/null
+        [ -s "$WRAPPER_JAR" ] && DOWNLOADED=1
+    fi
+
+    # 3. Try extracting from dist zip (download dist, extract jar, cleanup)
+    if [ $DOWNLOADED -eq 0 ] && [ -n "$DIST_URL" ]; then
+        echo "  Trying to extract from distribution..."
+        DIST_TMP=$(mktemp /tmp/gradle-dist-XXXXXX.zip)
+        curl -sL --connect-timeout 30 -o "$DIST_TMP" "$DIST_URL" 2>/dev/null || \
+        wget -q --timeout=30 -O "$DIST_TMP" "$DIST_URL" 2>/dev/null
+        if [ -s "$DIST_TMP" ]; then
+            unzip -p "$DIST_TMP" "*/gradle/wrapper/gradle-wrapper.jar" > "$WRAPPER_JAR" 2>/dev/null
+            [ -s "$WRAPPER_JAR" ] && DOWNLOADED=1
+        fi
+        rm -f "$DIST_TMP"
+    fi
+
+    if [ $DOWNLOADED -eq 0 ] || [ ! -s "$WRAPPER_JAR" ]; then
+        rm -f "$WRAPPER_JAR"
+        echo "Error: Failed to download gradle-wrapper.jar"
+        echo "You can manually place it at: $WRAPPER_JAR"
+        echo "Or set GRADLE_WRAPPER_MIRROR to a direct download URL for the jar"
         exit 1
     fi
+    echo "  Gradle wrapper downloaded successfully."
 fi
 
 # Determine the Java command to use

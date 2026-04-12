@@ -43,13 +43,15 @@ try {
     update_task($pdo, $taskId, ['status' => 'building', 'progress' => 5, 'progress_msg' => '准备构建环境...', 'pid' => getmypid()]);
 
     // 验证环境（自动检测非标准路径）
-    $javaHome = detect_java_home();
+    $customJava = get_setting($pdo, 'custom_java_home');
+    $javaHome = ($customJava && is_dir($customJava)) ? $customJava : detect_java_home();
     if (!$javaHome) {
         fail_task($pdo, $taskId, "未检测到 Java 17 (JDK)\n请安装: sudo apt install openjdk-17-jdk\n或设置 JAVA_HOME 环境变量");
         exit(1);
     }
 
-    $androidHome = detect_android_home();
+    $customAndroid = get_setting($pdo, 'custom_android_home');
+    $androidHome = ($customAndroid && is_dir($customAndroid)) ? $customAndroid : detect_android_home();
     if (!$androidHome) {
         fail_task($pdo, $taskId, "未检测到 Android SDK\n请参照文档安装 Android SDK 命令行工具\n或设置 ANDROID_HOME 环境变量");
         exit(1);
@@ -332,13 +334,13 @@ try {
 
 // ========== 辅助函数 ==========
 
-function query_task(PDO $pdo, int $id): array|false {
+function query_task(PDO $pdo, int $id) {
     $stmt = $pdo->prepare('SELECT * FROM build_tasks WHERE id = ?');
     $stmt->execute([$id]);
     return $stmt->fetch();
 }
 
-function query_keystore(PDO $pdo, int $id): array|false {
+function query_keystore(PDO $pdo, int $id) {
     $stmt = $pdo->prepare('SELECT * FROM keystores WHERE id = ?');
     $stmt->execute([$id]);
     return $stmt->fetch();

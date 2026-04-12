@@ -29,7 +29,7 @@ $buildDir = '';
 $localBuildDir = '';
 
 // SSH 配置
-$SSH_PORT = 50922;
+$SSH_PORT = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
 $SSH_HOST = 'localhost';
 $SSH_USER = 'user';
 $SSH_OPTS = "-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p $SSH_PORT";

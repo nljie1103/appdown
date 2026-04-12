@@ -56,10 +56,16 @@ $checks[] = ['安装锁定文件', '已锁定', $lockExists ? '已锁定' : '未
 
 // Android 构建环境检测（使用共享检测函数兜底非标准路径）
 $androidChecks = [];
-$androidHome = detect_android_home() ?: '/opt/android-sdk';
+$customJavaHome = get_setting($pdo, 'custom_java_home');
+$customAndroidHome = get_setting($pdo, 'custom_android_home');
+$androidHome = $customAndroidHome ?: (detect_android_home() ?: '/opt/android-sdk');
 
 $javaOut = [];
-@exec('java -version 2>&1', $javaOut);
+if ($customJavaHome) {
+    @exec(escapeshellarg($customJavaHome . '/bin/java') . ' -version 2>&1', $javaOut);
+} else {
+    @exec('java -version 2>&1', $javaOut);
+}
 $javaVerLine = $javaOut[0] ?? '';
 $hasJava = (bool)preg_match('/version\s+"?17/', $javaVerLine);
 $javaVer = '';
@@ -95,6 +101,8 @@ $androidInstallStatus = get_setting($pdo, 'android_install_status', 'idle');
 
 // iOS 构建环境检测
 $iosChecks = [];
+$iosContainer = get_setting($pdo, 'custom_ios_container') ?: 'ysapp-ios-builder';
+$iosSshPort = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
 
 $dockerOut = [];
 @exec('docker --version 2>/dev/null', $dockerOut);
@@ -119,10 +127,10 @@ $iosContainerRunning = false;
 if ($iosDockerRunning) {
     $ceOut = [];
     @exec('docker ps -a --format "{{.Names}}" 2>/dev/null', $ceOut);
-    $iosContainerExists = in_array('ysapp-ios-builder', $ceOut);
+    $iosContainerExists = in_array($iosContainer, $ceOut);
     $crOut = [];
     @exec('docker ps --format "{{.Names}}" 2>/dev/null', $crOut);
-    $iosContainerRunning = in_array('ysapp-ios-builder', $crOut);
+    $iosContainerRunning = in_array($iosContainer, $crOut);
 }
 $iosChecks[] = ['macOS 容器', '已创建', $iosContainerExists ? '已创建' : '未创建', $iosContainerExists];
 $iosChecks[] = ['容器运行中', '是', $iosContainerRunning ? '是' : '否', $iosContainerRunning];
@@ -130,7 +138,7 @@ $iosChecks[] = ['容器运行中', '是', $iosContainerRunning ? '是' : '否', 
 $iosSshOk = false;
 if ($iosContainerRunning) {
     $sshOut = [];
-    @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "echo ok" 2>/dev/null', $sshOut);
+    @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "echo ok" 2>/dev/null', $sshOut);
     $iosSshOk = (trim($sshOut[0] ?? '') === 'ok');
 }
 $iosChecks[] = ['SSH 连接', '可达', $iosSshOk ? '可达' : '不可达', $iosSshOk];
@@ -139,7 +147,7 @@ $iosHasXcode = false;
 $xcodeVer = '';
 if ($iosSshOk) {
     $xcOut = [];
-    @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
+    @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
     $xcLine = trim($xcOut[0] ?? '');
     if (str_contains($xcLine, 'Xcode')) {
         $iosHasXcode = true;
@@ -222,6 +230,30 @@ admin_header('系统信息', 'system');
         <?php endforeach; ?>
         </tbody>
     </table>
+    <details style="margin-top:12px;">
+        <summary style="cursor:pointer;font-weight:600;font-size:0.9em;color:var(--primary);">
+            <i class="fas fa-cog"></i> 自定义路径配置
+        </summary>
+        <div style="margin-top:10px;display:grid;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="min-width:140px;font-size:0.85em;font-weight:600;">JAVA_HOME</label>
+                <input type="text" class="form-control" id="customJavaHome"
+                       value="<?= htmlspecialchars(get_setting($pdo, 'custom_java_home')) ?>"
+                       placeholder="留空则自动检测" style="flex:1;">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="min-width:140px;font-size:0.85em;font-weight:600;">ANDROID_HOME</label>
+                <input type="text" class="form-control" id="customAndroidHome"
+                       value="<?= htmlspecialchars(get_setting($pdo, 'custom_android_home')) ?>"
+                       placeholder="留空则自动检测（默认 /opt/android-sdk）" style="flex:1;">
+            </div>
+            <div style="text-align:right;">
+                <button class="btn btn-outline btn-sm" onclick="saveEnvPaths('android')">
+                    <i class="fas fa-save"></i> 保存路径
+                </button>
+            </div>
+        </div>
+    </details>
     <?php if ($androidAllOk): ?>
     <div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
         <span style="color:#27ae60;"><i class="fas fa-check-circle"></i> Android 构建环境已就绪</span>
@@ -271,6 +303,30 @@ admin_header('系统信息', 'system');
         <?php endforeach; ?>
         </tbody>
     </table>
+    <details style="margin-top:12px;">
+        <summary style="cursor:pointer;font-weight:600;font-size:0.9em;color:var(--primary);">
+            <i class="fas fa-cog"></i> 自定义路径配置
+        </summary>
+        <div style="margin-top:10px;display:grid;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="min-width:140px;font-size:0.85em;font-weight:600;">SSH 端口</label>
+                <input type="text" class="form-control" id="customIosSshPort"
+                       value="<?= htmlspecialchars(get_setting($pdo, 'custom_ios_ssh_port')) ?>"
+                       placeholder="留空则默认 50922" style="flex:1;max-width:200px;">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="min-width:140px;font-size:0.85em;font-weight:600;">容器名称</label>
+                <input type="text" class="form-control" id="customIosContainer"
+                       value="<?= htmlspecialchars(get_setting($pdo, 'custom_ios_container')) ?>"
+                       placeholder="留空则默认 ysapp-ios-builder" style="flex:1;">
+            </div>
+            <div style="text-align:right;">
+                <button class="btn btn-outline btn-sm" onclick="saveEnvPaths('ios')">
+                    <i class="fas fa-save"></i> 保存路径
+                </button>
+            </div>
+        </div>
+    </details>
     <?php if ($iosAllOk): ?>
     <div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
         <span style="color:#27ae60;"><i class="fas fa-check-circle"></i> iOS 构建环境已就绪</span>
@@ -683,6 +739,24 @@ async function pollIosXcodeLog() {
         startIosXcodePolling();
     }
 })();
+
+// ========== 自定义路径保存 ==========
+async function saveEnvPaths(type) {
+    const payload = {};
+    if (type === 'android') {
+        payload.custom_java_home = document.getElementById('customJavaHome').value.trim();
+        payload.custom_android_home = document.getElementById('customAndroidHome').value.trim();
+    } else if (type === 'ios') {
+        payload.custom_ios_ssh_port = document.getElementById('customIosSshPort').value.trim();
+        payload.custom_ios_container = document.getElementById('customIosContainer').value.trim();
+    }
+    try {
+        await API.post('/admin/api/system.php?action=save_env_paths', payload);
+        Toast.success('路径配置已保存，刷新页面后生效');
+    } catch (e) {
+        AlertModal.error('保存失败', e.message || '请检查网络');
+    }
+}
 </script>
 
 <?php admin_footer(); ?>

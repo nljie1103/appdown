@@ -15,11 +15,17 @@ if ($method === 'GET') {
 
     // Android 环境检测
     if ($action === 'android_status') {
-        $androidHome = detect_android_home() ?: '/opt/android-sdk';
+        $customAndroid = get_setting($pdo, 'custom_android_home');
+        $androidHome = ($customAndroid && $customAndroid !== '') ? $customAndroid : (detect_android_home() ?: '/opt/android-sdk');
 
         // Java 17
         $javaOut = [];
-        exec('java -version 2>&1', $javaOut);
+        $customJava = get_setting($pdo, 'custom_java_home');
+        if ($customJava && $customJava !== '') {
+            exec(escapeshellarg($customJava . '/bin/java') . ' -version 2>&1', $javaOut);
+        } else {
+            exec('java -version 2>&1', $javaOut);
+        }
         $javaVerLine = $javaOut[0] ?? '';
         $hasJava = (bool)preg_match('/version\s+"?17/', $javaVerLine);
         $javaVer = '';
@@ -70,6 +76,9 @@ if ($method === 'GET') {
 
     // ========== iOS 环境检测 ==========
     if ($action === 'ios_status') {
+        $iosContainer = get_setting($pdo, 'custom_ios_container') ?: 'ysapp-ios-builder';
+        $iosSshPort = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
+
         // Docker 已安装
         $dockerOut = [];
         @exec('docker --version 2>/dev/null', $dockerOut);
@@ -93,18 +102,18 @@ if ($method === 'GET') {
         if ($dockerRunning) {
             $ceOut = [];
             @exec('docker ps -a --format "{{.Names}}" 2>/dev/null', $ceOut);
-            $containerExists = in_array('ysapp-ios-builder', $ceOut);
+            $containerExists = in_array($iosContainer, $ceOut);
 
             $crOut = [];
             @exec('docker ps --format "{{.Names}}" 2>/dev/null', $crOut);
-            $containerRunning = in_array('ysapp-ios-builder', $crOut);
+            $containerRunning = in_array($iosContainer, $crOut);
         }
 
         // SSH 可连接
         $sshOk = false;
         if ($containerRunning) {
             $sshOut = [];
-            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "echo ok" 2>/dev/null', $sshOut);
+            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "echo ok" 2>/dev/null', $sshOut);
             $sshOk = (trim($sshOut[0] ?? '') === 'ok');
         }
 
@@ -113,7 +122,7 @@ if ($method === 'GET') {
         $hasXcode = false;
         if ($sshOk) {
             $xcOut = [];
-            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
+            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
             $xcLine = trim($xcOut[0] ?? '');
             if (str_contains($xcLine, 'Xcode')) {
                 $hasXcode = true;
@@ -280,8 +289,9 @@ if ($method === 'POST') {
 
     // 验证 Xcode 安装
     if ($action === 'verify_ios_xcode') {
+        $iosSshPort = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
         $xcOut = [];
-        @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p 50922 user@localhost "xcodebuild -version 2>/dev/null" 2>/dev/null', $xcOut, $xcCode);
+        @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null" 2>/dev/null', $xcOut, $xcCode);
         $xcodeInfo = implode("\n", $xcOut);
         $hasXcode = str_contains($xcodeInfo, 'Xcode');
         json_response([
@@ -399,6 +409,18 @@ if ($method === 'POST') {
         $twofaFile = realpath(__DIR__ . '/../../data') . '/ios_2fa_code.txt';
         file_put_contents($twofaFile, $code);
 
+        json_response(['ok' => true]);
+    }
+
+    // 保存自定义环境路径
+    if ($action === 'save_env_paths') {
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $allowed = ['custom_java_home', 'custom_android_home', 'custom_ios_ssh_port', 'custom_ios_container'];
+        foreach ($allowed as $k) {
+            if (isset($input[$k])) {
+                set_setting($pdo, $k, trim($input[$k]));
+            }
+        }
         json_response(['ok' => true]);
     }
 

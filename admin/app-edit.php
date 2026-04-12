@@ -124,12 +124,11 @@ admin_header('编辑应用', 'apps');
             <label>关联的 Mobileconfig 文件</label>
             <input type="hidden" id="mcFileId" value="">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <input type="text" class="form-control" id="mcFileUrl" style="flex:1;min-width:200px;" placeholder="输入链接或点击按钮选择">
-                <button class="btn btn-outline" type="button" onclick="showMcFilePicker()"><i class="fas fa-file-alt"></i> 已生成</button>
+                <input type="text" class="form-control" id="mcFileUrl" style="flex:1;min-width:200px;" placeholder="输入链接或点击按钮从附件库选择">
                 <button class="btn btn-outline" type="button" onclick="showAttPicker('mcFileUrl')" title="从附件库选择"><i class="fas fa-paperclip"></i> 附件库</button>
                 <button class="btn btn-outline" type="button" onclick="clearMcFile()"><i class="fas fa-times"></i></button>
             </div>
-            <small style="color:var(--text-secondary);font-size:0.8em;">可直接输入链接、从已生成的Mobileconfig选择、或从附件库选择</small>
+            <small style="color:var(--text-secondary);font-size:0.8em;">可直接输入链接或从附件库选择（在"生成应用"页生成后关联到应用即可在附件库中找到）</small>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -300,23 +299,6 @@ admin_header('编辑应用', 'apps');
     </div>
 </div>
 
-<!-- Mobileconfig 文件选择器 -->
-<div class="modal-overlay" id="mcFilePickerModal">
-    <div class="modal" style="max-width:640px;">
-        <h3>选择 Mobileconfig 文件</h3>
-        <p style="color:var(--text-secondary);font-size:0.9em;margin-bottom:12px;">从已生成的 Mobileconfig 文件中选择一个关联到本应用</p>
-        <div class="table-wrapper" style="max-height:400px;overflow-y:auto;">
-            <table>
-                <thead><tr><th>名称</th><th>目标URL</th><th>签名</th><th>大小</th><th>操作</th></tr></thead>
-                <tbody id="mcFilePickerList"></tbody>
-            </table>
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-outline" onclick="Modal.hide('mcFilePickerModal')">取消</button>
-        </div>
-    </div>
-</div>
-
 <script>
 const APP_ID = <?= $id ?>;
 let attachments = [];
@@ -372,6 +354,11 @@ function showAttPicker(targetId) {
 function pickAttachment(sel, targetId) {
     if (sel.value) {
         document.getElementById(targetId).value = sel.value;
+        // 从附件库选择时清除旧的mc_file_id关联
+        if (targetId === 'mcFileUrl') {
+            document.getElementById('mcFileId').value = '';
+            updateMcPreview();
+        }
     }
     sel.style.display = 'none';
 }
@@ -564,32 +551,6 @@ function switchIosTab(tab) {
 // 初始化选项卡样式
 switchIosTab('ipa');
 
-async function showMcFilePicker() {
-    const list = await API.get('/admin/api/mobileconfig.php?action=list');
-    const tbody = document.getElementById('mcFilePickerList');
-    if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">暂无已生成的文件，请先在 <a href="/admin/generate.php">生成应用</a> 页面生成</td></tr>';
-    } else {
-        tbody.innerHTML = list.map(m => `
-            <tr>
-                <td>${escapeHTML(m.display_name)}</td>
-                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHTML(m.target_url)}">${escapeHTML(m.target_url)}</td>
-                <td>${m.cert_name ? '<i class="fas fa-lock" style="color:#38a169;" title="已签名"></i>' : '<i class="fas fa-lock-open" style="color:#a0aec0;" title="未签名"></i>'}</td>
-                <td>${escapeHTML(m.file_size || '-')}</td>
-                <td><button class="btn btn-primary btn-sm" onclick="pickMcFile(${m.id}, '${escapeHTML(m.file_path)}')">选择</button></td>
-            </tr>
-        `).join('');
-    }
-    Modal.show('mcFilePickerModal');
-}
-
-function pickMcFile(id, path) {
-    document.getElementById('mcFileId').value = id;
-    document.getElementById('mcFileUrl').value = '/' + path;
-    Modal.hide('mcFilePickerModal');
-    updateMcPreview();
-}
-
 function clearMcFile() {
     document.getElementById('mcFileId').value = '';
     document.getElementById('mcFileUrl').value = '';
@@ -601,7 +562,7 @@ async function saveMcConfig() {
     const fileUrl = document.getElementById('mcFileUrl').value.trim();
     await API.put('/admin/api/apps.php', {
         id: APP_ID,
-        mc_file_id: fileId ? parseInt(fileId) : '',
+        mc_file_id: fileId ? parseInt(fileId) : null,
         mc_file_url: fileUrl,
         mc_description: document.getElementById('mcDesc').value.trim(),
         mc_template: document.getElementById('mcTemplate').value,

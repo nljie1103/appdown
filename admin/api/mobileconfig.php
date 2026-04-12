@@ -50,7 +50,7 @@ if ($method === 'GET') {
 
 // ===== POST =====
 if ($method === 'POST') {
-    verify_csrf_token();
+    csrf_validate();
     $data = get_json_input();
     $action = $data['action'] ?? '';
 
@@ -125,7 +125,7 @@ if ($method === 'POST') {
             $pdo->exec("UPDATE mc_certificates SET is_global = 0 WHERE is_global = 1");
         }
 
-        $stmt = $pdo->prepare("INSERT INTO mc_certificates (name, mode, cert, key, chain, payload_org, is_global) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare('INSERT INTO mc_certificates (name, mode, cert, "key", chain, payload_org, is_global) VALUES (?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $name, $mode,
             trim($data['cert'] ?? ''), trim($data['key'] ?? ''), trim($data['chain'] ?? ''),
@@ -148,7 +148,7 @@ if ($method === 'POST') {
             json_response(['error' => '旧设置中无证书数据可导入'], 400);
         }
 
-        $stmt = $pdo->prepare("INSERT INTO mc_certificates (name, mode, cert, key, chain, payload_org, is_global) VALUES (?, ?, ?, ?, ?, ?, 1)");
+        $stmt = $pdo->prepare('INSERT INTO mc_certificates (name, mode, cert, "key", chain, payload_org, is_global) VALUES (?, ?, ?, ?, ?, ?, 1)');
         $stmt->execute([
             '全局证书（从设置导入）',
             $s['mc_sign_mode'] ?? 'text',
@@ -163,7 +163,7 @@ if ($method === 'POST') {
 
 // ===== PUT =====
 if ($method === 'PUT') {
-    verify_csrf_token();
+    csrf_validate();
     $data = get_json_input();
     $action = $data['action'] ?? 'update';
 
@@ -324,7 +324,7 @@ if ($method === 'PUT') {
             $pdo->exec("UPDATE mc_certificates SET is_global = 0 WHERE is_global = 1");
         }
 
-        $stmt = $pdo->prepare("UPDATE mc_certificates SET name=?, mode=?, cert=?, key=?, chain=?, payload_org=?, is_global=?, updated_at=datetime('now') WHERE id=?");
+        $stmt = $pdo->prepare('UPDATE mc_certificates SET name=?, mode=?, cert=?, "key"=?, chain=?, payload_org=?, is_global=?, updated_at=datetime(\'now\') WHERE id=?');
         $stmt->execute([
             $name, $mode,
             isset($data['cert']) ? trim($data['cert']) : $old['cert'],
@@ -341,7 +341,7 @@ if ($method === 'PUT') {
 
 // ===== DELETE =====
 if ($method === 'DELETE') {
-    verify_csrf_token();
+    csrf_validate();
     $data = get_json_input();
     $action = $data['action'] ?? '';
 
