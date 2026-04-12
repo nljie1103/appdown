@@ -418,7 +418,22 @@ if ($method === 'POST') {
         $allowed = ['custom_java_home', 'custom_android_home', 'custom_ios_ssh_port', 'custom_ios_container'];
         foreach ($allowed as $k) {
             if (isset($input[$k])) {
-                set_setting($pdo, $k, trim($input[$k]));
+                $val = trim($input[$k]);
+                // SSH 端口范围验证
+                if ($k === 'custom_ios_ssh_port' && $val !== '') {
+                    $port = (int)$val;
+                    if ($port < 1 || $port > 65535) {
+                        json_response(['error' => 'SSH 端口必须在 1-65535 之间'], 400);
+                    }
+                    $val = (string)$port;
+                }
+                // 容器名只允许安全字符
+                if ($k === 'custom_ios_container' && $val !== '') {
+                    if (!preg_match('/^[a-zA-Z0-9._-]+$/', $val)) {
+                        json_response(['error' => '容器名称只允许字母、数字、点、下划线和连字符'], 400);
+                    }
+                }
+                set_setting($pdo, $k, $val);
             }
         }
         json_response(['ok' => true]);

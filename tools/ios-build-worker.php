@@ -30,6 +30,8 @@ $localBuildDir = '';
 
 // SSH 配置
 $SSH_PORT = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
+$SSH_PORT = (string)(int)$SSH_PORT;
+if ((int)$SSH_PORT < 1 || (int)$SSH_PORT > 65535) $SSH_PORT = '50922';
 $SSH_HOST = 'localhost';
 $SSH_USER = 'user';
 $SSH_OPTS = "-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p $SSH_PORT";
@@ -127,7 +129,7 @@ try {
     // 处理图标
     update_task($pdo, $taskId, ['progress' => 25, 'progress_msg' => '处理应用图标...']);
     $iconPath = !empty($params['icon_url']) ? realpath($projectRoot . '/' . $params['icon_url']) : '';
-    if ($iconPath && file_exists($iconPath)) {
+    if ($iconPath && strpos($iconPath, $projectRoot) === 0 && file_exists($iconPath)) {
         $iconSetDir = $localBuildDir . '/WebViewApp/Assets.xcassets/AppIcon.appiconset';
         $sizes = [
             'icon-20@2x.png' => 40,

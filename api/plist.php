@@ -22,15 +22,22 @@ if (!$app || empty($app['ios_ipa_url'])) {
     exit('app not found or no IPA configured');
 }
 
-// 构建完整URL（验证Host header防止注入）
+// 构建完整URL（优先使用站点配置的URL，防止Host header注入）
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$host = $_SERVER['HTTP_HOST'];
-// 只允许合法的域名字符
-if (!preg_match('/^[a-zA-Z0-9._:-]+$/', $host)) {
-    http_response_code(400);
-    exit('invalid host');
+$siteUrl = '';
+$siteUrlRow = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key = 'site_url'")->fetch();
+if ($siteUrlRow && !empty($siteUrlRow['setting_val'])) {
+    $siteUrl = rtrim($siteUrlRow['setting_val'], '/');
 }
-$baseUrl = $scheme . '://' . $host;
+if (empty($siteUrl)) {
+    $host = $_SERVER['HTTP_HOST'];
+    if (!preg_match('/^[a-zA-Z0-9._:-]+$/', $host)) {
+        http_response_code(400);
+        exit('invalid host');
+    }
+    $siteUrl = $scheme . '://' . $host;
+}
+$baseUrl = $siteUrl;
 
 $ipaUrl = $app['ios_ipa_url'];
 // 如果是相对路径，补全为绝对URL

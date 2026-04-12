@@ -103,8 +103,9 @@ try {
 
     // 处理图标
     update_task($pdo, $taskId, ['progress' => 25, 'progress_msg' => '处理应用图标...']);
-    $iconPath = !empty($params['icon_url']) ? realpath(__DIR__ . '/../' . $params['icon_url']) : '';
-    if ($iconPath && file_exists($iconPath)) {
+    $projectRoot = realpath(__DIR__ . '/..');
+    $iconPath = !empty($params['icon_url']) ? realpath($projectRoot . '/' . $params['icon_url']) : '';
+    if ($iconPath && strpos($iconPath, $projectRoot) === 0 && file_exists($iconPath)) {
         $sizes = [
             'mipmap-mdpi' => 48,
             'mipmap-hdpi' => 72,
@@ -121,8 +122,8 @@ try {
 
     // 处理启动图
     update_task($pdo, $taskId, ['progress' => 30, 'progress_msg' => '处理启动画面...']);
-    $splashPath = !empty($params['splash_url']) ? realpath(__DIR__ . '/../' . $params['splash_url']) : '';
-    if ($splashPath && file_exists($splashPath)) {
+    $splashPath = !empty($params['splash_url']) ? realpath($projectRoot . '/' . $params['splash_url']) : '';
+    if ($splashPath && strpos($splashPath, $projectRoot) === 0 && file_exists($splashPath)) {
         $drawableDir = $buildDir . '/app/src/main/res/drawable';
         if (!is_dir($drawableDir)) mkdir($drawableDir, 0755, true);
         copy($splashPath, $drawableDir . '/splash_image.png');

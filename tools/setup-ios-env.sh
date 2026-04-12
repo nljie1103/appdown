@@ -149,7 +149,7 @@ echo "--- Step 4/5: 创建 macOS 容器 ---"
 
 # 创建共享构建目录
 mkdir -p "$BUILD_DIR"
-chmod 777 "$BUILD_DIR"
+chmod 755 "$BUILD_DIR"
 
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     # 容器已存在
