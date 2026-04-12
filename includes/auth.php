@@ -39,7 +39,7 @@ function require_auth(): void {
     // 未安装时禁止访问后台
     $lockFile = __DIR__ . '/../install/install.lock';
     if (!file_exists($lockFile)) {
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'json')) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strpos($_SERVER['CONTENT_TYPE'] ?? '', 'json') !== false) {
             json_response(['error' => 'not_installed'], 503);
         }
         header('Location: /install/');
@@ -47,7 +47,7 @@ function require_auth(): void {
     }
 
     if (!is_logged_in()) {
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'json')) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strpos($_SERVER['CONTENT_TYPE'] ?? '', 'json') !== false) {
             json_response(['error' => 'unauthorized'], 401);
         }
         header('Location: /admin/login.php');
@@ -75,7 +75,7 @@ function do_login(string $username, string $password): bool {
         $_SESSION['install_fp'] = md5(filemtime($lockFile) . realpath($lockFile));
     }
 
-    $pdo->prepare('UPDATE admin_users SET last_login = datetime("now") WHERE id = ?')
+    $pdo->prepare("UPDATE admin_users SET last_login = datetime('now') WHERE id = ?")
         ->execute([$user['id']]);
 
     return true;

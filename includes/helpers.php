@@ -58,9 +58,9 @@ function get_setting(PDO $pdo, string $key, string $default = ''): string {
 }
 
 function set_setting(PDO $pdo, string $key, string $val): void {
-    $stmt = $pdo->prepare('INSERT INTO site_settings (setting_key, setting_val, updated_at)
-                           VALUES (?, ?, datetime("now"))
-                           ON CONFLICT(setting_key) DO UPDATE SET setting_val = excluded.setting_val, updated_at = excluded.updated_at');
+    $stmt = $pdo->prepare("INSERT INTO site_settings (setting_key, setting_val, updated_at)
+                           VALUES (?, ?, datetime('now'))
+                           ON CONFLICT(setting_key) DO UPDATE SET setting_val = excluded.setting_val, updated_at = excluded.updated_at");
     $stmt->execute([$key, $val]);
 }
 

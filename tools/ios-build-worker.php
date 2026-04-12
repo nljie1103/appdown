@@ -71,7 +71,7 @@ try {
 
     // 检查 xcodebuild
     $result = ssh_exec('xcodebuild -version 2>/dev/null | head -1');
-    if ($result['code'] !== 0 || !str_contains($result['output'][0] ?? '', 'Xcode')) {
+    if ($result['code'] !== 0 || strpos($result['output'][0] ?? '', 'Xcode') === false) {
         fail_task($pdo, $taskId, "macOS 容器中未安装 Xcode\n请先在终端执行: sudo bash tools/setup-ios-xcode.sh");
         exit(1);
     }
@@ -346,24 +346,22 @@ function fail_task(PDO $pdo, int $id, string $error): void {
 }
 
 function parse_xcode_progress(string $line, int $current): int {
-    if (str_contains($line, 'Compiling') || str_contains($line, 'CompileSwift')) return max($current, 45);
-    if (str_contains($line, 'Linking')) return max($current, 60);
-    if (str_contains($line, 'CopySwiftLibs') || str_contains($line, 'Copy')) return max($current, 70);
-    if (str_contains($line, 'GenerateAssetSymbols') || str_contains($line, 'CompileAssetCatalog')) return max($current, 55);
-    if (str_contains($line, 'ARCHIVE SUCCEEDED') || str_contains($line, 'Archive Succeeded')) return 80;
-    if (str_contains($line, 'BUILD SUCCEEDED') || str_contains($line, '** ARCHIVE SUCCEEDED **')) return 80;
+    if (strpos($line, 'Compiling') !== false || strpos($line, 'CompileSwift') !== false) return max($current, 45);
+    if (strpos($line, 'Linking') !== false) return max($current, 60);
+    if (strpos($line, 'CopySwiftLibs') !== false || strpos($line, 'Copy') !== false) return max($current, 70);
+    if (strpos($line, 'GenerateAssetSymbols') !== false || strpos($line, 'CompileAssetCatalog') !== false) return max($current, 55);
+    if (strpos($line, 'ARCHIVE SUCCEEDED') !== false || strpos($line, 'Archive Succeeded') !== false) return 80;
+    if (strpos($line, 'BUILD SUCCEEDED') !== false || strpos($line, '** ARCHIVE SUCCEEDED **') !== false) return 80;
     return $current;
 }
 
 function xcode_progress_msg(int $pct): string {
-    return match (true) {
-        $pct <= 45 => '编译Swift代码...',
-        $pct <= 55 => '处理资源文件...',
-        $pct <= 60 => '链接...',
-        $pct <= 70 => '复制Swift库...',
-        $pct <= 80 => '归档完成...',
-        default    => '编译完成',
-    };
+    if ($pct <= 45) return '编译Swift代码...';
+    if ($pct <= 55) return '处理资源文件...';
+    if ($pct <= 60) return '链接...';
+    if ($pct <= 70) return '复制Swift库...';
+    if ($pct <= 80) return '归档完成...';
+    return '编译完成';
 }
 
 function recursive_copy(string $src, string $dst): void {
@@ -398,13 +396,13 @@ function recursive_delete(string $dir): void {
 function resize_image(string $src, string $dst, int $w, int $h): void {
     $info = @getimagesize($src);
     if (!$info) { copy($src, $dst); return; }
-    $srcImg = match ($info['mime']) {
-        'image/png' => imagecreatefrompng($src),
-        'image/jpeg' => imagecreatefromjpeg($src),
-        'image/gif' => imagecreatefromgif($src),
-        'image/webp' => imagecreatefromwebp($src),
-        default => null,
-    };
+    $srcImg = null;
+    switch ($info['mime']) {
+        case 'image/png':  $srcImg = imagecreatefrompng($src); break;
+        case 'image/jpeg': $srcImg = imagecreatefromjpeg($src); break;
+        case 'image/gif':  $srcImg = imagecreatefromgif($src); break;
+        case 'image/webp': $srcImg = imagecreatefromwebp($src); break;
+    }
     if (!$srcImg) { copy($src, $dst); return; }
     $dstImg = imagecreatetruecolor($w, $h);
     imagealphablending($dstImg, false);

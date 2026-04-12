@@ -55,7 +55,7 @@ if ($method === 'POST') {
     try {
         $stmt->execute([$slug, $name, $icon, trim($data['icon_url'] ?? ''), $color, $max + 1]);
     } catch (PDOException $e) {
-        if (str_contains($e->getMessage(), 'UNIQUE')) {
+        if (strpos($e->getMessage(), 'UNIQUE') !== false) {
             json_response(['error' => '标识已存在'], 409);
         }
         throw $e;

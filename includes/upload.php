@@ -80,29 +80,35 @@ function get_upload_rules(string $category): ?array {
     // 读取PHP配置的上传限制
     $php_max = min(parse_size(ini_get('upload_max_filesize')), parse_size(ini_get('post_max_size')));
 
-    return match($category) {
-        'image' => [
-            'extensions' => ['webp', 'png', 'jpg', 'jpeg', 'gif', 'ico'],
-            'max_size'   => $php_max,
-        ],
-        'font' => [
-            'extensions' => ['ttf', 'woff', 'woff2', 'otf'],
-            'max_size'   => $php_max,
-        ],
-        'app' => [
-            'extensions' => ['apk', 'ipa', 'exe', 'dmg', 'zip'],
-            'max_size'   => $php_max,
-        ],
-        'cert' => [
-            'extensions' => ['pem', 'crt', 'key', 'p12'],
-            'max_size'   => $php_max,
-        ],
-        'keystore' => [
-            'extensions' => ['jks', 'keystore', 'p12', 'pfx', 'bks'],
-            'max_size'   => $php_max,
-        ],
-        default => null,
-    };
+    switch ($category) {
+        case 'image':
+            return [
+                'extensions' => ['webp', 'png', 'jpg', 'jpeg', 'gif', 'ico'],
+                'max_size'   => $php_max,
+            ];
+        case 'font':
+            return [
+                'extensions' => ['ttf', 'woff', 'woff2', 'otf'],
+                'max_size'   => $php_max,
+            ];
+        case 'app':
+            return [
+                'extensions' => ['apk', 'ipa', 'exe', 'dmg', 'zip'],
+                'max_size'   => $php_max,
+            ];
+        case 'cert':
+            return [
+                'extensions' => ['pem', 'crt', 'key', 'p12'],
+                'max_size'   => $php_max,
+            ];
+        case 'keystore':
+            return [
+                'extensions' => ['jks', 'keystore', 'p12', 'pfx', 'bks'],
+                'max_size'   => $php_max,
+            ];
+        default:
+            return null;
+    }
 }
 
 /**
@@ -112,16 +118,16 @@ function parse_size(string $val): int {
     $val = trim($val);
     $unit = strtolower(substr($val, -1));
     $num = (int)$val;
-    return match($unit) {
-        'g' => $num * 1024 * 1024 * 1024,
-        'm' => $num * 1024 * 1024,
-        'k' => $num * 1024,
-        default => $num,
-    };
+    switch ($unit) {
+        case 'g': return $num * 1024 * 1024 * 1024;
+        case 'm': return $num * 1024 * 1024;
+        case 'k': return $num * 1024;
+        default:  return $num;
+    }
 }
 
 function delete_upload(string $url): void {
-    if (str_starts_with($url, 'uploads/') && !str_contains($url, '..')) {
+    if (substr($url, 0, 8) === 'uploads/' && strpos($url, '..') === false) {
         $path = __DIR__ . '/../' . $url;
         if (file_exists($path)) {
             unlink($path);

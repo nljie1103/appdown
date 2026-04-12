@@ -106,7 +106,7 @@ $iosSshPort = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
 
 $dockerOut = [];
 @exec('docker --version 2>/dev/null', $dockerOut);
-$iosHasDocker = !empty($dockerOut[0]) && str_contains($dockerOut[0], 'Docker');
+$iosHasDocker = !empty($dockerOut[0]) && strpos($dockerOut[0], 'Docker') !== false;
 $dockerVer = $iosHasDocker ? trim($dockerOut[0]) : '未安装';
 $iosChecks[] = ['Docker', '已安装', $iosHasDocker ? $dockerVer : '未安装', $iosHasDocker];
 
@@ -149,7 +149,7 @@ if ($iosSshOk) {
     $xcOut = [];
     @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
     $xcLine = trim($xcOut[0] ?? '');
-    if (str_contains($xcLine, 'Xcode')) {
+    if (strpos($xcLine, 'Xcode') !== false) {
         $iosHasXcode = true;
         $xcodeVer = $xcLine;
     }

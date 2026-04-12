@@ -99,9 +99,9 @@ function resolve_cert_content(string $mode, string $value): string {
             $realPath = realpath($value);
             $projectRoot = realpath(__DIR__ . '/..');
             if ($realPath && is_readable($realPath) && (
-                str_starts_with($realPath, $projectRoot) ||
-                str_starts_with($realPath, '/etc/ssl') ||
-                str_starts_with($realPath, '/etc/pki')
+                substr($realPath, 0, strlen($projectRoot)) === $projectRoot ||
+                substr($realPath, 0, 8) === '/etc/ssl' ||
+                substr($realPath, 0, 8) === '/etc/pki'
             )) {
                 return file_get_contents($realPath);
             }
@@ -276,9 +276,9 @@ function generate_and_save_mobileconfig(array $params, ?array $cert, string $des
         : ($size < 1048576 ? number_format($size / 1024, 1) . ' KB'
         : number_format($size / 1048576, 1) . ' MB');
 
-    // 计算相对路径（相对于项目根目录）
-    $projectRoot = realpath(__DIR__ . '/..') . '/';
-    $relativePath = str_replace('\\', '/', str_replace($projectRoot, '', realpath($fullPath)));
+    // 计算相对路径（相对于项目根目录，兼容 Windows 反斜杠）
+    $projectRoot = str_replace('\\', '/', realpath(__DIR__ . '/..')) . '/';
+    $relativePath = str_replace($projectRoot, '', str_replace('\\', '/', realpath($fullPath)));
 
     return ['ok' => true, 'file_path' => $relativePath, 'file_size' => $sizeStr, 'signed' => $signed];
 }

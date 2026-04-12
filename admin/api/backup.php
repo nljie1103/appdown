@@ -145,7 +145,7 @@ if ($action === 'decrypt_preview') {
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $stat = $zip->statIndex($i);
                 $name = $stat['name'];
-                if (str_starts_with($name, 'uploads/') && !str_ends_with($name, '/')) {
+                if (substr($name, 0, strlen('uploads/')) === 'uploads/' && substr($name, -1) !== '/') {
                     $hasUploads = true;
                     $uploadsCount++;
                     $uploadsSize += $stat['size'];
@@ -231,7 +231,7 @@ if ($action === 'import') {
                 if (empty($row)) continue;
                 $cols = array_keys($row);
                 $placeholders = implode(',', array_fill(0, count($cols), '?'));
-                $colList = implode(',', array_map(fn($c) => "\"$c\"", $cols));
+                $colList = implode(',', array_map(function($c) { return "\"$c\""; }, $cols));
                 $stmt = $pdo->prepare("INSERT OR REPLACE INTO \"$table\" ($colList) VALUES ($placeholders)");
                 $stmt->execute(array_values($row));
                 $imported++;
@@ -251,12 +251,12 @@ if ($action === 'import') {
     if ($includeUploads && $isZip && $zipPath) {
         $zip = new ZipArchive();
         if ($zip->open($zipPath) === true) {
-            $uploadsBase = realpath(__DIR__ . '/../../') . '/';
+            $uploadsBase = str_replace('\\', '/', realpath(__DIR__ . '/../../')) . '/';
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $name = $zip->getNameIndex($i);
-                if (!str_starts_with($name, 'uploads/') || str_ends_with($name, '/')) continue;
+                if (substr($name, 0, strlen('uploads/')) !== 'uploads/' || substr($name, -1) === '/') continue;
                 // 防止路径遍历
-                if (str_contains($name, '..')) continue;
+                if (strpos($name, '..') !== false) continue;
                 $destPath = $uploadsBase . $name;
                 $destDir = dirname($destPath);
                 if (!is_dir($destDir)) mkdir($destDir, 0755, true);
@@ -272,7 +272,7 @@ if ($action === 'import') {
 
     if ($zipPath && file_exists($zipPath)) unlink($zipPath);
 
-    $tableCount = count(array_filter($selectedTables, fn($t) => !empty($import[$t])));
+    $tableCount = count(array_filter($selectedTables, function($t) use ($import) { return !empty($import[$t]); }));
     $msg = "导入成功，共恢复 {$tableCount} 类数据（{$imported} 条记录）";
     if ($filesRestored > 0) $msg .= "，{$filesRestored} 个上传文件";
 

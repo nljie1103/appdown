@@ -14,14 +14,14 @@ if (!$fileUrl) {
 }
 
 // 安全检查：只允许读取 uploads/ 下的文件
-if (!str_starts_with($fileUrl, 'uploads/')) {
+if (substr($fileUrl, 0, strlen('uploads/')) !== 'uploads/') {
     json_response(['error' => '非法文件路径'], 403);
 }
 
 $filePath = realpath(__DIR__ . '/../../' . $fileUrl);
 $basePath = realpath(__DIR__ . '/../../uploads');
 
-if (!$filePath || !$basePath || !str_starts_with($filePath, $basePath)) {
+if (!$filePath || !$basePath || substr($filePath, 0, strlen($basePath)) !== $basePath) {
     json_response(['error' => '非法文件路径'], 403);
 }
 
@@ -136,7 +136,7 @@ function parseApk(string $path): array {
     $hasKotlin = false;
     for ($i = 0; $i < $zip->numFiles; $i++) {
         $name = $zip->getNameIndex($i);
-        if (str_contains($name, 'kotlin') || $name === 'kotlin-tooling-metadata.json') {
+        if (strpos($name, 'kotlin') !== false || $name === 'kotlin-tooling-metadata.json') {
             $hasKotlin = true;
             break;
         }
@@ -555,7 +555,7 @@ function parseIpa(string $path): array {
         if (isset($plistInfo['UIDeviceFamily'])) {
             $families = is_array($plistInfo['UIDeviceFamily']) ? $plistInfo['UIDeviceFamily'] : [$plistInfo['UIDeviceFamily']];
             $deviceMap = [1 => 'iPhone/iPod', 2 => 'iPad', 3 => 'Apple TV', 4 => 'Apple Watch'];
-            $info['supported_devices'] = array_map(fn($f) => $deviceMap[(int)$f] ?? "Unknown($f)", $families);
+            $info['supported_devices'] = array_map(function($f) use ($deviceMap) { return $deviceMap[(int)$f] ?? "Unknown($f)"; }, $families);
         }
 
         // ATS (App Transport Security)
@@ -577,7 +577,7 @@ function parseIpa(string $path): array {
         }
 
         // Remove null values
-        $info = array_filter($info, fn($v) => $v !== null);
+        $info = array_filter($info, function($v) { return $v !== null; });
     }
 
     // 解析 embedded.mobileprovision（签名配置信息）
@@ -611,7 +611,7 @@ function parseIpa(string $path): array {
 // 解析 plist（支持 XML 和 Binary 格式）
 function parsePlist(string $data): array {
     // Check if it's binary plist
-    if (str_starts_with($data, 'bplist')) {
+    if (substr($data, 0, strlen('bplist')) === 'bplist') {
         return parseBinaryPlist($data);
     }
 
@@ -642,20 +642,20 @@ function plistXmlToArray(SimpleXMLElement $dict): array {
     return $result;
 }
 
-function plistXmlValueToPhp(SimpleXMLElement $node): mixed {
+function plistXmlValueToPhp(SimpleXMLElement $node) {
     $name = $node->getName();
-    return match($name) {
-        'string' => (string)$node,
-        'integer' => (int)(string)$node,
-        'real' => (float)(string)$node,
-        'true' => true,
-        'false' => false,
-        'dict' => plistXmlToArray($node),
-        'array' => array_map(fn($child) => plistXmlValueToPhp($child), iterator_to_array($node->children())),
-        'data' => base64_decode((string)$node),
-        'date' => (string)$node,
-        default => (string)$node,
-    };
+    switch ($name) {
+        case 'string': return (string)$node;
+        case 'integer': return (int)(string)$node;
+        case 'real': return (float)(string)$node;
+        case 'true': return true;
+        case 'false': return false;
+        case 'dict': return plistXmlToArray($node);
+        case 'array': return array_map(function($child) { return plistXmlValueToPhp($child); }, iterator_to_array($node->children()));
+        case 'data': return base64_decode((string)$node);
+        case 'date': return (string)$node;
+        default: return (string)$node;
+    }
 }
 
 // 解析 Binary Plist
@@ -687,7 +687,7 @@ function parseBinaryPlist(string $data): array {
     }
 
     // Parse object at index
-    $parseObject = function(int $idx) use (&$parseObject, $data, $offsets, $objectRefSize, $len): mixed {
+    $parseObject = function(int $idx) use (&$parseObject, $data, $offsets, $objectRefSize, $len) {
         if ($idx >= count($offsets)) return null;
         $offset = $offsets[$idx];
         if ($offset >= $len) return null;
@@ -696,34 +696,32 @@ function parseBinaryPlist(string $data): array {
         $objectType = ($marker & 0xF0) >> 4;
         $objectInfo = $marker & 0x0F;
 
-        return match($objectType) {
+        switch ($objectType) {
             // null/bool/fill
-            0 => match($objectInfo) {
-                0 => null,
-                8 => false,
-                9 => true,
-                default => null,
-            },
+            case 0:
+                switch ($objectInfo) {
+                    case 0: return null;
+                    case 8: return false;
+                    case 9: return true;
+                    default: return null;
+                }
             // int
-            1 => (function() use ($data, $offset, $objectInfo) {
+            case 1:
                 $byteCount = 1 << $objectInfo;
                 $val = readBplistInt($data, $offset + 1, $byteCount);
                 return $val;
-            })(),
             // real
-            2 => (function() use ($data, $offset, $objectInfo) {
+            case 2:
                 $byteCount = 1 << $objectInfo;
                 if ($byteCount === 4) return unpack('G', substr($data, $offset + 1, 4))[1];
                 if ($byteCount === 8) return unpack('E', substr($data, $offset + 1, 8))[1];
                 return 0.0;
-            })(),
             // date
-            3 => (function() use ($data, $offset) {
+            case 3:
                 $ts = unpack('E', substr($data, $offset + 1, 8))[1];
                 return date('Y-m-d\TH:i:s\Z', (int)($ts + 978307200));
-            })(),
             // data
-            4 => (function() use ($data, $offset, $objectInfo, $len) {
+            case 4:
                 $size = $objectInfo;
                 $dataOffset = $offset + 1;
                 if ($objectInfo === 0x0F) {
@@ -733,9 +731,8 @@ function parseBinaryPlist(string $data): array {
                     $dataOffset = $offset + 2 + $sizeBytes;
                 }
                 return substr($data, $dataOffset, $size);
-            })(),
             // ASCII string
-            5 => (function() use ($data, $offset, $objectInfo) {
+            case 5:
                 $size = $objectInfo;
                 $strOffset = $offset + 1;
                 if ($objectInfo === 0x0F) {
@@ -745,9 +742,8 @@ function parseBinaryPlist(string $data): array {
                     $strOffset = $offset + 2 + $sizeBytes;
                 }
                 return substr($data, $strOffset, $size);
-            })(),
             // Unicode string
-            6 => (function() use ($data, $offset, $objectInfo) {
+            case 6:
                 $size = $objectInfo;
                 $strOffset = $offset + 1;
                 if ($objectInfo === 0x0F) {
@@ -758,9 +754,8 @@ function parseBinaryPlist(string $data): array {
                 }
                 $raw = substr($data, $strOffset, $size * 2);
                 return mb_convert_encoding($raw, 'UTF-8', 'UTF-16BE');
-            })(),
             // array
-            0xA => (function() use ($data, $offset, $objectInfo, $objectRefSize, &$parseObject) {
+            case 0xA:
                 $count = $objectInfo;
                 $refsOffset = $offset + 1;
                 if ($objectInfo === 0x0F) {
@@ -775,9 +770,8 @@ function parseBinaryPlist(string $data): array {
                     $result[] = $parseObject($ref);
                 }
                 return $result;
-            })(),
             // dict
-            0xD => (function() use ($data, $offset, $objectInfo, $objectRefSize, &$parseObject) {
+            case 0xD:
                 $count = $objectInfo;
                 $refsOffset = $offset + 1;
                 if ($objectInfo === 0x0F) {
@@ -796,9 +790,9 @@ function parseBinaryPlist(string $data): array {
                     if (is_string($key)) $result[$key] = $val;
                 }
                 return $result;
-            })(),
-            default => null,
-        };
+            default:
+                return null;
+        }
     };
 
     $root = $parseObject($topObject);
@@ -944,7 +938,7 @@ function parseMobileProvision(string $data): ?array {
         if ($certs) $result['certificates'] = $certs;
     }
 
-    return array_filter($result, fn($v) => $v !== null);
+    return array_filter($result, function($v) { return $v !== null; });
 }
 
 // ==================== 工具函数 ====================
@@ -1071,7 +1065,7 @@ function findIssuerCert(string $leafCertPem, string $provisionData, string $aia)
         $issuerDer = downloadWithCurl($caUrl);
         if ($issuerDer && strlen($issuerDer) > 100) {
             // 判断是 DER 还是 PEM 格式
-            if (str_contains($issuerDer, '-----BEGIN CERTIFICATE-----')) {
+            if (strpos($issuerDer, '-----BEGIN CERTIFICATE-----') !== false) {
                 $clean = preg_replace('/-----[^-]+-----/', '', $issuerDer);
                 $issuerDer = base64_decode(str_replace(["\n", "\r", " "], '', $clean));
             }

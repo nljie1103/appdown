@@ -1472,7 +1472,7 @@ async function cancelIpaBuildTask(taskId) {
 async function deleteIpa(id) {
     if (!await AlertModal.confirm('确认删除', '将永久删除此IPA文件和记录，是否继续？', { icon: 'danger', okText: '删除', okClass: 'btn-danger' })) return;
     try {
-        await API.delete('/admin/api/generate.php', { id, type: 'ipa' });
+        await API.del('/admin/api/generate.php', { id, type: 'ipa' });
         AlertModal.success('已删除');
         loadIpas();
     } catch (e) {}

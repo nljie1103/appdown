@@ -207,7 +207,7 @@ function identifySource(string $key): array {
 
     foreach ($rules as $rule) {
         foreach ($rule['keywords'] as $kw) {
-            if (str_contains($key, $kw) || $key === $kw) {
+            if (strpos($key, $kw) !== false || $key === $kw) {
                 return ['name' => $rule['name'], 'type' => $rule['type'], 'icon' => $rule['icon']];
             }
         }

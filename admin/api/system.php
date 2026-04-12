@@ -82,7 +82,7 @@ if ($method === 'GET') {
         // Docker 已安装
         $dockerOut = [];
         @exec('docker --version 2>/dev/null', $dockerOut);
-        $hasDocker = !empty($dockerOut[0]) && str_contains($dockerOut[0], 'Docker');
+        $hasDocker = !empty($dockerOut[0]) && strpos($dockerOut[0], 'Docker') !== false;
 
         // Docker 运行中
         $dockerRunning = false;
@@ -124,7 +124,7 @@ if ($method === 'GET') {
             $xcOut = [];
             @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
             $xcLine = trim($xcOut[0] ?? '');
-            if (str_contains($xcLine, 'Xcode')) {
+            if (strpos($xcLine, 'Xcode') !== false) {
                 $hasXcode = true;
                 $xcodeVer = $xcLine;
             }
@@ -293,7 +293,7 @@ if ($method === 'POST') {
         $xcOut = [];
         @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null" 2>/dev/null', $xcOut, $xcCode);
         $xcodeInfo = implode("\n", $xcOut);
-        $hasXcode = str_contains($xcodeInfo, 'Xcode');
+        $hasXcode = strpos($xcodeInfo, 'Xcode') !== false;
         json_response([
             'ok' => $hasXcode,
             'info' => $xcodeInfo ?: '无法连接到 macOS 容器或 Xcode 未安装',

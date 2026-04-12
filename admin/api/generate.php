@@ -148,7 +148,7 @@ if ($method === 'POST') {
             if (!$ks->fetch()) json_response(['error' => '签名密钥不存在'], 400);
 
             foreach ([$iconUrl, $splashUrl] as $path) {
-                if ($path && str_contains($path, '..')) json_response(['error' => '文件路径不合法'], 400);
+                if ($path && strpos($path, '..') !== false) json_response(['error' => '文件路径不合法'], 400);
             }
 
             $params = json_encode([
@@ -212,7 +212,7 @@ if ($method === 'POST') {
             if (empty($appName)) json_response(['error' => '请输入应用名称'], 400);
             if (!preg_match('/^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*){1,}$/', $bundleId)) json_response(['error' => 'Bundle ID 格式不正确，例: com.example.app'], 400);
             if ($versionCode < 1) json_response(['error' => '版本代码必须 >= 1'], 400);
-            if ($iconUrl && str_contains($iconUrl, '..')) json_response(['error' => '文件路径不合法'], 400);
+            if ($iconUrl && strpos($iconUrl, '..') !== false) json_response(['error' => '文件路径不合法'], 400);
 
             $params = json_encode([
                 'url' => $url, 'app_name' => $appName, 'bundle_id' => $bundleId,
@@ -292,7 +292,7 @@ if ($method === 'PUT') {
 
         $safeName = preg_replace('/[^a-zA-Z0-9\x{4e00}-\x{9fff}_.-]/u', '_', $newName);
         $safeName = trim(preg_replace('/_+/', '_', $safeName), '_') ?: 'app';
-        if (!str_ends_with(strtolower($safeName), $ext)) $safeName .= $ext;
+        if (substr(strtolower($safeName), -strlen($ext)) !== $ext) $safeName .= $ext;
 
         $dir = dirname($oldFullPath);
         $newFullPath = $dir . '/' . $safeName;
@@ -304,8 +304,8 @@ if ($method === 'PUT') {
 
         if (!rename($oldFullPath, $newFullPath)) json_response(['error' => '重命名失败'], 500);
 
-        $projectRoot = realpath(__DIR__ . '/../..') . '/';
-        $newRelative = str_replace('\\', '/', str_replace($projectRoot, '', realpath($newFullPath)));
+        $projectRoot = str_replace('\\', '/', realpath(__DIR__ . '/../..')) . '/';
+        $newRelative = str_replace($projectRoot, '', str_replace('\\', '/', realpath($newFullPath)));
 
         $pdo->prepare("UPDATE $table SET $urlCol = ? WHERE id = ?")->execute([$newRelative, $itemId]);
         json_response(['ok' => true, 'new_url' => $newRelative]);

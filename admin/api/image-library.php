@@ -210,7 +210,9 @@ if ($action === 'images') {
         $actualExt = strtolower(pathinfo($result['url'], PATHINFO_EXTENSION));
         $originalName = $customName !== '' ? ($customName . '.' . $actualExt) : basename($result['url']);
 
-        $max = $pdo->query("SELECT COALESCE(MAX(sort_order),0) FROM image_library WHERE category_id = $categoryId")->fetchColumn();
+        $maxStmt = $pdo->prepare("SELECT COALESCE(MAX(sort_order),0) FROM image_library WHERE category_id = ?");
+        $maxStmt->execute([$categoryId]);
+        $max = $maxStmt->fetchColumn();
         $stmt = $pdo->prepare("INSERT INTO image_library (category_id, file_url, filename, file_size, width, height, sort_order, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$categoryId, $result['url'], $originalName, $fileSizeStr, $width, $height, $max + 1, $remark]);
 

@@ -371,26 +371,24 @@ function is_task_cancelled(PDO $pdo, int $taskId): bool {
 }
 
 function parse_gradle_progress(string $line, int $current): int {
-    if (str_contains($line, 'Downloading') || str_contains($line, 'downloading')) return max($current, 45);
-    if (str_contains($line, 'compileReleaseJava') || str_contains($line, 'compileReleaseKotlin')) return max($current, 55);
-    if (str_contains($line, 'mergeReleaseResources') || str_contains($line, 'processReleaseResources')) return max($current, 60);
-    if (str_contains($line, 'dexBuilder') || str_contains($line, 'mergeDex') || str_contains($line, 'mergeExtDex')) return max($current, 70);
-    if (str_contains($line, 'packageRelease')) return max($current, 75);
-    if (str_contains($line, 'assembleRelease') && !str_contains($line, 'Task :')) return max($current, 80);
-    if (str_contains($line, 'BUILD SUCCESSFUL')) return 85;
+    if (strpos($line, 'Downloading') !== false || strpos($line, 'downloading') !== false) return max($current, 45);
+    if (strpos($line, 'compileReleaseJava') !== false || strpos($line, 'compileReleaseKotlin') !== false) return max($current, 55);
+    if (strpos($line, 'mergeReleaseResources') !== false || strpos($line, 'processReleaseResources') !== false) return max($current, 60);
+    if (strpos($line, 'dexBuilder') !== false || strpos($line, 'mergeDex') !== false || strpos($line, 'mergeExtDex') !== false) return max($current, 70);
+    if (strpos($line, 'packageRelease') !== false) return max($current, 75);
+    if (strpos($line, 'assembleRelease') !== false && strpos($line, 'Task :') === false) return max($current, 80);
+    if (strpos($line, 'BUILD SUCCESSFUL') !== false) return 85;
     return $current;
 }
 
 function gradle_progress_msg(int $pct): string {
-    return match (true) {
-        $pct <= 45 => '下载依赖...',
-        $pct <= 55 => '编译Java/Kotlin代码...',
-        $pct <= 60 => '合并资源文件...',
-        $pct <= 70 => '生成DEX...',
-        $pct <= 75 => '打包APK...',
-        $pct <= 80 => '签名APK...',
-        default    => '编译完成',
-    };
+    if ($pct <= 45) return '下载依赖...';
+    if ($pct <= 55) return '编译Java/Kotlin代码...';
+    if ($pct <= 60) return '合并资源文件...';
+    if ($pct <= 70) return '生成DEX...';
+    if ($pct <= 75) return '打包APK...';
+    if ($pct <= 80) return '签名APK...';
+    return '编译完成';
 }
 
 function recursive_copy(string $src, string $dst): void {
@@ -433,13 +431,13 @@ function resize_image(string $src, string $dst, int $w, int $h): void {
     }
 
     $mime = $info['mime'];
-    $srcImg = match ($mime) {
-        'image/png' => imagecreatefrompng($src),
-        'image/jpeg' => imagecreatefromjpeg($src),
-        'image/gif' => imagecreatefromgif($src),
-        'image/webp' => imagecreatefromwebp($src),
-        default => null,
-    };
+    switch ($mime) {
+        case 'image/png':  $srcImg = imagecreatefrompng($src); break;
+        case 'image/jpeg': $srcImg = imagecreatefromjpeg($src); break;
+        case 'image/gif':  $srcImg = imagecreatefromgif($src); break;
+        case 'image/webp': $srcImg = imagecreatefromwebp($src); break;
+        default:           $srcImg = null;
+    }
 
     if (!$srcImg) {
         copy($src, $dst);

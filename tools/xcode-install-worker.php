@@ -252,7 +252,7 @@ try {
     $xcodeInfo = implode("\n", $result['output']);
     log_msg($xcodeInfo);
 
-    if (!str_contains($xcodeInfo, 'Xcode')) {
+    if (strpos($xcodeInfo, 'Xcode') === false) {
         log_msg("");
         log_msg("错误: Xcode 验证失败");
         set_xcode_status('failed');
@@ -272,7 +272,7 @@ try {
 
 // ========== 辅助函数 ==========
 
-function handle_2fa(mixed $stdinPipe, string $twofaFile, PDO $pdo): void {
+function handle_2fa($stdinPipe, string $twofaFile, PDO $pdo): void {
     log_msg("");
     log_msg(">>> 需要两步验证：请在管理后台输入您 Apple 设备上收到的验证码 <<<");
     log_msg("");

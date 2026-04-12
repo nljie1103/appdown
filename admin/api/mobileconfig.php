@@ -247,7 +247,7 @@ if ($method === 'PUT') {
 
         $safeName = preg_replace('/[^a-zA-Z0-9\x{4e00}-\x{9fff}_.-]/u', '_', $newName);
         $safeName = trim(preg_replace('/_+/', '_', $safeName), '_') ?: 'app';
-        if (!str_ends_with(strtolower($safeName), '.mobileconfig')) {
+        if (substr(strtolower($safeName), -13) !== '.mobileconfig') {
             $safeName .= '.mobileconfig';
         }
 
@@ -264,8 +264,8 @@ if ($method === 'PUT') {
             json_response(['error' => '重命名失败'], 500);
         }
 
-        $projectRoot = realpath(__DIR__ . '/../..') . '/';
-        $newRelative = str_replace('\\', '/', str_replace($projectRoot, '', realpath($newFullPath)));
+        $projectRoot = str_replace('\\', '/', realpath(__DIR__ . '/../..')) . '/';
+        $newRelative = str_replace($projectRoot, '', str_replace('\\', '/', realpath($newFullPath)));
 
         $stmt = $pdo->prepare("UPDATE generated_mobileconfigs SET file_path = ?, updated_at = datetime('now') WHERE id = ?");
         $stmt->execute([$newRelative, $id]);
