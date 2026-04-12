@@ -141,6 +141,14 @@ if ($method === 'GET') {
         json_response(['status' => $status, 'log' => $log]);
     }
 
+    // iOS Xcode 安装日志轮询
+    if ($action === 'ios_xcode_log') {
+        $logPath = __DIR__ . '/../../data/ios_xcode_install.log';
+        $log = file_exists($logPath) ? file_get_contents($logPath) : '';
+        $status = get_setting($pdo, 'ios_xcode_status', 'idle');
+        json_response(['status' => $status, 'log' => $log]);
+    }
+
     json_response(['error' => '无效的action'], 400);
 }
 
@@ -322,8 +330,75 @@ if ($method === 'POST') {
     // 重置 iOS 安装状态
     if ($action === 'reset_ios_install_status') {
         set_setting($pdo, 'ios_install_status', 'idle');
+        set_setting($pdo, 'ios_xcode_status', 'idle');
         $logPath = __DIR__ . '/../../data/ios_install.log';
         if (file_exists($logPath)) @unlink($logPath);
+        $logPath2 = __DIR__ . '/../../data/ios_xcode_install.log';
+        if (file_exists($logPath2)) @unlink($logPath2);
+        json_response(['ok' => true]);
+    }
+
+    // Web 界面安装 Xcode（Apple ID + 2FA）
+    if ($action === 'install_ios_xcode') {
+        $currentStatus = get_setting($pdo, 'ios_xcode_status', 'idle');
+        if (in_array($currentStatus, ['installing', 'awaiting_2fa', 'downloading'])) {
+            json_response(['error' => 'Xcode 安装正在进行中，请勿重复操作'], 400);
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $appleId = trim($input['apple_id'] ?? '');
+        $pw = $input['password'] ?? '';
+        if ($appleId === '' || $pw === '') {
+            json_response(['error' => '请填写 Apple ID 和密码'], 400);
+        }
+
+        $workerScript = realpath(__DIR__ . '/../../tools/xcode-install-worker.php');
+        if (!$workerScript || !file_exists($workerScript)) {
+            json_response(['error' => 'Xcode 安装 worker 脚本不存在'], 500);
+        }
+
+        $dataDir = realpath(__DIR__ . '/../../data');
+
+        // 写入临时凭据文件（worker 读取后立即删除）
+        $credsFile = $dataDir . '/ios_xcode_creds.json';
+        file_put_contents($credsFile, json_encode(['apple_id' => $appleId, 'password' => $pw]));
+        chmod($credsFile, 0600);
+
+        $logFile = $dataDir . '/ios_xcode_install.log';
+        file_put_contents($logFile, '');
+
+        set_setting($pdo, 'ios_xcode_status', 'installing');
+
+        $phpBin = PHP_BINDIR . '/php';
+        if (!file_exists($phpBin)) $phpBin = 'php';
+        $cmd = sprintf(
+            'nohup %s %s %s %s > /dev/null 2>&1 &',
+            escapeshellarg($phpBin),
+            escapeshellarg($workerScript),
+            escapeshellarg($credsFile),
+            escapeshellarg($logFile)
+        );
+        exec($cmd);
+
+        json_response(['ok' => true]);
+    }
+
+    // 提交 2FA 验证码
+    if ($action === 'submit_ios_2fa') {
+        $currentStatus = get_setting($pdo, 'ios_xcode_status', 'idle');
+        if ($currentStatus !== 'awaiting_2fa') {
+            json_response(['error' => '当前不在等待验证码状态'], 400);
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $code = trim($input['code'] ?? '');
+        if ($code === '') {
+            json_response(['error' => '请输入验证码'], 400);
+        }
+
+        $twofaFile = realpath(__DIR__ . '/../../data') . '/ios_2fa_code.txt';
+        file_put_contents($twofaFile, $code);
+
         json_response(['ok' => true]);
     }
 

@@ -150,6 +150,7 @@ $iosChecks[] = ['Xcode', '已安装', $iosHasXcode ? $xcodeVer : '未安装', $i
 
 $iosAllOk = $iosHasDocker && $iosDockerRunning && $iosHasKvm && $iosContainerExists && $iosContainerRunning && $iosSshOk && $iosHasXcode;
 $iosInstallStatus = get_setting($pdo, 'ios_install_status', 'idle');
+$iosXcodeStatus = get_setting($pdo, 'ios_xcode_status', 'idle');
 
 // 系统信息
 $dbPath = $dataDir . '/app.db';
@@ -288,7 +289,7 @@ admin_header('系统信息', 'system');
             <strong>安装分 3 个阶段：</strong>
             <ol style="margin:8px 0 0 16px;line-height:1.8;">
                 <li><strong>Phase 1</strong>（自动）: 安装 Docker + 拉取 macOS 镜像 + 创建容器</li>
-                <li><strong>Phase 2</strong>（手动）: 在终端中 SSH 进入容器安装 Xcode（需要 Apple ID）</li>
+                <li><strong>Phase 2</strong>（半自动）: 填写 Apple ID 下载安装 Xcode（需要两步验证）</li>
                 <li><strong>Phase 3</strong>（自动）: 点击按钮验证 Xcode 是否安装成功</li>
             </ol>
         </div>
@@ -303,9 +304,51 @@ admin_header('系统信息', 'system');
                 <i class="fas fa-trash-alt"></i> 一键卸载
             </button>
         </div>
-        <div style="margin-top:12px;padding:10px;background:#fff8e1;border-radius:6px;font-size:0.85em;color:#856404;">
-            <i class="fas fa-terminal"></i> <strong>Phase 2 命令</strong>（在服务器终端执行）：
-            <code style="display:block;margin-top:4px;padding:8px;background:#fefce8;border-radius:4px;user-select:all;">sudo bash tools/setup-ios-xcode.sh</code>
+        <div id="ios-phase2-area" style="margin-top:12px;padding:12px;background:#f0f4ff;border-radius:6px;">
+            <div style="font-weight:600;margin-bottom:8px;">
+                <i class="fas fa-apple-alt"></i> Phase 2: 安装 Xcode
+            </div>
+            <p style="font-size:0.85em;color:#666;margin-bottom:10px;">
+                需要 Apple ID 登录以下载 Xcode。凭据仅用于本次安装，不会被保存。
+            </p>
+            <div id="ios-xcode-form">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+                    <div>
+                        <label style="font-size:0.8em;color:#666;">Apple ID</label>
+                        <input type="email" id="ios-apple-id" placeholder="you@example.com"
+                               style="display:block;padding:6px 10px;border:1px solid #ddd;border-radius:4px;width:220px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.8em;color:#666;">密码</label>
+                        <input type="password" id="ios-apple-password"
+                               style="display:block;padding:6px 10px;border:1px solid #ddd;border-radius:4px;width:220px;">
+                    </div>
+                    <button id="btn-install-xcode" class="btn btn-primary btn-sm" onclick="installIosXcode()">
+                        <i class="fas fa-download"></i> 安装 Xcode
+                    </button>
+                </div>
+            </div>
+            <div id="ios-2fa-panel" style="display:none;margin-top:10px;padding:10px;background:#fff8e1;border-radius:6px;">
+                <p style="font-size:0.85em;color:#856404;margin-bottom:8px;">
+                    <i class="fas fa-shield-alt"></i> 请查看您的 Apple 设备，输入两步验证码：
+                </p>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" id="ios-2fa-code" maxlength="6" placeholder="000000"
+                           style="padding:8px 12px;border:2px solid #f0ad4e;border-radius:6px;width:120px;
+                                  font-size:1.2em;text-align:center;letter-spacing:4px;font-family:monospace;">
+                    <button class="btn btn-warning btn-sm" onclick="submitIos2fa()">
+                        <i class="fas fa-paper-plane"></i> 提交验证码
+                    </button>
+                </div>
+            </div>
+            <div id="ios-xcode-progress" style="display:none;margin-top:10px;">
+                <pre id="ios-xcode-log" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;max-height:300px;overflow-y:auto;font-size:0.8em;white-space:pre-wrap;line-height:1.6;"></pre>
+                <div id="ios-xcode-status" style="margin-top:8px;"></div>
+            </div>
+            <details style="margin-top:8px;font-size:0.8em;color:#999;">
+                <summary style="cursor:pointer;">或通过服务器终端手动安装</summary>
+                <code style="display:block;margin-top:4px;padding:6px;background:#f5f5f5;border-radius:4px;">sudo bash tools/setup-ios-xcode.sh</code>
+            </details>
         </div>
         <div id="ios-install-progress" style="display:none;margin-top:12px;">
             <div style="font-weight:600;margin-bottom:8px;">安装日志：</div>
@@ -543,6 +586,101 @@ async function pollIosInstallLog() {
         const progress = document.getElementById('ios-install-progress');
         if (progress) progress.style.display = 'block';
         startIosPolling();
+    }
+})();
+
+// ========== iOS Xcode Web 安装（Apple ID + 2FA）==========
+let _iosXcodePollTimer = null;
+
+async function installIosXcode() {
+    const appleId = document.getElementById('ios-apple-id').value.trim();
+    const password = document.getElementById('ios-apple-password').value;
+    if (!appleId || !password) { AlertModal.warning('提示', '请填写 Apple ID 和密码'); return; }
+
+    const btn = document.getElementById('btn-install-xcode');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 连接中...';
+    document.getElementById('ios-xcode-progress').style.display = 'block';
+
+    try {
+        await API.post('/admin/api/system.php?action=install_ios_xcode', { apple_id: appleId, password: password });
+        document.getElementById('ios-apple-password').value = '';
+        startIosXcodePolling();
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> 安装 Xcode';
+        AlertModal.error('启动失败', e.message || '请检查日志');
+    }
+}
+
+async function submitIos2fa() {
+    const code = document.getElementById('ios-2fa-code').value.trim();
+    if (!code || code.length < 4) { AlertModal.warning('提示', '请输入验证码'); return; }
+
+    try {
+        await API.post('/admin/api/system.php?action=submit_ios_2fa', { code: code });
+        document.getElementById('ios-2fa-panel').style.display = 'none';
+    } catch (e) {
+        AlertModal.error('提交失败', e.message);
+    }
+}
+
+function startIosXcodePolling() {
+    if (_iosXcodePollTimer) clearInterval(_iosXcodePollTimer);
+    pollIosXcodeLog();
+    _iosXcodePollTimer = setInterval(pollIosXcodeLog, 2000);
+}
+
+async function pollIosXcodeLog() {
+    try {
+        const resp = await fetch('/admin/api/system.php?action=ios_xcode_log', {
+            headers: { 'X-CSRF-Token': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await resp.json();
+
+        const logEl = document.getElementById('ios-xcode-log');
+        if (logEl) { logEl.textContent = data.log || '等待输出...'; logEl.scrollTop = logEl.scrollHeight; }
+
+        const statusEl = document.getElementById('ios-xcode-status');
+        if (data.status === 'awaiting_2fa') {
+            document.getElementById('ios-xcode-form').style.display = 'none';
+            document.getElementById('ios-2fa-panel').style.display = 'block';
+            document.getElementById('ios-2fa-code').focus();
+        } else if (data.status === 'downloading') {
+            document.getElementById('ios-xcode-form').style.display = 'none';
+            document.getElementById('ios-2fa-panel').style.display = 'none';
+        } else if (data.status === 'done') {
+            clearInterval(_iosXcodePollTimer);
+            document.getElementById('ios-2fa-panel').style.display = 'none';
+            document.getElementById('ios-xcode-form').style.display = 'none';
+            if (statusEl) statusEl.innerHTML = '<span style="color:#27ae60;font-weight:600;"><i class="fas fa-check-circle"></i> Xcode 安装完成！请刷新页面查看结果</span>';
+        } else if (data.status === 'failed') {
+            clearInterval(_iosXcodePollTimer);
+            document.getElementById('ios-2fa-panel').style.display = 'none';
+            document.getElementById('ios-xcode-form').style.display = 'block';
+            const btn = document.getElementById('btn-install-xcode');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-redo"></i> 重试安装'; }
+            if (statusEl) statusEl.innerHTML = '<span style="color:#e74c3c;font-weight:600;"><i class="fas fa-times-circle"></i> 安装失败，请查看上方日志</span>';
+        }
+    } catch (e) {}
+}
+
+// Xcode 安装页面加载恢复
+(function() {
+    const xcodeStatus = <?= json_encode($iosXcodeStatus) ?>;
+    if (['installing', 'awaiting_2fa', 'downloading'].includes(xcodeStatus)) {
+        const progress = document.getElementById('ios-xcode-progress');
+        if (progress) progress.style.display = 'block';
+        if (xcodeStatus === 'awaiting_2fa') {
+            const form = document.getElementById('ios-xcode-form');
+            if (form) form.style.display = 'none';
+            const panel = document.getElementById('ios-2fa-panel');
+            if (panel) panel.style.display = 'block';
+        } else {
+            const form = document.getElementById('ios-xcode-form');
+            if (form) form.style.display = 'none';
+        }
+        startIosXcodePolling();
     }
 })();
 </script>
