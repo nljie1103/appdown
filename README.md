@@ -25,7 +25,8 @@
 **📱 iOS 分发**
 - 自动生成 plist 文件（IPA 企业签分发）
 - Mobileconfig WebClip 描述文件（免签安装到桌面）
-- SSL 证书签名（全局 / 单应用独立证书）
+- SSL 证书签名（全局 / 单应用独立证书管理）
+- 生成 → 关联附件库 → 编辑应用选择 → 部署
 - 双模板可选（毛玻璃 / 仿 App Store）
 - 内置安装图文教程引导
 - 微信 / QQ 自动提示跳转 Safari
@@ -38,13 +39,15 @@
 - 生成结果管理（下载 / 关联到应用 / 删除）
 - 一键环境部署脚本
 - 自动检测非标准路径的 JDK / SDK
+- 支持自定义 JAVA_HOME / ANDROID_HOME 路径
 
 **🍎 IPA 生成器（URL 转 IPA）**
 - 通过 Docker-OSX 在 Linux 上运行 macOS + Xcode
 - 输入网址自动封装为 iOS WKWebView 应用
 - 自定义应用名称、Bundle ID、版本号、图标
 - 无签名模式构建（CODE_SIGNING_ALLOWED=NO）
-- 三阶段环境部署：Docker 容器(自动) → Xcode 安装(终端交互) → 验证(自动)
+- 三阶段环境部署：Docker 容器(自动) → Xcode 安装(Web 界面 / 终端交互) → 验证(自动)
+- 支持自定义 SSH 端口 / 容器名称
 - 后台构建 + 实时进度轮询 + IPA 管理
 
 **📊 数据统计**
@@ -183,13 +186,15 @@ sudo /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
 # 也可以在后台「系统信息」页面一键触发
 sudo bash tools/setup-ios-env.sh
 
-# Phase 2: SSH 进入容器安装 Xcode（需要 Apple ID + 2FA 交互）
+# Phase 2: 安装 Xcode（需要 Apple ID + 2FA 交互）
+# 方式 A: 后台「系统信息」页面 Web 界面操作（填写 Apple ID → 输入验证码）
+# 方式 B: 终端交互安装
 sudo bash tools/setup-ios-xcode.sh
 
 # Phase 3: 在后台「系统信息」页面点击「验证 Xcode」按钮确认
 ```
 
-> 💡 Phase 1 和 Phase 3 可以通过后台 Web 界面操作，Phase 2 必须在终端中交互完成（需要输入 Apple ID 和两步验证码）。
+> 💡 三个阶段均可通过后台 Web 界面操作。Phase 2 也支持在终端中交互完成。
 
 **权限配置（如需通过 Web 后台触发安装/卸载）：**
 
@@ -256,7 +261,7 @@ appdown/
 | 📊 仪表盘 | 今日访问/下载量、7天趋势图、来源 TOP10（智能识别）、下载明细 |
 | 📱 应用管理 | 添加/编辑/排序应用，支持自定义图标（FA图标或上传图片） |
 | ✏️ 应用编辑 | 下载按钮（图标可自定义）、轮播截图、iOS安装页配置、MC签名证书 |
-| 🔨 生成应用 | URL转APK/IPA（构建/进度/下载）、APK/IPA管理、签名密钥管理 |
+| 🔨 生成应用 | URL转APK/IPA（构建/进度/下载）、APK/IPA管理、签名密钥管理、Mobileconfig生成+证书管理 |
 | 📎 附件管理 | 按平台分类管理安装包，拖拽上传带进度条，上传后可编辑，安装包信息解析，公共图片库（格式转换压缩、真实重命名） |
 | ⭐ 特色卡片 | 首页亮点卡片，分类管理，FA图标/自定义图片图标 |
 | 🔗 友情链接 | 页脚链接管理，支持图标（FA/自定义图片），按链接开关图标显示 |
@@ -265,7 +270,7 @@ appdown/
 | 🎭 特效配置 | 11种内置特效（参数可调）、节日欢迎弹窗、背景音乐 |
 | 💻 自定义代码 | head/footer 注入 CSS/JS |
 | 💾 导入导出 | 按数据类别选择性备份，支持 AES-256-GCM 加密，含上传文件 |
-| 🖧 系统信息 | 运行环境检测、Android/iOS构建环境管理、一键安装/卸载 |
+| 🖧 系统信息 | 运行环境检测、Android/iOS构建环境管理、自定义路径配置、一键安装/卸载 |
 
 ## 🔧 Nginx 安全规则
 
@@ -339,7 +344,9 @@ location ~* ^/(tools|android-template|ios-template)/ {
 | `/admin/api/upload.php` | POST | 文件上传 |
 | `/admin/api/reorder.php` | POST | 拖拽排序 |
 | `/admin/api/generate.php` | CRUD | APK/IPA 构建任务 / 生成结果管理 |
+| `/admin/api/mobileconfig.php` | CRUD | Mobileconfig 生成 / 证书管理 |
 | `/admin/api/keystores.php` | CRUD | 签名密钥管理（生成 / 导入） |
+| `/admin/api/system.php` | GET/POST | 构建环境检测 / 安装卸载 / 自定义路径 |
 
 ## 💡 常见操作
 
