@@ -274,25 +274,35 @@ if ($method === 'PUT') {
 
     if ($action === 'associate') {
         $mcId = (int)($data['mc_id'] ?? 0);
-        if (!$mcId) json_response(['error' => '缺少参数'], 400);
+        $appId = (int)($data['app_id'] ?? 0);
+        $platformId = (int)($data['platform_id'] ?? 0);
+        $version = trim($data['version'] ?? '1.0');
+        if (!$mcId || !$appId || !$platformId) json_response(['error' => '请选择应用和附件分类'], 400);
 
-        $appId = $data['app_id'] ? (int)$data['app_id'] : null;
+        // 获取 mobileconfig 文件信息
+        $mc = $pdo->prepare('SELECT * FROM generated_mobileconfigs WHERE id = ?');
+        $mc->execute([$mcId]);
+        $mcRow = $mc->fetch();
+        if (!$mcRow) json_response(['error' => 'Mobileconfig 不存在'], 404);
 
-        // 先清除该 mobileconfig 之前的关联
-        $stmt = $pdo->prepare('SELECT app_id FROM generated_mobileconfigs WHERE id = ?');
-        $stmt->execute([$mcId]);
-        $old = $stmt->fetch();
-        if ($old && $old['app_id']) {
-            $pdo->prepare("UPDATE apps SET mc_file_id = NULL WHERE id = ? AND mc_file_id = ?")->execute([$old['app_id'], $mcId]);
-        }
+        // 检测目标平台是否属于该应用
+        $platCheck = $pdo->prepare('SELECT id FROM app_platforms WHERE id = ? AND app_id = ?');
+        $platCheck->execute([$platformId, $appId]);
+        if (!$platCheck->fetch()) json_response(['error' => '附件分类不属于该应用'], 400);
 
-        // 更新 mobileconfig 关联
+        // 计算文件大小
+        $filePath = __DIR__ . '/../../' . $mcRow['file_path'];
+        $bytes = file_exists($filePath) ? filesize($filePath) : 0;
+        if ($bytes >= 1048576) { $fileSize = round($bytes / 1048576, 1) . ' MB'; }
+        elseif ($bytes >= 1024) { $fileSize = round($bytes / 1024, 1) . ' KB'; }
+        else { $fileSize = $bytes . ' B'; }
+
+        // 添加到附件库
+        $stmt = $pdo->prepare('INSERT INTO app_attachments (app_id, platform_id, version, file_url, file_size, changelog) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$appId, $platformId, $version, $mcRow['file_path'], $fileSize, $mcRow['display_name']]);
+
+        // 更新 mobileconfig 关联记录
         $pdo->prepare("UPDATE generated_mobileconfigs SET app_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$appId, $mcId]);
-
-        // 更新 app 关联
-        if ($appId) {
-            $pdo->prepare("UPDATE apps SET mc_file_id = ? WHERE id = ?")->execute([$mcId, $appId]);
-        }
 
         json_response(['ok' => true]);
     }

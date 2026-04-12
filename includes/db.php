@@ -70,6 +70,7 @@ function init_schema(PDO $pdo): void {
             mc_sign_mode    TEXT NOT NULL DEFAULT '',
             mc_payload_org  TEXT NOT NULL DEFAULT '',
             mc_file_id      INTEGER DEFAULT NULL,
+            mc_file_url     TEXT NOT NULL DEFAULT '',
             android_template TEXT NOT NULL DEFAULT 'modern',
             feature_category_id INTEGER NOT NULL DEFAULT 0,
             sort_order      INTEGER NOT NULL DEFAULT 0,
@@ -610,6 +611,9 @@ function migrate_schema(PDO $pdo): void {
     // apps 表增加 mc_file_id 列
     if (!in_array('mc_file_id', $colNames)) {
         $pdo->exec("ALTER TABLE apps ADD COLUMN mc_file_id INTEGER DEFAULT NULL");
+    }
+    if (!in_array('mc_file_url', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_file_url TEXT NOT NULL DEFAULT ''");
     }
 
     // build_tasks 增加 build_type 列（区分 apk/ipa）

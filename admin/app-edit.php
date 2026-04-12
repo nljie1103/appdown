@@ -71,7 +71,7 @@ admin_header('编辑应用', 'apps');
 <div class="card">
     <h3>iOS安装页配置</h3>
     <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #e2e8f0;">
-        <button class="ios-tab active" id="tabIpa" onclick="switchIosTab('ipa')" style="padding:8px 20px;border:none;background:none;cursor:pointer;font-size:0.95em;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;">IPA配置</button>
+        <button class="ios-tab active" id="tabIpa" onclick="switchIosTab('ipa')" style="padding:8px 20px;border:none;background:none;cursor:pointer;font-size:0.95em;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;">Plist配置</button>
         <button class="ios-tab" id="tabMc" onclick="switchIosTab('mc')" style="padding:8px 20px;border:none;background:none;cursor:pointer;font-size:0.95em;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;">Mobileconfig配置</button>
     </div>
 
@@ -110,7 +110,7 @@ admin_header('编辑应用', 'apps');
             <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的安装链接：</label>
             <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="plistUrlDisplay"></div>
         </div>
-        <button class="btn btn-primary" onclick="saveIosConfig()"><i class="fas fa-save"></i> 保存IPA配置</button>
+        <button class="btn btn-primary" onclick="saveIosConfig()"><i class="fas fa-save"></i> 保存Plist配置</button>
     </div>
 
     <!-- Mobileconfig配置面板 -->
@@ -123,11 +123,13 @@ admin_header('编辑应用', 'apps');
         <div class="form-group">
             <label>关联的 Mobileconfig 文件</label>
             <input type="hidden" id="mcFileId" value="">
-            <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" class="form-control" id="mcFileUrl" readonly style="flex:1;background:#f5f5f5;" placeholder="未关联，点击右侧按钮选择">
-                <button class="btn btn-outline" type="button" onclick="showMcFilePicker()"><i class="fas fa-file-alt"></i> 选择</button>
-                <button class="btn btn-outline" type="button" onclick="clearMcFile()"><i class="fas fa-times"></i> 清除</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="text" class="form-control" id="mcFileUrl" style="flex:1;min-width:200px;" placeholder="输入链接或点击按钮选择">
+                <button class="btn btn-outline" type="button" onclick="showMcFilePicker()"><i class="fas fa-file-alt"></i> 已生成</button>
+                <button class="btn btn-outline" type="button" onclick="showAttPicker('mcFileUrl')" title="从附件库选择"><i class="fas fa-paperclip"></i> 附件库</button>
+                <button class="btn btn-outline" type="button" onclick="clearMcFile()"><i class="fas fa-times"></i></button>
             </div>
+            <small style="color:var(--text-secondary);font-size:0.8em;">可直接输入链接、从已生成的Mobileconfig选择、或从附件库选择</small>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -499,13 +501,14 @@ async function loadApp() {
     document.getElementById('mcFileId').value = app.mc_file_id || '';
     document.getElementById('mcDesc').value = app.mc_description || '';
     document.getElementById('mcTemplate').value = app.mc_template || 'modern';
-    if (app.mc_file_id) {
-        // 加载关联的文件信息
+    if (app.mc_file_url) {
+        document.getElementById('mcFileUrl').value = app.mc_file_url;
+    } else if (app.mc_file_id) {
         try {
             const mcList = await API.get('/admin/api/mobileconfig.php?action=list');
             const mc = mcList.find(m => m.id == app.mc_file_id);
             if (mc) {
-                document.getElementById('mcFileUrl').value = mc.file_path || '(文件已关联)';
+                document.getElementById('mcFileUrl').value = '/' + (mc.file_path || '');
             } else {
                 document.getElementById('mcFileUrl').value = '(关联的文件已被删除)';
             }
@@ -582,7 +585,7 @@ async function showMcFilePicker() {
 
 function pickMcFile(id, path) {
     document.getElementById('mcFileId').value = id;
-    document.getElementById('mcFileUrl').value = path;
+    document.getElementById('mcFileUrl').value = '/' + path;
     Modal.hide('mcFilePickerModal');
     updateMcPreview();
 }
@@ -595,9 +598,11 @@ function clearMcFile() {
 
 async function saveMcConfig() {
     const fileId = document.getElementById('mcFileId').value;
+    const fileUrl = document.getElementById('mcFileUrl').value.trim();
     await API.put('/admin/api/apps.php', {
         id: APP_ID,
         mc_file_id: fileId ? parseInt(fileId) : '',
+        mc_file_url: fileUrl,
         mc_description: document.getElementById('mcDesc').value.trim(),
         mc_template: document.getElementById('mcTemplate').value,
     });

@@ -451,13 +451,6 @@ admin_header('生成应用', 'generate');
                     <option value="0">否（保留地址栏）</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>安装页模板</label>
-                <select class="form-control" id="mcBuildTemplate">
-                    <option value="modern">现代风格（毛玻璃）</option>
-                    <option value="classic">经典风格（仿App Store）</option>
-                </select>
-            </div>
         </div>
     </div>
 
@@ -510,7 +503,6 @@ admin_header('生成应用', 'generate');
             <h3 style="margin:0;">签名证书列表</h3>
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-primary btn-sm" onclick="showAddCertModal()"><i class="fas fa-plus"></i> 新建证书</button>
-                <button class="btn btn-outline btn-sm" onclick="importGlobalCert()" title="从旧版站点设置中导入"><i class="fas fa-file-import"></i> 从设置导入</button>
             </div>
         </div>
         <p style="color:var(--text-secondary);font-size:0.85em;margin-bottom:12px;">设置为"全局默认"的证书将自动应用于未指定证书的Mobileconfig文件。</p>
@@ -523,15 +515,24 @@ admin_header('生成应用', 'generate');
 <!-- iOS 弹窗 -->
 <div class="modal-overlay" id="mcAssociateModal">
     <div class="modal" style="max-width:400px;">
-        <h3>关联到应用</h3>
+        <h3>关联到附件库</h3>
+        <p style="font-size:0.85em;color:var(--text-secondary);margin-bottom:12px;">将Mobileconfig文件添加到应用的附件分类中</p>
         <div class="form-group">
             <label>选择应用</label>
-            <select class="form-control" id="mcAssocAppId"><option value="">-- 不关联 --</option></select>
+            <select class="form-control" id="mcAssocAppId" onchange="loadMcAssocPlatforms()"><option value="">-- 请选择 --</option></select>
+        </div>
+        <div class="form-group">
+            <label>附件分类</label>
+            <select class="form-control" id="mcAssocPlatformId"><option value="">-- 先选择应用 --</option></select>
+        </div>
+        <div class="form-group">
+            <label>版本号</label>
+            <input type="text" class="form-control" id="mcAssocVersion" value="1.0" placeholder="如: 1.0">
         </div>
         <input type="hidden" id="mcAssocMcId">
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('mcAssociateModal')">取消</button>
-            <button class="btn btn-primary" onclick="doMcAssociate()">保存</button>
+            <button class="btn btn-primary" onclick="doMcAssociate()">关联</button>
         </div>
     </div>
 </div>
@@ -567,10 +568,6 @@ admin_header('生成应用', 'generate');
             <div class="form-group">
                 <label>全屏模式</label>
                 <select class="form-control" id="mcEditFullscreen"><option value="1">是</option><option value="0">否</option></select>
-            </div>
-            <div class="form-group">
-                <label>安装页模板</label>
-                <select class="form-control" id="mcEditTemplate"><option value="modern">现代风格</option><option value="classic">经典风格</option></select>
             </div>
         </div>
         <div class="form-group">
@@ -653,7 +650,8 @@ function switchPlatform(plat) {
     document.getElementById('platBtn_ios').style.background = plat === 'ios' ? 'var(--primary)' : 'transparent';
     document.getElementById('platBtn_ios').style.color = plat === 'ios' ? '#fff' : 'var(--primary)';
     currentPlatform = plat;
-    if (plat === 'ios') { loadMcList(); loadMcCertSelect(); }
+    if (plat === 'android') { switchTab('apks'); }
+    if (plat === 'ios') { switchIosSubTab('ipa'); }
 }
 
 // ===== iOS子Tab切换 =====
@@ -1026,17 +1024,35 @@ async function showMcAssociate(mcId) {
     document.getElementById('mcAssocMcId').value = mcId;
     if (!allApps.length) await loadApps();
     const sel = document.getElementById('mcAssocAppId');
-    sel.innerHTML = '<option value="">-- 不关联 --</option>';
+    sel.innerHTML = '<option value="">-- 请选择 --</option>';
     for (const a of allApps) sel.innerHTML += `<option value="${a.id}">${escapeHTML(a.name)}</option>`;
+    document.getElementById('mcAssocPlatformId').innerHTML = '<option value="">-- 先选择应用 --</option>';
+    document.getElementById('mcAssocVersion').value = '1.0';
     Modal.show('mcAssociateModal');
+}
+
+async function loadMcAssocPlatforms() {
+    const appId = document.getElementById('mcAssocAppId').value;
+    const sel = document.getElementById('mcAssocPlatformId');
+    if (!appId) { sel.innerHTML = '<option value="">-- 先选择应用 --</option>'; return; }
+    try {
+        const platforms = await API.get('/admin/api/attachments.php?app_id=' + appId);
+        sel.innerHTML = '<option value="">-- 请选择分类 --</option>';
+        for (const p of platforms) sel.innerHTML += `<option value="${p.id}">${escapeHTML(p.name)}</option>`;
+        if (!platforms.length) sel.innerHTML = '<option value="">该应用暂无附件分类</option>';
+    } catch(e) { sel.innerHTML = '<option value="">加载失败</option>'; }
 }
 
 async function doMcAssociate() {
     const mcId = parseInt(document.getElementById('mcAssocMcId').value);
     const appId = document.getElementById('mcAssocAppId').value;
+    const platformId = document.getElementById('mcAssocPlatformId').value;
+    const version = document.getElementById('mcAssocVersion').value.trim() || '1.0';
+    if (!appId) { Toast.error('请选择应用'); return; }
+    if (!platformId) { Toast.error('请选择附件分类'); return; }
     try {
-        await API.put('/admin/api/mobileconfig.php', { action: 'associate', mc_id: mcId, app_id: appId ? parseInt(appId) : null });
-        Toast.success('关联已更新'); Modal.hide('mcAssociateModal'); loadMcList();
+        await API.put('/admin/api/mobileconfig.php', { action: 'associate', mc_id: mcId, app_id: parseInt(appId), platform_id: parseInt(platformId), version: version });
+        Toast.success('已关联到附件库'); Modal.hide('mcAssociateModal'); loadMcList();
     } catch(e) {}
 }
 
@@ -1066,7 +1082,6 @@ function showMcEdit(id) {
     document.getElementById('mcEditBundleId').value = r.bundle_id || '';
     document.getElementById('mcEditVersion').value = r.version || '1';
     document.getElementById('mcEditFullscreen').value = r.fullscreen ? '1' : '0';
-    document.getElementById('mcEditTemplate').value = r.template || 'modern';
     document.getElementById('mcEditDesc').value = r.description || '';
     document.getElementById('mcEditPayloadOrg').value = r.payload_org || '';
     document.getElementById('mcEditIconData').value = r.icon_data || '';
@@ -1091,7 +1106,6 @@ async function updateMobileconfig() {
             bundle_id: document.getElementById('mcEditBundleId').value.trim(),
             version: document.getElementById('mcEditVersion').value.trim(),
             fullscreen: document.getElementById('mcEditFullscreen').value,
-            template: document.getElementById('mcEditTemplate').value,
             description: document.getElementById('mcEditDesc').value.trim(),
             icon_data: document.getElementById('mcEditIconData').value,
             cert_id: document.getElementById('mcEditCertId').value || null,
@@ -1118,7 +1132,6 @@ async function generateMobileconfig() {
             bundle_id: document.getElementById('mcBuildBundleId').value.trim(),
             version: document.getElementById('mcBuildVersion').value.trim() || '1',
             fullscreen: document.getElementById('mcBuildFullscreen').value,
-            template: document.getElementById('mcBuildTemplate').value,
             description: document.getElementById('mcBuildDesc').value.trim(),
             icon_data: document.getElementById('mcBuildIconData').value,
             cert_id: document.getElementById('mcBuildCertId').value || null,
@@ -1216,11 +1229,6 @@ async function setGlobalCert(id) {
 async function deleteCert(id) {
     if (!await confirmAction('确定要删除此证书？')) return;
     try { await API.del('/admin/api/mobileconfig.php', { action: 'delete_cert', id }); Toast.success('已删除'); loadMcCerts(); loadMcCertSelect(); } catch(e) {}
-}
-
-async function importGlobalCert() {
-    if (!await AlertModal.confirm('从旧设置导入全局证书？', '将从站点设置中读取之前配置的Mobileconfig签名证书，并创建为全局默认证书。')) return;
-    try { await API.post('/admin/api/mobileconfig.php', { action: 'import_global_cert' }); Toast.success('导入成功'); loadMcCerts(); loadMcCertSelect(); } catch(e) {}
 }
 
 function toggleCertMode() {

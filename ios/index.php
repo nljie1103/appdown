@@ -27,7 +27,7 @@ $stmt->execute([$slug]);
 $app = $stmt->fetch();
 
 if ($installType === 'mobileconfig') {
-    if (!$app || (empty($app['mc_url']) && empty($app['mc_file_id']))) {
+    if (!$app || (empty($app['mc_url']) && empty($app['mc_file_id']) && empty($app['mc_file_url']))) {
         http_response_code(404);
         echo '<!doctype html><html><body><h1>404 - 该应用暂无Mobileconfig版本</h1><p><a href="/">返回首页</a></p></body></html>';
         exit;
