@@ -78,6 +78,51 @@ const API = {
             throw err;
         }
     },
+
+    uploadWithProgress(url, formData, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable && onProgress) {
+                    onProgress(Math.round(e.loaded / e.total * 100));
+                }
+            };
+            xhr.onload = function() {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.error && !data.ok) {
+                        AlertModal.error('上传失败', explainUploadError(data.error));
+                        reject(new Error(data.error));
+                    } else {
+                        resolve(data);
+                    }
+                } catch(e) {
+                    AlertModal.error('上传失败', '服务器返回了无法解析的响应');
+                    reject(new Error('服务器返回了无法解析的响应'));
+                }
+            };
+            xhr.onerror = function() {
+                AlertModal.error('上传失败', '网络错误或服务器无响应');
+                reject(new Error('网络错误'));
+            };
+            xhr.open('POST', url);
+            xhr.setRequestHeader('X-CSRF-Token', CSRF_TOKEN);
+            xhr.send(formData);
+        });
+    },
+
+    async postRaw(url, body) {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': CSRF_TOKEN,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(body),
+        });
+        return resp;
+    },
 };
 
 // Toast通知
@@ -268,6 +313,136 @@ const Modal = {
 // 确认对话框（复用 AlertModal.confirm，返回 Promise<boolean>）
 async function confirmAction(message) {
     return AlertModal.confirm(message);
+}
+
+// 图标模式切换（FA图标 / 自定义图片，多页面复用）
+function toggleIconMode(faModeSel, imgModeSel, radioName) {
+    const mode = document.querySelector(`input[name="${radioName}"]:checked`).value;
+    document.getElementById(faModeSel).style.display = mode === 'fa' ? '' : 'none';
+    document.getElementById(imgModeSel).style.display = mode === 'image' ? '' : 'none';
+}
+
+// 图标文件上传（多页面复用）
+async function uploadIconFile(input, urlInputId, previewImgId, category) {
+    if (!input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('category', category || 'image');
+    const res = await API.upload('/admin/api/upload.php', fd);
+    if (res && res.url) {
+        document.getElementById(urlInputId).value = res.url;
+        const preview = document.getElementById(previewImgId);
+        preview.src = '/' + res.url;
+        preview.style.display = '';
+        Toast.success('图标已上传');
+    }
+}
+
+// 证书文件上传（settings / app-edit 复用）
+const CertUploader = {
+    _input: null,
+    _targetId: '',
+    upload(targetInputId) {
+        this._targetId = targetInputId;
+        if (!this._input) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.pem,.crt,.key,.p12';
+            input.style.display = 'none';
+            input.addEventListener('change', async () => {
+                if (!input.files.length || !CertUploader._targetId) return;
+                const fd = new FormData();
+                fd.append('file', input.files[0]);
+                fd.append('category', 'cert');
+                fd.append('_csrf', CSRF_TOKEN);
+                try {
+                    const res = await API.upload('/admin/api/upload.php', fd);
+                    document.getElementById(CertUploader._targetId).value = res.url;
+                    Toast.success('证书文件已上传');
+                } catch(e) { Toast.error('上传失败'); }
+                input.value = '';
+            });
+            document.body.appendChild(input);
+            this._input = input;
+        }
+        this._input.click();
+    }
+};
+
+// 复制链接到剪贴板（附件管理等复用）
+function copyLink(btn) {
+    const url = btn.dataset.url;
+    const full = location.origin + '/' + url;
+    const doCopy = (text) => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text);
+        }
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px;';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        return Promise.resolve();
+    };
+    doCopy(full).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+        btn.style.color = '#27ae60';
+        btn.style.borderColor = '#27ae60';
+        setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 1500);
+    });
+}
+
+// 图片灯箱预览
+function previewImg(src) {
+    let overlay = document.getElementById('imgLightbox');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'imgLightbox';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;cursor:zoom-out;opacity:0;transition:opacity .2s;';
+        overlay.innerHTML = '<img style="max-width:90%;max-height:90%;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);object-fit:contain;transition:transform .2s;" id="imgLightboxImg">';
+        overlay.addEventListener('click', () => {
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 200);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && overlay.style.display === 'flex') {
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.style.display = 'none', 200);
+            }
+        });
+        document.body.appendChild(overlay);
+    }
+    document.getElementById('imgLightboxImg').src = src;
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => overlay.style.opacity = '1');
+}
+
+// 拖拽上传区初始化
+function setupDropZone(zoneId, fileInputId, textId) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(fileInputId);
+    if (!zone || !input) return;
+    ['dragenter','dragover'].forEach(ev => {
+        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.add('drop-active'); });
+    });
+    ['dragleave','drop'].forEach(ev => {
+        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('drop-active'); });
+    });
+    zone.addEventListener('drop', e => {
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            input.files = files;
+            document.getElementById(textId).textContent = files[0].name;
+        }
+    });
+    input.addEventListener('change', function() {
+        if (this.files.length) {
+            document.getElementById(textId).textContent = this.files[0].name;
+        }
+    });
 }
 
 // 拖拽排序

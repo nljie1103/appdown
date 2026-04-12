@@ -166,11 +166,7 @@ async function doExport() {
     document.getElementById('exportStatus').textContent = '正在打包数据...';
 
     try {
-        const res = await fetch('/admin/api/backup.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
-            body: JSON.stringify({ action: 'export', password: pwd, tables, include_uploads: includeUploads })
-        });
+        const res = await API.postRaw('/admin/api/backup.php', { action: 'export', password: pwd, tables, include_uploads: includeUploads });
 
         document.getElementById('exportBar').style.width = '80%';
         document.getElementById('exportStatus').textContent = '正在下载...';
@@ -219,7 +215,7 @@ async function decryptPreview() {
     try {
         const res = await fetch('/admin/api/backup.php', {
             method: 'POST',
-            headers: { 'X-CSRF-Token': CSRF_TOKEN },
+            headers: { 'X-CSRF-Token': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' },
             body: fd
         });
         const data = await res.json();
@@ -295,7 +291,7 @@ async function doImport() {
     try {
         const res = await fetch('/admin/api/backup.php', {
             method: 'POST',
-            headers: { 'X-CSRF-Token': CSRF_TOKEN },
+            headers: { 'X-CSRF-Token': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' },
             body: fd
         });
         const data = await res.json();

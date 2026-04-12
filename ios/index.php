@@ -27,7 +27,7 @@ $stmt->execute([$slug]);
 $app = $stmt->fetch();
 
 if ($installType === 'mobileconfig') {
-    if (!$app || empty($app['mc_url'])) {
+    if (!$app || (empty($app['mc_url']) && empty($app['mc_file_id']))) {
         http_response_code(404);
         echo '<!doctype html><html><body><h1>404 - 该应用暂无Mobileconfig版本</h1><p><a href="/">返回首页</a></p></body></html>';
         exit;
@@ -66,6 +66,18 @@ if ($installType === 'mobileconfig') {
     $version = htmlspecialchars($app['mc_version']);
     $size = '';
     $template = $app['mc_template'] ?? 'modern';
+
+    // 如有预生成文件，从其记录加载详细信息
+    if (!empty($app['mc_file_id'])) {
+        $mcStmt = $pdo->prepare('SELECT * FROM generated_mobileconfigs WHERE id = ?');
+        $mcStmt->execute([$app['mc_file_id']]);
+        $mcFile = $mcStmt->fetch();
+        if ($mcFile) {
+            if (!empty($mcFile['description'])) $description = htmlspecialchars($mcFile['description']);
+            if (!empty($mcFile['version'])) $version = htmlspecialchars($mcFile['version']);
+            if (!empty($mcFile['template'])) $template = $mcFile['template'];
+        }
+    }
 } else {
     // IPA模式（保持原有逻辑）
     $plistUrl = htmlspecialchars($app['ios_plist_url']);

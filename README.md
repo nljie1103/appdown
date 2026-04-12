@@ -37,6 +37,15 @@
 - 后台构建 + 实时进度轮询
 - 生成结果管理（下载 / 关联到应用 / 删除）
 - 一键环境部署脚本
+- 自动检测非标准路径的 JDK / SDK
+
+**🍎 IPA 生成器（URL 转 IPA）**
+- 通过 Docker-OSX 在 Linux 上运行 macOS + Xcode
+- 输入网址自动封装为 iOS WKWebView 应用
+- 自定义应用名称、Bundle ID、版本号、图标
+- 无签名模式构建（CODE_SIGNING_ALLOWED=NO）
+- 三阶段环境部署：Docker 容器(自动) → Xcode 安装(终端交互) → 验证(自动)
+- 后台构建 + 实时进度轮询 + IPA 管理
 
 **📊 数据统计**
 - 页面访问量 / 下载次数
@@ -86,6 +95,7 @@
 | 管理面板 | 自定义 UI + Chart.js (CDN) |
 | 图标 | Font Awesome 7.1.0（本地） |
 | APK 构建 | OpenJDK 17 + Android SDK + Gradle 8.5 |
+| IPA 构建 | Docker-OSX (macOS Sonoma) + Xcode + KVM |
 
 ## 🚀 快速开始
 
@@ -100,6 +110,7 @@
 - Nginx 或 Apache
 - **无需** MySQL、Composer、Node.js
 - **APK 生成功能**（可选）需额外安装 JDK 17 + Android SDK，见下方说明
+- **IPA 生成功能**（可选）需 Linux 宿主机 + KVM 虚拟化 + Docker，见下方说明
 
 ### 一键部署
 
@@ -152,7 +163,44 @@ sudo /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
   "build-tools;34.0.0" "platforms;android-34"
 ```
 
-> ⚠️ 无需配置环境变量，构建脚本已内置默认路径（`/usr/lib/jvm/java-17-openjdk-amd64` 和 `/opt/android-sdk`）。如果安装在其他路径，可设置 `JAVA_HOME` 和 `ANDROID_HOME` 环境变量覆盖。
+> ⚠️ 构建脚本会自动检测系统已安装的 JDK 和 SDK（包括非标准路径），也可通过 `JAVA_HOME` 和 `ANDROID_HOME` 环境变量手动指定。
+
+### IPA 生成环境部署（可选）
+
+如需使用「生成应用」的 IPA 功能（URL 转 IPA），需要 Docker-OSX（在 Linux 上通过 Docker 运行 macOS）。
+
+**前提条件：**
+- Linux 宿主机（不支持 Windows / macOS Docker Desktop）
+- CPU 支持硬件虚拟化（VT-x / AMD-V），BIOS 已开启
+- KVM 已安装并可用（`ls /dev/kvm`）
+- 磁盘空间 ≥ 50GB（macOS 镜像约 20GB + Xcode 约 12GB）
+- 内存 ≥ 8GB
+
+**三阶段部署：**
+
+```bash
+# Phase 1: 安装 Docker + 拉取 macOS 镜像 + 创建容器（约 30 分钟）
+# 也可以在后台「系统信息」页面一键触发
+sudo bash tools/setup-ios-env.sh
+
+# Phase 2: SSH 进入容器安装 Xcode（需要 Apple ID + 2FA 交互）
+sudo bash tools/setup-ios-xcode.sh
+
+# Phase 3: 在后台「系统信息」页面点击「验证 Xcode」按钮确认
+```
+
+> 💡 Phase 1 和 Phase 3 可以通过后台 Web 界面操作，Phase 2 必须在终端中交互完成（需要输入 Apple ID 和两步验证码）。
+
+**权限配置（如需通过 Web 后台触发安装/卸载）：**
+
+```bash
+# 给 PHP 用户 sudo 免密权限
+echo 'www-data ALL=(ALL) NOPASSWD: /path/to/tools/setup-ios-env.sh' | sudo tee /etc/sudoers.d/appdown-ios
+echo 'www-data ALL=(ALL) NOPASSWD: /path/to/tools/uninstall-ios-env.sh' | sudo tee -a /etc/sudoers.d/appdown-ios
+
+# 给脚本执行权限
+chmod +x tools/setup-ios-env.sh tools/setup-ios-xcode.sh tools/uninstall-ios-env.sh
+```
 
 ## 📂 项目结构
 
@@ -187,9 +235,15 @@ appdown/
 │   ├── system.php          #   系统信息
 │   └── api/                #   后台AJAX接口
 ├── android-template/       # Android WebView 模板项目（Gradle）
+├── ios-template/           # iOS WKWebView 模板项目（Xcode/SwiftUI）
 ├── tools/                  # 命令行工具
 │   ├── build-worker.php    #   APK后台构建脚本（CLI）
-│   └── setup-android-env.sh#   一键环境部署脚本
+│   ├── ios-build-worker.php#   IPA后台构建脚本（CLI）
+│   ├── setup-android-env.sh#   Android一键环境部署脚本
+│   ├── setup-ios-env.sh    #   iOS环境Phase 1：Docker+容器
+│   ├── setup-ios-xcode.sh  #   iOS环境Phase 2：Xcode安装（交互式）
+│   ├── uninstall-android-env.sh # Android环境卸载
+│   └── uninstall-ios-env.sh#   iOS环境卸载
 ├── static/                 # 静态资源（FontAwesome）
 ├── data/                   # SQLite数据库（自动创建）
 └── uploads/                # 用户上传文件
@@ -202,7 +256,7 @@ appdown/
 | 📊 仪表盘 | 今日访问/下载量、7天趋势图、来源 TOP10（智能识别）、下载明细 |
 | 📱 应用管理 | 添加/编辑/排序应用，支持自定义图标（FA图标或上传图片） |
 | ✏️ 应用编辑 | 下载按钮（图标可自定义）、轮播截图、iOS安装页配置、MC签名证书 |
-| 🔨 生成应用 | URL转APK（构建/进度/下载）、APK管理、签名密钥管理（生成/导入） |
+| 🔨 生成应用 | URL转APK/IPA（构建/进度/下载）、APK/IPA管理、签名密钥管理 |
 | 📎 附件管理 | 按平台分类管理安装包，拖拽上传带进度条，上传后可编辑，安装包信息解析，公共图片库（格式转换压缩、真实重命名） |
 | ⭐ 特色卡片 | 首页亮点卡片，分类管理，FA图标/自定义图片图标 |
 | 🔗 友情链接 | 页脚链接管理，支持图标（FA/自定义图片），按链接开关图标显示 |
@@ -211,7 +265,7 @@ appdown/
 | 🎭 特效配置 | 11种内置特效（参数可调）、节日欢迎弹窗、背景音乐 |
 | 💻 自定义代码 | head/footer 注入 CSS/JS |
 | 💾 导入导出 | 按数据类别选择性备份，支持 AES-256-GCM 加密，含上传文件 |
-| 🖧 系统信息 | 运行环境检测、数据库状态、PHP扩展一览 |
+| 🖧 系统信息 | 运行环境检测、Android/iOS构建环境管理、一键安装/卸载 |
 
 ## 🔧 Nginx 安全规则
 
@@ -248,7 +302,7 @@ location ~* ^/uploads/(keystores|certs)/ {
 }
 
 # 禁止访问构建工具目录
-location ~* ^/(tools|android-template)/ {
+location ~* ^/(tools|android-template|ios-template)/ {
     deny all;
     return 404;
 }
@@ -284,7 +338,7 @@ location ~* ^/(tools|android-template)/ {
 | `/admin/api/backup.php` | POST | 数据导入导出 |
 | `/admin/api/upload.php` | POST | 文件上传 |
 | `/admin/api/reorder.php` | POST | 拖拽排序 |
-| `/admin/api/generate.php` | CRUD | APK 构建任务 / 生成结果管理 |
+| `/admin/api/generate.php` | CRUD | APK/IPA 构建任务 / 生成结果管理 |
 | `/admin/api/keystores.php` | CRUD | 签名密钥管理（生成 / 导入） |
 
 ## 💡 常见操作

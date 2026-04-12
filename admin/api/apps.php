@@ -71,7 +71,7 @@ if ($method === 'PUT') {
 
     $fields = [];
     $params = [];
-    foreach (['name', 'icon', 'icon_url', 'theme_color', 'ios_plist_url', 'ios_ipa_url', 'ios_bundle_id', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size', 'ios_template', 'mc_url', 'mc_icon_data', 'mc_bundle_id', 'mc_version', 'mc_description', 'mc_template', 'mc_sign_cert', 'mc_sign_key', 'mc_sign_chain', 'mc_sign_mode', 'mc_payload_org', 'android_template'] as $f) {
+    foreach (['name', 'icon', 'icon_url', 'theme_color', 'ios_plist_url', 'ios_ipa_url', 'ios_bundle_id', 'ios_cert_name', 'ios_description', 'ios_version', 'ios_size', 'ios_template', 'mc_url', 'mc_icon_data', 'mc_bundle_id', 'mc_version', 'mc_description', 'mc_template', 'mc_sign_cert', 'mc_sign_key', 'mc_sign_chain', 'mc_sign_mode', 'mc_payload_org', 'android_template', 'mc_file_id'] as $f) {
         if (isset($data[$f])) {
             $fields[] = "$f = ?";
             $params[] = trim($data[$f]);

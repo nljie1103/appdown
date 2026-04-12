@@ -359,25 +359,14 @@ async function doUpload() {
     document.getElementById('uploadSubmit').disabled = true;
 
     try {
-        // 使用 XMLHttpRequest 显示进度
-        const res = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.upload.onprogress = function(e) {
-                if (e.lengthComputable) {
-                    const pct = Math.round(e.loaded / e.total * 100);
-                    document.getElementById('uploadBar').style.width = pct + '%';
-                    document.getElementById('uploadStatus').textContent = `上传中... ${pct}%`;
-                }
-            };
-            xhr.onload = function() {
-                try { resolve(JSON.parse(xhr.responseText)); }
-                catch(e) { reject(new Error('解析失败')); }
-            };
-            xhr.onerror = function() { reject(new Error('网络错误')); };
-            xhr.open('POST', '/admin/api/attachment-files.php');
-            xhr.setRequestHeader('X-CSRF-Token', CSRF_TOKEN);
-            xhr.send(fd);
-        });
+        const res = await API.uploadWithProgress(
+            '/admin/api/attachment-files.php',
+            fd,
+            pct => {
+                document.getElementById('uploadBar').style.width = pct + '%';
+                document.getElementById('uploadStatus').textContent = `上传中... ${pct}%`;
+            }
+        );
 
         if (res.ok) {
             AlertModal.success('上传成功', `版本 <b>${escapeHTML(version)}</b> 已成功上传`);
@@ -413,48 +402,6 @@ async function deleteFile(id) {
     await loadPlatforms();
     selectPlatform(currentPlatId);
     Toast.success('已删除');
-}
-
-function copyLink(btn) {
-    const url = btn.dataset.url;
-    const full = location.origin + '/' + url;
-    const ta = document.createElement('textarea');
-    ta.value = full;
-    ta.style.cssText = 'position:fixed;left:-9999px;';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    const orig = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
-    btn.style.color = '#27ae60';
-    btn.style.borderColor = '#27ae60';
-    setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 1500);
-}
-
-// ===== 图片预览灯箱 =====
-function previewImg(src) {
-    let overlay = document.getElementById('imgLightbox');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'imgLightbox';
-        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;cursor:zoom-out;opacity:0;transition:opacity .2s;';
-        overlay.innerHTML = '<img style="max-width:90%;max-height:90%;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);object-fit:contain;transition:transform .2s;" id="imgLightboxImg">';
-        overlay.addEventListener('click', () => {
-            overlay.style.opacity = '0';
-            setTimeout(() => overlay.style.display = 'none', 200);
-        });
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape' && overlay.style.display === 'flex') {
-                overlay.style.opacity = '0';
-                setTimeout(() => overlay.style.display = 'none', 200);
-            }
-        });
-        document.body.appendChild(overlay);
-    }
-    document.getElementById('imgLightboxImg').src = src;
-    overlay.style.display = 'flex';
-    requestAnimationFrame(() => overlay.style.opacity = '1');
 }
 
 // ===== 公共图片库 =====
@@ -593,24 +540,14 @@ async function doImgUpload() {
     document.getElementById('imgUploadSubmit').disabled = true;
 
     try {
-        const res = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.upload.onprogress = function(e) {
-                if (e.lengthComputable) {
-                    const pct = Math.round(e.loaded / e.total * 100);
-                    document.getElementById('imgUploadBar').style.width = pct + '%';
-                    document.getElementById('imgUploadStatus').textContent = `上传中... ${pct}%`;
-                }
-            };
-            xhr.onload = function() {
-                try { resolve(JSON.parse(xhr.responseText)); }
-                catch(e) { reject(new Error('服务器返回了无法解析的响应')); }
-            };
-            xhr.onerror = function() { reject(new Error('网络错误')); };
-            xhr.open('POST', '/admin/api/image-library.php?action=images');
-            xhr.setRequestHeader('X-CSRF-Token', CSRF_TOKEN);
-            xhr.send(fd);
-        });
+        const res = await API.uploadWithProgress(
+            '/admin/api/image-library.php?action=images',
+            fd,
+            pct => {
+                document.getElementById('imgUploadBar').style.width = pct + '%';
+                document.getElementById('imgUploadStatus').textContent = `上传中... ${pct}%`;
+            }
+        );
 
         if (res.ok) {
             AlertModal.success('上传成功', '图片已上传到图片库');
@@ -646,31 +583,6 @@ async function deleteImgFile(id) {
 }
 
 // ===== 拖拽上传初始化 =====
-function setupDropZone(zoneId, fileInputId, textId) {
-    const zone = document.getElementById(zoneId);
-    const input = document.getElementById(fileInputId);
-    if (!zone || !input) return;
-
-    ['dragenter','dragover'].forEach(ev => {
-        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.add('drop-active'); });
-    });
-    ['dragleave','drop'].forEach(ev => {
-        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('drop-active'); });
-    });
-    zone.addEventListener('drop', e => {
-        const files = e.dataTransfer.files;
-        if (files.length) {
-            input.files = files;
-            document.getElementById(textId).textContent = files[0].name;
-        }
-    });
-    input.addEventListener('change', function() {
-        if (this.files.length) {
-            document.getElementById(textId).textContent = this.files[0].name;
-        }
-    });
-}
-
 // 版本号输入框恢复边框色
 document.getElementById('uploadVersion')?.addEventListener('input', function() {
     this.style.borderColor = '';

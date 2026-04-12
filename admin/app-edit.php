@@ -33,8 +33,8 @@ admin_header('编辑应用', 'apps');
         <div class="form-group">
             <label>图标</label>
             <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
-                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="iconType" value="fa" checked onchange="toggleIconMode()"> FA图标</label>
-                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="iconType" value="image" onchange="toggleIconMode()"> 自定义图片</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="iconType" value="fa" checked onchange="toggleIconMode('iconFaMode', 'iconImgMode', 'iconType')"> FA图标</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="iconType" value="image" onchange="toggleIconMode('iconFaMode', 'iconImgMode', 'iconType')"> 自定义图片</label>
             </div>
             <div id="iconFaMode">
                 <div style="display:flex;gap:8px;align-items:center;">
@@ -48,7 +48,7 @@ admin_header('编辑应用', 'apps');
                     <img id="iconPreview" src="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid #ddd;display:none;">
                     <button class="btn btn-outline" onclick="document.getElementById('iconUpload').click()"><i class="fas fa-upload"></i> 上传图标</button>
                     <button class="btn btn-outline" onclick="ImagePicker.open(url => { document.getElementById('appIconUrl').value = url; document.getElementById('iconPreview').src = '/' + url; document.getElementById('iconPreview').style.display = ''; })"><i class="fas fa-images"></i> 图片库</button>
-                    <input type="file" id="iconUpload" accept="image/*" style="display:none;" onchange="uploadIcon(this)">
+                    <input type="file" id="iconUpload" accept="image/*" style="display:none;" onchange="uploadIconFile(this, 'appIconUrl', 'iconPreview', 'image')">
                     <input type="hidden" id="appIconUrl">
                 </div>
             </div>
@@ -115,36 +115,21 @@ admin_header('编辑应用', 'apps');
 
     <!-- Mobileconfig配置面板 -->
     <div id="panelMc" style="display:none;">
-        <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后系统自动生成描述文件，用户可通过 <code style="color:#e53e3e;font-weight:700;">/api/mobileconfig.php?app=应用标识</code> 下载，或通过 <code style="color:#e53e3e;font-weight:700;">/ios/?app=应用标识&amp;type=mobileconfig</code> 访问安装引导页</p>
-        <div class="form-row">
-            <div class="form-group">
-                <label>目标URL <small style="color:var(--text-secondary);">WebClip打开的网址</small></label>
-                <input type="text" class="form-control" id="mcUrl" placeholder="如: https://example.com/webapp">
-            </div>
-            <div class="form-group"><label>Bundle ID</label><input type="text" class="form-control" id="mcBundleId" placeholder="如: com.webclip.appname"></div>
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+            <i class="fas fa-info-circle" style="color:#0284c7;font-size:1.1em;"></i>
+            <span style="font-size:0.9em;color:#0c4a6e;">Mobileconfig 文件现在在 <a href="/admin/generate.php" style="color:#0284c7;font-weight:600;">生成应用</a> 页面独立管理。在此处可关联已生成的文件到本应用。</span>
         </div>
-        <div class="form-row">
-            <div class="form-group"><label>版本</label><input type="text" class="form-control" id="mcVersion" placeholder="1" value="1"></div>
-            <div class="form-group">
-                <label>全屏模式</label>
-                <select class="form-control" id="mcFullscreen">
-                    <option value="1">是（全屏显示，隐藏地址栏）</option>
-                    <option value="0">否（保留地址栏）</option>
-                </select>
+
+        <div class="form-group">
+            <label>关联的 Mobileconfig 文件</label>
+            <input type="hidden" id="mcFileId" value="">
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" class="form-control" id="mcFileUrl" readonly style="flex:1;background:#f5f5f5;" placeholder="未关联，点击右侧按钮选择">
+                <button class="btn btn-outline" type="button" onclick="showMcFilePicker()"><i class="fas fa-file-alt"></i> 选择</button>
+                <button class="btn btn-outline" type="button" onclick="clearMcFile()"><i class="fas fa-times"></i> 清除</button>
             </div>
         </div>
         <div class="form-row">
-            <div class="form-group">
-                <label>WebClip图标 <small style="color:var(--text-secondary);">会嵌入到描述文件中</small></label>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <img id="mcIconPreview" src="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid #ddd;display:none;">
-                    <button class="btn btn-outline" type="button" onclick="document.getElementById('mcIconUpload').click()"><i class="fas fa-upload"></i> 上传图标</button>
-                    <button class="btn btn-outline" type="button" onclick="ImagePicker.open(url => pickMcIconFromLibrary(url))"><i class="fas fa-images"></i> 图片库</button>
-                    <input type="file" id="mcIconUpload" accept="image/png,image/jpeg" style="display:none;" onchange="uploadMcIcon(this)">
-                    <input type="hidden" id="mcIconData">
-                    <span id="mcIconStatus" style="font-size:0.85em;color:var(--text-secondary);"></span>
-                </div>
-            </div>
             <div class="form-group">
                 <label>安装页模板</label>
                 <select class="form-control" id="mcTemplate">
@@ -155,52 +140,8 @@ admin_header('编辑应用', 'apps');
         </div>
         <div class="form-group"><label>应用简介</label><textarea class="form-control" id="mcDesc" rows="3" placeholder="描述文件的应用描述"></textarea></div>
 
-        <!-- 签名设置折叠区 -->
-        <div style="margin:16px 0;">
-            <div style="cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:0.9em;" onclick="toggleMcSign()">
-                <i class="fas fa-chevron-right" id="mcSignArrow" style="transition:transform 0.2s;font-size:0.8em;"></i>
-                <i class="fas fa-certificate" style="color:#e53e3e;"></i>
-                <span>签名设置（可选，不填则使用全局证书）</span>
-            </div>
-            <div id="mcSignPanel" style="display:none;margin-top:12px;padding:16px;background:#f9f9f9;border-radius:8px;">
-                <div class="form-group">
-                    <label>签名来源</label>
-                    <select class="form-control" id="appMcSignMode" onchange="toggleAppMcSign()">
-                        <option value="">使用全局证书</option>
-                        <option value="text">独立证书 — 文本粘贴</option>
-                        <option value="path">独立证书 — 服务器路径</option>
-                        <option value="upload">独立证书 — 文件上传</option>
-                    </select>
-                </div>
-                <div id="appMcSignFields" style="display:none;">
-                    <div class="form-group">
-                        <label>组织名称 <small style="color:var(--text-secondary);">覆盖全局组织名</small></label>
-                        <input type="text" class="form-control" id="appMcPayloadOrg" placeholder="留空则使用全局设置">
-                    </div>
-                    <!-- 文本粘贴 -->
-                    <div id="appMcSignText">
-                        <div class="form-group"><label>签名证书 (PEM)</label><textarea class="form-control" id="appMcCertText" rows="3" style="font-family:monospace;font-size:0.85em;" placeholder="-----BEGIN CERTIFICATE-----"></textarea></div>
-                        <div class="form-group"><label>私钥 (PEM)</label><textarea class="form-control" id="appMcKeyText" rows="3" style="font-family:monospace;font-size:0.85em;" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></div>
-                        <div class="form-group"><label>证书链 (PEM，可选)</label><textarea class="form-control" id="appMcChainText" rows="2" style="font-family:monospace;font-size:0.85em;" placeholder="中间证书"></textarea></div>
-                    </div>
-                    <!-- 服务器路径 -->
-                    <div id="appMcSignPath" style="display:none;">
-                        <div class="form-group"><label>证书文件路径</label><input type="text" class="form-control" id="appMcCertPath" placeholder="/etc/ssl/certs/cert.pem"></div>
-                        <div class="form-group"><label>私钥文件路径</label><input type="text" class="form-control" id="appMcKeyPath" placeholder="/etc/ssl/private/key.pem"></div>
-                        <div class="form-group"><label>证书链路径 (可选)</label><input type="text" class="form-control" id="appMcChainPath" placeholder="/etc/ssl/certs/chain.pem"></div>
-                    </div>
-                    <!-- 文件上传 -->
-                    <div id="appMcSignUpload" style="display:none;">
-                        <div class="form-group"><label>签名证书</label><div style="display:flex;gap:8px;"><input type="text" class="form-control" id="appMcCertUpload" style="flex:1;" readonly placeholder="点击上传"><button class="btn btn-outline" onclick="uploadAppCert('appMcCertUpload')"><i class="fas fa-upload"></i></button></div></div>
-                        <div class="form-group"><label>私钥</label><div style="display:flex;gap:8px;"><input type="text" class="form-control" id="appMcKeyUpload" style="flex:1;" readonly placeholder="点击上传"><button class="btn btn-outline" onclick="uploadAppCert('appMcKeyUpload')"><i class="fas fa-upload"></i></button></div></div>
-                        <div class="form-group"><label>证书链 (可选)</label><div style="display:flex;gap:8px;"><input type="text" class="form-control" id="appMcChainUpload" style="flex:1;" readonly placeholder="点击上传"><button class="btn btn-outline" onclick="uploadAppCert('appMcChainUpload')"><i class="fas fa-upload"></i></button></div></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div id="mcPreview" style="display:none;margin-bottom:12px;">
-            <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的下载链接：</label>
+            <label style="font-size:0.85em;color:var(--text-secondary);">Mobileconfig 下载链接：</label>
             <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="mcUrlDisplay"></div>
         </div>
         <button class="btn btn-primary" onclick="saveMcConfig()"><i class="fas fa-save"></i> 保存Mobileconfig配置</button>
@@ -353,6 +294,23 @@ admin_header('编辑应用', 'apps');
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('addImgUrlModal')">取消</button>
             <button class="btn btn-primary" onclick="addImageUrl()">添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- Mobileconfig 文件选择器 -->
+<div class="modal-overlay" id="mcFilePickerModal">
+    <div class="modal" style="max-width:640px;">
+        <h3>选择 Mobileconfig 文件</h3>
+        <p style="color:var(--text-secondary);font-size:0.9em;margin-bottom:12px;">从已生成的 Mobileconfig 文件中选择一个关联到本应用</p>
+        <div class="table-wrapper" style="max-height:400px;overflow-y:auto;">
+            <table>
+                <thead><tr><th>名称</th><th>目标URL</th><th>签名</th><th>大小</th><th>操作</th></tr></thead>
+                <tbody id="mcFilePickerList"></tbody>
+            </table>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="Modal.hide('mcFilePickerModal')">取消</button>
         </div>
     </div>
 </div>
@@ -521,7 +479,7 @@ async function loadApp() {
     document.getElementById('appIconUrl').value = iconUrl;
     if (iconUrl) {
         document.querySelector('input[name="iconType"][value="image"]').checked = true;
-        toggleIconMode();
+        toggleIconMode('iconFaMode', 'iconImgMode', 'iconType');
         document.getElementById('iconPreview').src = '/' + iconUrl;
         document.getElementById('iconPreview').style.display = '';
     }
@@ -538,34 +496,25 @@ async function loadApp() {
     updatePlistPreview();
 
     // Mobileconfig配置
-    document.getElementById('mcUrl').value = app.mc_url || '';
-    document.getElementById('mcBundleId').value = app.mc_bundle_id || '';
-    document.getElementById('mcVersion').value = app.mc_version || '1';
-    document.getElementById('mcFullscreen').value = app.mc_fullscreen ? '1' : '0';
+    document.getElementById('mcFileId').value = app.mc_file_id || '';
     document.getElementById('mcDesc').value = app.mc_description || '';
     document.getElementById('mcTemplate').value = app.mc_template || 'modern';
-    if (app.mc_icon_data) {
-        document.getElementById('mcIconData').value = app.mc_icon_data;
-        document.getElementById('mcIconPreview').src = 'data:image/png;base64,' + app.mc_icon_data;
-        document.getElementById('mcIconPreview').style.display = '';
-        document.getElementById('mcIconStatus').textContent = '已配置图标';
+    if (app.mc_file_id) {
+        // 加载关联的文件信息
+        try {
+            const mcList = await API.get('/admin/api/mobileconfig.php?action=list');
+            const mc = mcList.find(m => m.id == app.mc_file_id);
+            if (mc) {
+                document.getElementById('mcFileUrl').value = mc.file_path || '(文件已关联)';
+            } else {
+                document.getElementById('mcFileUrl').value = '(关联的文件已被删除)';
+            }
+        } catch(e) {
+            document.getElementById('mcFileUrl').value = '(已关联 #' + app.mc_file_id + ')';
+        }
     }
     updateMcPreview();
 
-    // Mobileconfig签名配置
-    const signMode = app.mc_sign_mode || '';
-    document.getElementById('appMcSignMode').value = signMode;
-    document.getElementById('appMcPayloadOrg').value = app.mc_payload_org || '';
-    toggleAppMcSign();
-    if (signMode) {
-        const suffix = signMode === 'text' ? 'Text' : signMode === 'path' ? 'Path' : 'Upload';
-        const certEl = document.getElementById('appMcCert' + suffix);
-        const keyEl = document.getElementById('appMcKey' + suffix);
-        const chainEl = document.getElementById('appMcChain' + suffix);
-        if (certEl) certEl.value = app.mc_sign_cert || '';
-        if (keyEl) keyEl.value = app.mc_sign_key || '';
-        if (chainEl) chainEl.value = app.mc_sign_chain || '';
-    }
     // Android配置
     document.getElementById('androidTemplate').value = app.android_template || 'modern';
 
@@ -588,10 +537,10 @@ function updatePlistPreview() {
 }
 
 function updateMcPreview() {
-    const mcUrl = document.getElementById('mcUrl').value.trim();
+    const fileId = document.getElementById('mcFileId').value;
     const previewDiv = document.getElementById('mcPreview');
     const urlDisplay = document.getElementById('mcUrlDisplay');
-    if (mcUrl && appSlug) {
+    if ((fileId || document.getElementById('mcFileUrl').value) && appSlug) {
         urlDisplay.textContent = location.origin + '/api/mobileconfig.php?app=' + appSlug;
         previewDiv.style.display = '';
     } else {
@@ -612,112 +561,45 @@ function switchIosTab(tab) {
 // 初始化选项卡样式
 switchIosTab('ipa');
 
-function uploadMcIcon(input) {
-    if (!input.files[0]) return;
-    const file = input.files[0];
-    if (file.size > 2 * 1024 * 1024) { Toast.error('图标文件不能超过2MB'); return; }
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const base64 = e.target.result.split(',')[1]; // 去掉 data:image/...;base64, 前缀
-        document.getElementById('mcIconData').value = base64;
-        document.getElementById('mcIconPreview').src = e.target.result;
-        document.getElementById('mcIconPreview').style.display = '';
-        document.getElementById('mcIconStatus').textContent = '已选择图标';
-    };
-    reader.readAsDataURL(file);
-}
-
-function pickMcIconFromLibrary(url) {
-    // 从图片库选择后，需要fetch图片并转base64
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function() {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        const dataUrl = canvas.toDataURL('image/png');
-        const base64 = dataUrl.split(',')[1];
-        document.getElementById('mcIconData').value = base64;
-        document.getElementById('mcIconPreview').src = dataUrl;
-        document.getElementById('mcIconPreview').style.display = '';
-        document.getElementById('mcIconStatus').textContent = '已选择图标';
-    };
-    img.onerror = function() {
-        Toast.error('加载图片失败');
-    };
-    img.src = '/' + url;
-}
-
-function toggleMcSign() {
-    const panel = document.getElementById('mcSignPanel');
-    const arrow = document.getElementById('mcSignArrow');
-    const show = panel.style.display === 'none';
-    panel.style.display = show ? '' : 'none';
-    arrow.style.transform = show ? 'rotate(90deg)' : '';
-}
-
-function toggleAppMcSign() {
-    const mode = document.getElementById('appMcSignMode').value;
-    const fields = document.getElementById('appMcSignFields');
-    fields.style.display = mode ? '' : 'none';
-    document.getElementById('appMcSignText').style.display = mode === 'text' ? '' : 'none';
-    document.getElementById('appMcSignPath').style.display = mode === 'path' ? '' : 'none';
-    document.getElementById('appMcSignUpload').style.display = mode === 'upload' ? '' : 'none';
-}
-
-let appCertTarget = '';
-function uploadAppCert(targetId) {
-    appCertTarget = targetId;
-    let input = document.getElementById('appCertFileInput');
-    if (!input) {
-        input = document.createElement('input');
-        input.type = 'file'; input.id = 'appCertFileInput';
-        input.accept = '.pem,.crt,.key,.p12'; input.style.display = 'none';
-        input.addEventListener('change', async function() {
-            if (!this.files.length || !appCertTarget) return;
-            const fd = new FormData();
-            fd.append('file', this.files[0]);
-            fd.append('category', 'cert');
-            fd.append('_csrf', CSRF_TOKEN);
-            try {
-                const res = await API.upload('/admin/api/upload.php', fd);
-                document.getElementById(appCertTarget).value = res.url;
-                Toast.success('证书文件已上传');
-            } catch(e) { Toast.error('上传失败'); }
-            this.value = '';
-        });
-        document.body.appendChild(input);
+async function showMcFilePicker() {
+    const list = await API.get('/admin/api/mobileconfig.php?action=list');
+    const tbody = document.getElementById('mcFilePickerList');
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">暂无已生成的文件，请先在 <a href="/admin/generate.php">生成应用</a> 页面生成</td></tr>';
+    } else {
+        tbody.innerHTML = list.map(m => `
+            <tr>
+                <td>${escapeHTML(m.display_name)}</td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHTML(m.target_url)}">${escapeHTML(m.target_url)}</td>
+                <td>${m.cert_name ? '<i class="fas fa-lock" style="color:#38a169;" title="已签名"></i>' : '<i class="fas fa-lock-open" style="color:#a0aec0;" title="未签名"></i>'}</td>
+                <td>${escapeHTML(m.file_size || '-')}</td>
+                <td><button class="btn btn-primary btn-sm" onclick="pickMcFile(${m.id}, '${escapeHTML(m.file_path)}')">选择</button></td>
+            </tr>
+        `).join('');
     }
-    input.click();
+    Modal.show('mcFilePickerModal');
 }
 
-function getAppSignData() {
-    const mode = document.getElementById('appMcSignMode').value;
-    if (!mode) return { mc_sign_mode: '', mc_sign_cert: '', mc_sign_key: '', mc_sign_chain: '', mc_payload_org: '' };
-    const suffix = mode === 'text' ? 'Text' : mode === 'path' ? 'Path' : 'Upload';
-    return {
-        mc_sign_mode: mode,
-        mc_sign_cert: (document.getElementById('appMcCert' + suffix)?.value || '').trim(),
-        mc_sign_key: (document.getElementById('appMcKey' + suffix)?.value || '').trim(),
-        mc_sign_chain: (document.getElementById('appMcChain' + suffix)?.value || '').trim(),
-        mc_payload_org: document.getElementById('appMcPayloadOrg').value.trim(),
-    };
+function pickMcFile(id, path) {
+    document.getElementById('mcFileId').value = id;
+    document.getElementById('mcFileUrl').value = path;
+    Modal.hide('mcFilePickerModal');
+    updateMcPreview();
+}
+
+function clearMcFile() {
+    document.getElementById('mcFileId').value = '';
+    document.getElementById('mcFileUrl').value = '';
+    updateMcPreview();
 }
 
 async function saveMcConfig() {
-    const signData = getAppSignData();
+    const fileId = document.getElementById('mcFileId').value;
     await API.put('/admin/api/apps.php', {
         id: APP_ID,
-        mc_url: document.getElementById('mcUrl').value.trim(),
-        mc_icon_data: document.getElementById('mcIconData').value,
-        mc_bundle_id: document.getElementById('mcBundleId').value.trim(),
-        mc_version: document.getElementById('mcVersion').value.trim() || '1',
-        mc_fullscreen: parseInt(document.getElementById('mcFullscreen').value),
+        mc_file_id: fileId ? parseInt(fileId) : '',
         mc_description: document.getElementById('mcDesc').value.trim(),
         mc_template: document.getElementById('mcTemplate').value,
-        ...signData,
     });
     AlertModal.success('保存成功', 'Mobileconfig配置已保存');
     updateMcPreview();
@@ -764,26 +646,6 @@ async function saveIosConfig() {
     });
     AlertModal.success('保存成功', 'iOS配置已保存');
     updatePlistPreview();
-}
-
-function toggleIconMode() {
-    const mode = document.querySelector('input[name="iconType"]:checked').value;
-    document.getElementById('iconFaMode').style.display = mode === 'fa' ? '' : 'none';
-    document.getElementById('iconImgMode').style.display = mode === 'image' ? '' : 'none';
-}
-
-async function uploadIcon(input) {
-    if (!input.files[0]) return;
-    const fd = new FormData();
-    fd.append('file', input.files[0]);
-    fd.append('category', 'image');
-    const res = await API.upload('/admin/api/upload.php', fd);
-    if (res && res.url) {
-        document.getElementById('appIconUrl').value = res.url;
-        document.getElementById('iconPreview').src = '/' + res.url;
-        document.getElementById('iconPreview').style.display = '';
-        Toast.success('图标已上传');
-    }
 }
 
 // === 下载按钮 ===

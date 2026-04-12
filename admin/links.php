@@ -33,9 +33,9 @@ admin_header('友情链接', 'links');
         <div class="form-group">
             <label>图标</label>
             <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
-                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="lIconType" value="fa" checked onchange="toggleIconMode()"> FA图标</label>
-                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="lIconType" value="image" onchange="toggleIconMode()"> 自定义图片</label>
-                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="lIconType" value="none" onchange="toggleIconMode()"> 无图标</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="lIconType" value="fa" checked onchange="toggleIconMode('lIconFaMode', 'lIconImgMode', 'lIconType')"> FA图标</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="lIconType" value="image" onchange="toggleIconMode('lIconFaMode', 'lIconImgMode', 'lIconType')"> 自定义图片</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="lIconType" value="none" onchange="toggleIconMode('lIconFaMode', 'lIconImgMode', 'lIconType')"> 无图标</label>
             </div>
             <div id="lIconFaMode">
                 <div style="display:flex;gap:8px;align-items:center;">
@@ -49,7 +49,7 @@ admin_header('友情链接', 'links');
                     <img id="lIconPreviewImg" src="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid #ddd;display:none;">
                     <button class="btn btn-outline" type="button" onclick="document.getElementById('lIconUpload').click()"><i class="fas fa-upload"></i> 上传</button>
                     <button class="btn btn-outline" type="button" onclick="ImagePicker.open(url => { document.getElementById('lIconUrl').value = url; document.getElementById('lIconPreviewImg').src = '/' + url; document.getElementById('lIconPreviewImg').style.display = ''; })"><i class="fas fa-images"></i> 图片库</button>
-                    <input type="file" id="lIconUpload" accept="image/*" style="display:none;" onchange="uploadIcon(this)">
+                    <input type="file" id="lIconUpload" accept="image/*" style="display:none;" onchange="uploadIconFile(this, 'lIconUrl', 'lIconPreviewImg', 'icon')">
                     <input type="hidden" id="lIconUrl">
                 </div>
             </div>
@@ -103,26 +103,6 @@ async function load() {
     });
 }
 
-function toggleIconMode() {
-    const mode = document.querySelector('input[name="lIconType"]:checked').value;
-    document.getElementById('lIconFaMode').style.display = mode === 'fa' ? '' : 'none';
-    document.getElementById('lIconImgMode').style.display = mode === 'image' ? '' : 'none';
-}
-
-async function uploadIcon(input) {
-    if (!input.files[0]) return;
-    const fd = new FormData();
-    fd.append('file', input.files[0]);
-    fd.append('category', 'icon');
-    const res = await API.upload('/admin/api/upload.php', fd);
-    if (res.url) {
-        document.getElementById('lIconUrl').value = res.url;
-        document.getElementById('lIconPreviewImg').src = '/' + res.url;
-        document.getElementById('lIconPreviewImg').style.display = '';
-        Toast.success('图标已上传');
-    }
-}
-
 function openAddModal() {
     document.getElementById('modalTitle').textContent = '添加链接';
     document.getElementById('editId').value = '';
@@ -134,7 +114,7 @@ function openAddModal() {
     document.getElementById('lIconPreviewImg').style.display = 'none';
     document.querySelector('input[name="lIconType"][value="fa"]').checked = true;
     document.getElementById('lShowIcon').checked = true;
-    toggleIconMode();
+    toggleIconMode('lIconFaMode', 'lIconImgMode', 'lIconType');
     Modal.show('addModal');
 }
 
@@ -157,7 +137,7 @@ function edit(l) {
     } else {
         document.querySelector('input[name="lIconType"][value="none"]').checked = true;
     }
-    toggleIconMode();
+    toggleIconMode('lIconFaMode', 'lIconImgMode', 'lIconType');
     Modal.show('addModal');
 }
 

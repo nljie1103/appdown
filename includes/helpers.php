@@ -67,3 +67,106 @@ function set_setting(PDO $pdo, string $key, string $val): void {
 function today(): string {
     return date('Y-m-d');
 }
+
+/**
+ * 检测 JAVA_HOME 路径（兜底检测非标准路径）
+ * 优先级：环境变量 > which java > 候选路径
+ */
+function detect_java_home(): string {
+    // 1. 环境变量 JAVA_HOME
+    $envJava = getenv('JAVA_HOME');
+    if ($envJava) {
+        $out = [];
+        @exec('test -d ' . escapeshellarg($envJava) . ' && echo 1', $out);
+        if (trim($out[0] ?? '') === '1') return $envJava;
+    }
+
+    // 2. which java → readlink → 向上两级（bin/java → bin → JAVA_HOME）
+    $whichOut = [];
+    @exec('which java 2>/dev/null', $whichOut);
+    $javaBin = trim($whichOut[0] ?? '');
+    if ($javaBin) {
+        // 解析符号链接获取真实路径
+        $realOut = [];
+        @exec('readlink -f ' . escapeshellarg($javaBin) . ' 2>/dev/null', $realOut);
+        $realPath = trim($realOut[0] ?? '') ?: $javaBin;
+        // java 通常在 JAVA_HOME/bin/java，向上2级
+        $candidate = dirname(dirname($realPath));
+        $verOut = [];
+        @exec(escapeshellarg($candidate . '/bin/java') . ' -version 2>&1', $verOut);
+        if (preg_match('/version\s+"?17/', $verOut[0] ?? '')) {
+            return $candidate;
+        }
+    }
+
+    // 3. 常见候选路径
+    $candidates = [
+        '/usr/lib/jvm/java-17-openjdk-amd64',
+        '/usr/lib/jvm/java-17-openjdk',
+        '/usr/lib/jvm/java-17',
+        '/usr/lib/jvm/java-17-openjdk-arm64',
+        '/usr/java/jdk-17',
+        '/opt/jdk-17',
+    ];
+    foreach ($candidates as $c) {
+        $out = [];
+        @exec('test -d ' . escapeshellarg($c) . ' && echo 1', $out);
+        if (trim($out[0] ?? '') === '1') return $c;
+    }
+
+    return '';
+}
+
+/**
+ * 检测 ANDROID_HOME 路径（兜底检测非标准路径）
+ * 优先级：ANDROID_HOME > ANDROID_SDK_ROOT > which sdkmanager > 候选路径
+ */
+function detect_android_home(): string {
+    // 1. 环境变量 ANDROID_HOME
+    $envAndroid = getenv('ANDROID_HOME');
+    if ($envAndroid) {
+        $out = [];
+        @exec('test -d ' . escapeshellarg($envAndroid) . ' && echo 1', $out);
+        if (trim($out[0] ?? '') === '1') return $envAndroid;
+    }
+
+    // 2. 环境变量 ANDROID_SDK_ROOT（旧名称）
+    $envSdkRoot = getenv('ANDROID_SDK_ROOT');
+    if ($envSdkRoot) {
+        $out = [];
+        @exec('test -d ' . escapeshellarg($envSdkRoot) . ' && echo 1', $out);
+        if (trim($out[0] ?? '') === '1') return $envSdkRoot;
+    }
+
+    // 3. which sdkmanager → 向上3级（cmdline-tools/latest/bin/sdkmanager）
+    $whichOut = [];
+    @exec('which sdkmanager 2>/dev/null', $whichOut);
+    $sdkBin = trim($whichOut[0] ?? '');
+    if ($sdkBin) {
+        $realOut = [];
+        @exec('readlink -f ' . escapeshellarg($sdkBin) . ' 2>/dev/null', $realOut);
+        $realPath = trim($realOut[0] ?? '') ?: $sdkBin;
+        // sdkmanager 通常在 ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+        $candidate = dirname(dirname(dirname(dirname($realPath))));
+        $out = [];
+        @exec('test -d ' . escapeshellarg($candidate . '/cmdline-tools') . ' && echo 1', $out);
+        if (trim($out[0] ?? '') === '1') return $candidate;
+    }
+
+    // 4. 常见候选路径
+    $home = getenv('HOME') ?: '/root';
+    $candidates = [
+        '/opt/android-sdk',
+        $home . '/Android/Sdk',
+        '/usr/local/android-sdk',
+        '/usr/lib/android-sdk',
+        $home . '/android-sdk',
+    ];
+    foreach ($candidates as $c) {
+        $out = [];
+        @exec('test -d ' . escapeshellarg($c) . ' && echo 1', $out);
+        if (trim($out[0] ?? '') === '1') return $c;
+    }
+
+    return '';
+}

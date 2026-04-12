@@ -46,8 +46,8 @@ admin_header('特色卡片', 'features');
         <div class="form-group">
             <label>图标</label>
             <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
-                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="fIconType" value="fa" checked onchange="toggleFIconMode()"> FA图标</label>
-                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="fIconType" value="image" onchange="toggleFIconMode()"> 自定义图片</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="fIconType" value="fa" checked onchange="toggleIconMode('fIconFaMode', 'fIconImgMode', 'fIconType')"> FA图标</label>
+                <label style="margin:0;font-weight:400;cursor:pointer;"><input type="radio" name="fIconType" value="image" onchange="toggleIconMode('fIconFaMode', 'fIconImgMode', 'fIconType')"> 自定义图片</label>
             </div>
             <div id="fIconFaMode">
                 <div style="display:flex;gap:8px;align-items:center;">
@@ -61,7 +61,7 @@ admin_header('特色卡片', 'features');
                     <img id="fIconPreviewImg" src="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid #ddd;display:none;">
                     <button class="btn btn-outline" type="button" onclick="document.getElementById('fIconUpload').click()"><i class="fas fa-upload"></i> 上传</button>
                     <button class="btn btn-outline" type="button" onclick="ImagePicker.open(url => { document.getElementById('fIconUrl').value = url; document.getElementById('fIconPreviewImg').src = '/' + url; document.getElementById('fIconPreviewImg').style.display = ''; })"><i class="fas fa-images"></i> 图片库</button>
-                    <input type="file" id="fIconUpload" accept="image/*" style="display:none;" onchange="uploadFIcon(this)">
+                    <input type="file" id="fIconUpload" accept="image/*" style="display:none;" onchange="uploadIconFile(this, 'fIconUrl', 'fIconPreviewImg', 'image')">
                     <input type="hidden" id="fIconUrl">
                 </div>
             </div>
@@ -174,26 +174,6 @@ function renderCards() {
     });
 }
 
-function toggleFIconMode() {
-    const mode = document.querySelector('input[name="fIconType"]:checked').value;
-    document.getElementById('fIconFaMode').style.display = mode === 'fa' ? '' : 'none';
-    document.getElementById('fIconImgMode').style.display = mode === 'image' ? '' : 'none';
-}
-
-async function uploadFIcon(input) {
-    if (!input.files[0]) return;
-    const fd = new FormData();
-    fd.append('file', input.files[0]);
-    fd.append('category', 'image');
-    const res = await API.upload('/admin/api/upload.php', fd);
-    if (res.ok) {
-        document.getElementById('fIconUrl').value = res.url;
-        document.getElementById('fIconPreviewImg').src = '/' + res.url;
-        document.getElementById('fIconPreviewImg').style.display = '';
-        Toast.success('图标已上传');
-    }
-}
-
 function openAddModal() {
     document.getElementById('modalTitle').textContent = '添加卡片';
     document.getElementById('editId').value = '';
@@ -204,7 +184,7 @@ function openAddModal() {
     document.getElementById('fIconPreviewFa').className = 'fas fa-star';
     document.getElementById('fIconPreviewImg').style.display = 'none';
     document.querySelector('input[name="fIconType"][value="fa"]').checked = true;
-    toggleFIconMode();
+    toggleIconMode('fIconFaMode', 'fIconImgMode', 'fIconType');
     // 默认选中当前分类
     if (currentCat !== 'all') {
         document.getElementById('fCategoryId').value = currentCat;
@@ -231,7 +211,7 @@ function editCard(f) {
         document.querySelector('input[name="fIconType"][value="fa"]').checked = true;
         document.getElementById('fIconPreviewFa').className = f.icon || 'fas fa-star';
     }
-    toggleFIconMode();
+    toggleIconMode('fIconFaMode', 'fIconImgMode', 'fIconType');
     Modal.show('addModal');
 }
 

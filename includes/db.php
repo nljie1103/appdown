@@ -69,6 +69,7 @@ function init_schema(PDO $pdo): void {
             mc_sign_chain   TEXT NOT NULL DEFAULT '',
             mc_sign_mode    TEXT NOT NULL DEFAULT '',
             mc_payload_org  TEXT NOT NULL DEFAULT '',
+            mc_file_id      INTEGER DEFAULT NULL,
             android_template TEXT NOT NULL DEFAULT 'modern',
             feature_category_id INTEGER NOT NULL DEFAULT 0,
             sort_order      INTEGER NOT NULL DEFAULT 0,
@@ -235,11 +236,13 @@ function init_schema(PDO $pdo): void {
 
         CREATE TABLE IF NOT EXISTS build_tasks (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            build_type      TEXT NOT NULL DEFAULT 'apk',
             status          TEXT NOT NULL DEFAULT 'pending',
             progress        INTEGER NOT NULL DEFAULT 0,
             progress_msg    TEXT NOT NULL DEFAULT '',
             params          TEXT NOT NULL DEFAULT '{}',
-            keystore_id     INTEGER NOT NULL,
+            keystore_id     INTEGER NOT NULL DEFAULT 0,
+            pid             INTEGER NOT NULL DEFAULT 0,
             result_url      TEXT NOT NULL DEFAULT '',
             result_size     TEXT NOT NULL DEFAULT '',
             error_msg       TEXT NOT NULL DEFAULT '',
@@ -262,6 +265,54 @@ function init_schema(PDO $pdo): void {
             apk_size        TEXT NOT NULL DEFAULT '',
             keystore_id     INTEGER NOT NULL,
             created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS mc_certificates (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            mode        TEXT NOT NULL DEFAULT 'text',
+            cert        TEXT NOT NULL DEFAULT '',
+            key         TEXT NOT NULL DEFAULT '',
+            chain       TEXT NOT NULL DEFAULT '',
+            payload_org TEXT NOT NULL DEFAULT '',
+            is_global   INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS generated_mobileconfigs (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id       INTEGER DEFAULT NULL,
+            display_name TEXT NOT NULL,
+            target_url   TEXT NOT NULL,
+            bundle_id    TEXT NOT NULL DEFAULT '',
+            version      TEXT NOT NULL DEFAULT '1',
+            fullscreen   INTEGER NOT NULL DEFAULT 1,
+            icon_data    TEXT NOT NULL DEFAULT '',
+            description  TEXT NOT NULL DEFAULT '',
+            cert_id      INTEGER DEFAULT NULL,
+            payload_org  TEXT NOT NULL DEFAULT '',
+            file_path    TEXT NOT NULL DEFAULT '',
+            file_size    TEXT NOT NULL DEFAULT '',
+            template     TEXT NOT NULL DEFAULT 'modern',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS generated_ipas (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id      INTEGER NOT NULL,
+            app_id       INTEGER DEFAULT NULL,
+            app_name     TEXT NOT NULL,
+            bundle_id    TEXT NOT NULL,
+            version_name TEXT NOT NULL DEFAULT '1.0.0',
+            version_code INTEGER NOT NULL DEFAULT 1,
+            url          TEXT NOT NULL,
+            icon_url     TEXT NOT NULL DEFAULT '',
+            ipa_url      TEXT NOT NULL DEFAULT '',
+            ipa_size     TEXT NOT NULL DEFAULT '',
+            signing_mode TEXT NOT NULL DEFAULT 'unsigned',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
         );
     ");
 
@@ -468,11 +519,13 @@ function migrate_schema(PDO $pdo): void {
         );
         CREATE TABLE IF NOT EXISTS build_tasks (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            build_type      TEXT NOT NULL DEFAULT 'apk',
             status          TEXT NOT NULL DEFAULT 'pending',
             progress        INTEGER NOT NULL DEFAULT 0,
             progress_msg    TEXT NOT NULL DEFAULT '',
             params          TEXT NOT NULL DEFAULT '{}',
-            keystore_id     INTEGER NOT NULL,
+            keystore_id     INTEGER NOT NULL DEFAULT 0,
+            pid             INTEGER NOT NULL DEFAULT 0,
             result_url      TEXT NOT NULL DEFAULT '',
             result_size     TEXT NOT NULL DEFAULT '',
             error_msg       TEXT NOT NULL DEFAULT '',
@@ -494,6 +547,92 @@ function migrate_schema(PDO $pdo): void {
             apk_size        TEXT NOT NULL DEFAULT '',
             keystore_id     INTEGER NOT NULL,
             created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    ");
+
+    // build_tasks 增加 pid 列（追踪Worker进程）
+    $btCols = $pdo->query("PRAGMA table_info(build_tasks)")->fetchAll();
+    $btColNames = array_column($btCols, 'name');
+    if (!in_array('pid', $btColNames)) {
+        $pdo->exec("ALTER TABLE build_tasks ADD COLUMN pid INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // Mobileconfig 证书管理 + 生成记录表
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS mc_certificates (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            mode        TEXT NOT NULL DEFAULT 'text',
+            cert        TEXT NOT NULL DEFAULT '',
+            key         TEXT NOT NULL DEFAULT '',
+            chain       TEXT NOT NULL DEFAULT '',
+            payload_org TEXT NOT NULL DEFAULT '',
+            is_global   INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS generated_mobileconfigs (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id       INTEGER DEFAULT NULL,
+            display_name TEXT NOT NULL,
+            target_url   TEXT NOT NULL,
+            bundle_id    TEXT NOT NULL DEFAULT '',
+            version      TEXT NOT NULL DEFAULT '1',
+            fullscreen   INTEGER NOT NULL DEFAULT 1,
+            icon_data    TEXT NOT NULL DEFAULT '',
+            description  TEXT NOT NULL DEFAULT '',
+            cert_id      INTEGER DEFAULT NULL,
+            payload_org  TEXT NOT NULL DEFAULT '',
+            file_path    TEXT NOT NULL DEFAULT '',
+            file_size    TEXT NOT NULL DEFAULT '',
+            template     TEXT NOT NULL DEFAULT 'modern',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS generated_ipas (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id      INTEGER NOT NULL,
+            app_id       INTEGER DEFAULT NULL,
+            app_name     TEXT NOT NULL,
+            bundle_id    TEXT NOT NULL,
+            version_name TEXT NOT NULL DEFAULT '1.0.0',
+            version_code INTEGER NOT NULL DEFAULT 1,
+            url          TEXT NOT NULL,
+            icon_url     TEXT NOT NULL DEFAULT '',
+            ipa_url      TEXT NOT NULL DEFAULT '',
+            ipa_size     TEXT NOT NULL DEFAULT '',
+            signing_mode TEXT NOT NULL DEFAULT 'unsigned',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    ");
+
+    // apps 表增加 mc_file_id 列
+    if (!in_array('mc_file_id', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_file_id INTEGER DEFAULT NULL");
+    }
+
+    // build_tasks 增加 build_type 列（区分 apk/ipa）
+    if (!in_array('build_type', $btColNames)) {
+        $pdo->exec("ALTER TABLE build_tasks ADD COLUMN build_type TEXT NOT NULL DEFAULT 'apk'");
+    }
+
+    // IPA 生成记录表
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS generated_ipas (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id      INTEGER NOT NULL,
+            app_id       INTEGER DEFAULT NULL,
+            app_name     TEXT NOT NULL,
+            bundle_id    TEXT NOT NULL,
+            version_name TEXT NOT NULL DEFAULT '1.0.0',
+            version_code INTEGER NOT NULL DEFAULT 1,
+            url          TEXT NOT NULL,
+            icon_url     TEXT NOT NULL DEFAULT '',
+            ipa_url      TEXT NOT NULL DEFAULT '',
+            ipa_size     TEXT NOT NULL DEFAULT '',
+            signing_mode TEXT NOT NULL DEFAULT 'unsigned',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
         );
     ");
 }

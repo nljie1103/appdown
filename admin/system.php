@@ -54,9 +54,9 @@ $lockFile = __DIR__ . '/../install/install.lock';
 $lockExists = file_exists($lockFile);
 $checks[] = ['安装锁定文件', '已锁定', $lockExists ? '已锁定' : '未锁定', $lockExists];
 
-// Android 构建环境检测（使用exec绕过open_basedir限制）
+// Android 构建环境检测（使用共享检测函数兜底非标准路径）
 $androidChecks = [];
-$androidHome = getenv('ANDROID_HOME') ?: '/opt/android-sdk';
+$androidHome = detect_android_home() ?: '/opt/android-sdk';
 
 $javaOut = [];
 @exec('java -version 2>&1', $javaOut);
@@ -92,6 +92,64 @@ $androidChecks[] = ['keytool', '可用', $hasKt ? '可用' : '不可用', $hasKt
 
 $androidAllOk = $hasJava && $hasHome && $hasSdk && $hasBt && $hasPf && $hasKt;
 $androidInstallStatus = get_setting($pdo, 'android_install_status', 'idle');
+
+// iOS 构建环境检测
+$iosChecks = [];
+
+$dockerOut = [];
+@exec('docker --version 2>/dev/null', $dockerOut);
+$iosHasDocker = !empty($dockerOut[0]) && str_contains($dockerOut[0], 'Docker');
+$dockerVer = $iosHasDocker ? trim($dockerOut[0]) : '未安装';
+$iosChecks[] = ['Docker', '已安装', $iosHasDocker ? $dockerVer : '未安装', $iosHasDocker];
+
+$iosDockerRunning = false;
+if ($iosHasDocker) {
+    @exec('docker info > /dev/null 2>&1', $drOut, $drCode);
+    $iosDockerRunning = (($drCode ?? 1) === 0);
+}
+$iosChecks[] = ['Docker 运行中', '是', $iosDockerRunning ? '是' : '否', $iosDockerRunning];
+
+$kvmOut = [];
+@exec('test -e /dev/kvm && echo 1', $kvmOut);
+$iosHasKvm = (trim($kvmOut[0] ?? '') === '1');
+$iosChecks[] = ['KVM 虚拟化', '可用', $iosHasKvm ? '可用' : '不可用', $iosHasKvm];
+
+$iosContainerExists = false;
+$iosContainerRunning = false;
+if ($iosDockerRunning) {
+    $ceOut = [];
+    @exec('docker ps -a --format "{{.Names}}" 2>/dev/null', $ceOut);
+    $iosContainerExists = in_array('ysapp-ios-builder', $ceOut);
+    $crOut = [];
+    @exec('docker ps --format "{{.Names}}" 2>/dev/null', $crOut);
+    $iosContainerRunning = in_array('ysapp-ios-builder', $crOut);
+}
+$iosChecks[] = ['macOS 容器', '已创建', $iosContainerExists ? '已创建' : '未创建', $iosContainerExists];
+$iosChecks[] = ['容器运行中', '是', $iosContainerRunning ? '是' : '否', $iosContainerRunning];
+
+$iosSshOk = false;
+if ($iosContainerRunning) {
+    $sshOut = [];
+    @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "echo ok" 2>/dev/null', $sshOut);
+    $iosSshOk = (trim($sshOut[0] ?? '') === 'ok');
+}
+$iosChecks[] = ['SSH 连接', '可达', $iosSshOk ? '可达' : '不可达', $iosSshOk];
+
+$iosHasXcode = false;
+$xcodeVer = '';
+if ($iosSshOk) {
+    $xcOut = [];
+    @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
+    $xcLine = trim($xcOut[0] ?? '');
+    if (str_contains($xcLine, 'Xcode')) {
+        $iosHasXcode = true;
+        $xcodeVer = $xcLine;
+    }
+}
+$iosChecks[] = ['Xcode', '已安装', $iosHasXcode ? $xcodeVer : '未安装', $iosHasXcode];
+
+$iosAllOk = $iosHasDocker && $iosDockerRunning && $iosHasKvm && $iosContainerExists && $iosContainerRunning && $iosSshOk && $iosHasXcode;
+$iosInstallStatus = get_setting($pdo, 'ios_install_status', 'idle');
 
 // 系统信息
 $dbPath = $dataDir . '/app.db';
@@ -195,6 +253,70 @@ admin_header('系统信息', 'system');
 </div>
 
 <div class="card">
+    <h3>iOS 构建环境 (Docker-OSX)</h3>
+    <p style="color:#999;font-size:0.85em;margin-top:4px;">通过 Docker 运行 macOS + Xcode 实现 URL 转 IPA。需要 Linux 宿主机 + KVM 虚拟化支持，镜像约 20GB</p>
+    <table class="table" style="margin-top:12px;">
+        <thead><tr><th>检测项</th><th>要求</th><th>当前</th><th>状态</th></tr></thead>
+        <tbody>
+        <?php foreach ($iosChecks as $c): ?>
+            <tr>
+                <td><?= htmlspecialchars($c[0]) ?></td>
+                <td><?= htmlspecialchars($c[1]) ?></td>
+                <td style="font-family:monospace;"><?= htmlspecialchars($c[2]) ?></td>
+                <td style="font-size:1.2em;text-align:center;"><?= $c[3]
+                    ? '<span style="color:#27ae60;">&#10004;</span>'
+                    : '<span style="color:#e74c3c;">&#10008;</span>' ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php if ($iosAllOk): ?>
+    <div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:#27ae60;"><i class="fas fa-check-circle"></i> iOS 构建环境已就绪</span>
+        <button class="btn btn-outline btn-sm" onclick="uninstallIosEnv()" style="color:#e74c3c;border-color:#e74c3c;">
+            <i class="fas fa-trash-alt"></i> 一键卸载
+        </button>
+    </div>
+    <div id="ios-install-progress" style="display:none;margin-top:12px;">
+        <div style="font-weight:600;margin-bottom:8px;">操作日志：</div>
+        <pre id="ios-install-log" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;max-height:400px;overflow-y:auto;font-size:0.8em;white-space:pre-wrap;line-height:1.6;"></pre>
+        <div id="ios-install-status" style="margin-top:8px;"></div>
+    </div>
+    <?php else: ?>
+    <div id="ios-install-area" style="margin-top:16px;padding:16px;background:#f8f9fa;border-radius:8px;">
+        <div style="margin-bottom:12px;font-size:0.9em;color:#666;">
+            <strong>安装分 3 个阶段：</strong>
+            <ol style="margin:8px 0 0 16px;line-height:1.8;">
+                <li><strong>Phase 1</strong>（自动）: 安装 Docker + 拉取 macOS 镜像 + 创建容器</li>
+                <li><strong>Phase 2</strong>（手动）: 在终端中 SSH 进入容器安装 Xcode（需要 Apple ID）</li>
+                <li><strong>Phase 3</strong>（自动）: 点击按钮验证 Xcode 是否安装成功</li>
+            </ol>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="btn-install-ios" class="btn btn-primary" onclick="installIosEnv()">
+                <i class="fas fa-download"></i> Phase 1: 安装 Docker + macOS 容器
+            </button>
+            <button class="btn btn-outline" onclick="verifyIosXcode()">
+                <i class="fas fa-check"></i> Phase 3: 验证 Xcode
+            </button>
+            <button id="btn-uninstall-ios" class="btn btn-outline btn-sm" onclick="uninstallIosEnv()" style="color:#e74c3c;border-color:#e74c3c;">
+                <i class="fas fa-trash-alt"></i> 一键卸载
+            </button>
+        </div>
+        <div style="margin-top:12px;padding:10px;background:#fff8e1;border-radius:6px;font-size:0.85em;color:#856404;">
+            <i class="fas fa-terminal"></i> <strong>Phase 2 命令</strong>（在服务器终端执行）：
+            <code style="display:block;margin-top:4px;padding:8px;background:#fefce8;border-radius:4px;user-select:all;">sudo bash tools/setup-ios-xcode.sh</code>
+        </div>
+        <div id="ios-install-progress" style="display:none;margin-top:12px;">
+            <div style="font-weight:600;margin-bottom:8px;">安装日志：</div>
+            <pre id="ios-install-log" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;max-height:400px;overflow-y:auto;font-size:0.8em;white-space:pre-wrap;line-height:1.6;"></pre>
+            <div id="ios-install-status" style="margin-top:8px;"></div>
+        </div>
+    </div>
+    <?php endif; ?>
+</div>
+
+<div class="card">
     <h3>运行环境</h3>
     <table class="table" style="margin-top:12px;">
         <tbody>
@@ -284,7 +406,7 @@ function startPolling() {
 async function pollInstallLog() {
     try {
         const resp = await fetch('/admin/api/system.php?action=install_log', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            headers: { 'X-CSRF-Token': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
         });
         const data = await resp.json();
 
@@ -323,6 +445,104 @@ async function pollInstallLog() {
         }
         document.getElementById('android-install-progress').style.display = 'block';
         startPolling();
+    }
+})();
+
+// ========== iOS 环境安装/卸载 JS ==========
+let _iosInstallPollTimer = null;
+
+async function installIosEnv() {
+    if (!await AlertModal.confirm('确定要安装 iOS 构建环境吗？', '将安装 Docker + 拉取 macOS 镜像（约 20GB），整个过程可能需要较长时间。')) return;
+
+    const btn = document.getElementById('btn-install-ios');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 安装中...';
+    document.getElementById('ios-install-progress').style.display = 'block';
+
+    try {
+        await API.post('/admin/api/system.php?action=install_ios', {});
+        startIosPolling();
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Phase 1: 安装 Docker + macOS 容器';
+    }
+}
+
+async function uninstallIosEnv() {
+    if (!await AlertModal.confirm('确定要卸载 iOS 构建环境吗？', '将删除 macOS 容器、Docker-OSX 镜像和构建目录，此操作不可逆。', { icon: 'danger', okText: '确定卸载', okClass: 'btn-danger' })) return;
+
+    const progress = document.getElementById('ios-install-progress');
+    if (progress) progress.style.display = 'block';
+
+    try {
+        await API.post('/admin/api/system.php?action=uninstall_ios', {});
+        startIosPolling();
+    } catch (e) {}
+}
+
+async function verifyIosXcode() {
+    try {
+        const res = await API.post('/admin/api/system.php?action=verify_ios_xcode', {});
+        if (res.ok) {
+            await AlertModal.success('Xcode 验证成功', res.info || 'Xcode 已就绪，刷新页面查看最新状态。');
+            location.reload();
+        } else {
+            AlertModal.error('Xcode 未就绪', res.info || '请先在终端执行 Phase 2 安装 Xcode。');
+        }
+    } catch (e) {
+        AlertModal.error('验证失败', '无法连接到 macOS 容器，请确认容器正在运行。');
+    }
+}
+
+function startIosPolling() {
+    if (_iosInstallPollTimer) clearInterval(_iosInstallPollTimer);
+    pollIosInstallLog();
+    _iosInstallPollTimer = setInterval(pollIosInstallLog, 2000);
+}
+
+async function pollIosInstallLog() {
+    try {
+        const resp = await fetch('/admin/api/system.php?action=ios_install_log', {
+            headers: { 'X-CSRF-Token': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await resp.json();
+
+        const logEl = document.getElementById('ios-install-log');
+        if (logEl) {
+            logEl.textContent = data.log || '等待输出...';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        const statusEl = document.getElementById('ios-install-status');
+        if (data.status === 'done') {
+            clearInterval(_iosInstallPollTimer);
+            if (statusEl) statusEl.innerHTML = '<span style="color:#27ae60;font-weight:600;"><i class="fas fa-check-circle"></i> 操作完成！请刷新页面查看结果</span>';
+            const btn = document.getElementById('btn-install-ios');
+            if (btn) btn.style.display = 'none';
+        } else if (data.status === 'failed') {
+            clearInterval(_iosInstallPollTimer);
+            if (statusEl) statusEl.innerHTML = '<span style="color:#e74c3c;font-weight:600;"><i class="fas fa-times-circle"></i> 操作失败，请查看上方日志</span>';
+            const btn = document.getElementById('btn-install-ios');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-redo"></i> 重试安装';
+            }
+        }
+    } catch (e) { /* 网络错误忽略 */ }
+}
+
+// iOS 页面加载时检查正在运行的安装
+(function() {
+    const iosStatus = <?= json_encode($iosInstallStatus) ?>;
+    if (iosStatus === 'running') {
+        const btn = document.getElementById('btn-install-ios');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 安装中...';
+        }
+        const progress = document.getElementById('ios-install-progress');
+        if (progress) progress.style.display = 'block';
+        startIosPolling();
     }
 })();
 </script>

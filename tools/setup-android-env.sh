@@ -51,7 +51,23 @@ echo ""
 # ========== Step 1: 安装 JDK ==========
 echo "--- Step 1/4: 安装 OpenJDK 17 ---"
 
-if java -version 2>&1 | grep -q 'openjdk version "17'; then
+# 兜底检测：任意路径的 Java 17（不仅限 apt 安装）
+JAVA17_FOUND=false
+if java -version 2>&1 | grep -q '"17'; then
+    JAVA17_FOUND=true
+    log "检测到 Java 17 已安装（通过 java -version）"
+elif command -v java > /dev/null 2>&1; then
+    JAVA_REAL=$(readlink -f $(which java) 2>/dev/null)
+    if [ -n "$JAVA_REAL" ]; then
+        JAVA_VER=$("$JAVA_REAL" -version 2>&1 | head -1)
+        if echo "$JAVA_VER" | grep -q '"17'; then
+            JAVA17_FOUND=true
+            log "检测到 Java 17 已安装（路径: $JAVA_REAL）"
+        fi
+    fi
+fi
+
+if [ "$JAVA17_FOUND" = true ]; then
     log "OpenJDK 17 已安装，跳过"
 else
     log "正在安装 $JAVA_PKG ..."
@@ -74,8 +90,27 @@ echo "--- Step 2/4: 安装 Android SDK 命令行工具 ---"
 
 SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
+# 兜底检测：检测任意路径的 sdkmanager
+EXISTING_SDK=""
 if [ -f "$SDKMANAGER" ]; then
-    log "Android SDK 命令行工具已存在，跳过下载"
+    EXISTING_SDK="$ANDROID_HOME"
+    log "Android SDK 命令行工具已存在于 $ANDROID_HOME，跳过下载"
+elif command -v sdkmanager > /dev/null 2>&1; then
+    # sdkmanager 在 PATH 中，向上3级找到 ANDROID_HOME
+    SDK_REAL=$(readlink -f $(which sdkmanager) 2>/dev/null)
+    if [ -n "$SDK_REAL" ]; then
+        DETECTED_HOME=$(dirname $(dirname $(dirname $(dirname "$SDK_REAL"))))
+        if [ -d "$DETECTED_HOME/cmdline-tools" ]; then
+            EXISTING_SDK="$DETECTED_HOME"
+            ANDROID_HOME="$DETECTED_HOME"
+            SDKMANAGER="$SDK_REAL"
+            log "检测到 Android SDK 已安装（路径: $ANDROID_HOME）"
+        fi
+    fi
+fi
+
+if [ -n "$EXISTING_SDK" ]; then
+    log "使用已有的 SDK: $ANDROID_HOME"
 else
     log "创建目录 $ANDROID_HOME/cmdline-tools ..."
     mkdir -p "$ANDROID_HOME/cmdline-tools"
@@ -132,7 +167,7 @@ else
         ls -la "$ANDROID_HOME/cmdline-tools/"
         exit 1
     fi
-fi
+fi # 结束 EXISTING_SDK 检测块
 
 # ========== Step 3: 接受许可 & 安装组件 ==========
 echo ""

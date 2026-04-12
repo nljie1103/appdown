@@ -39,44 +39,19 @@ try {
         exit(1);
     }
 
-    // 标记为构建中
-    update_task($pdo, $taskId, ['status' => 'building', 'progress' => 5, 'progress_msg' => '准备构建环境...']);
+    // 标记为构建中，记录PID
+    update_task($pdo, $taskId, ['status' => 'building', 'progress' => 5, 'progress_msg' => '准备构建环境...', 'pid' => getmypid()]);
 
-    // 验证环境（使用exec绕过open_basedir限制）
-    $javaHome = getenv('JAVA_HOME') ?: '/usr/lib/jvm/java-17-openjdk-amd64';
-    $androidHome = getenv('ANDROID_HOME') ?: '/opt/android-sdk';
-
-    // open_basedir 限制下 is_dir() 无法检测外部目录，改用 exec+test
-    $javaHomeExists = false;
-    @exec('test -d ' . escapeshellarg($javaHome) . ' && echo 1', $jhOut);
-    $javaHomeExists = (trim($jhOut[0] ?? '') === '1');
-    if (!$javaHomeExists) {
-        // 尝试常见 JDK 路径
-        $jdkCandidates = [
-            '/usr/lib/jvm/java-17-openjdk-amd64',
-            '/usr/lib/jvm/java-17-openjdk',
-            '/usr/lib/jvm/java-17',
-        ];
-        foreach ($jdkCandidates as $candidate) {
-            $testOut = [];
-            @exec('test -d ' . escapeshellarg($candidate) . ' && echo 1', $testOut);
-            if (trim($testOut[0] ?? '') === '1') {
-                $javaHome = $candidate;
-                $javaHomeExists = true;
-                break;
-            }
-        }
-    }
-    if (!$javaHomeExists) {
-        fail_task($pdo, $taskId, "JAVA_HOME 不存在: $javaHome\n请安装: sudo apt install openjdk-17-jdk");
+    // 验证环境（自动检测非标准路径）
+    $javaHome = detect_java_home();
+    if (!$javaHome) {
+        fail_task($pdo, $taskId, "未检测到 Java 17 (JDK)\n请安装: sudo apt install openjdk-17-jdk\n或设置 JAVA_HOME 环境变量");
         exit(1);
     }
 
-    $androidHomeExists = false;
-    @exec('test -d ' . escapeshellarg($androidHome) . ' && echo 1', $ahOut);
-    $androidHomeExists = (trim($ahOut[0] ?? '') === '1');
-    if (!$androidHomeExists) {
-        fail_task($pdo, $taskId, "ANDROID_HOME 不存在: $androidHome\n请参照文档安装 Android SDK 命令行工具");
+    $androidHome = detect_android_home();
+    if (!$androidHome) {
+        fail_task($pdo, $taskId, "未检测到 Android SDK\n请参照文档安装 Android SDK 命令行工具\n或设置 ANDROID_HOME 环境变量");
         exit(1);
     }
 
@@ -180,14 +155,11 @@ try {
     // 执行 Gradle 编译
     update_task($pdo, $taskId, ['progress' => 40, 'progress_msg' => '正在编译APK（可能需要几分钟）...']);
 
-    $envPrefix = sprintf('JAVA_HOME=%s ANDROID_HOME=%s', escapeshellarg($javaHome), escapeshellarg($androidHome));
     $gradleCmd = sprintf(
-        'cd %s && %s ./gradlew assembleRelease ' .
+        './gradlew assembleRelease ' .
         '-PappId=%s -PvName=%s -PvCode=%s ' .
         '-PksFile=%s -PksPwd=%s -PksAlias=%s -PksKeyPwd=%s ' .
-        '--no-daemon --stacktrace 2>&1',
-        escapeshellarg($buildDir),
-        $envPrefix,
+        '--no-daemon --stacktrace',
         escapeshellarg($params['package_name']),
         escapeshellarg($params['version_name'] ?? '1.0.0'),
         escapeshellarg((string)($params['version_code'] ?? 1)),
@@ -197,8 +169,96 @@ try {
         escapeshellarg($keystore['key_password'])
     );
 
+    $env = [
+        'JAVA_HOME' => $javaHome,
+        'ANDROID_HOME' => $androidHome,
+        'PATH' => getenv('PATH'),
+        'HOME' => getenv('HOME') ?: '/tmp',
+    ];
+
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $proc = proc_open($gradleCmd, $descriptors, $pipes, $buildDir, $env);
+    if (!is_resource($proc)) {
+        fail_task($pdo, $taskId, '无法启动Gradle进程');
+        exit(1);
+    }
+
+    fclose($pipes[0]); // 关闭stdin
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+
     $output = [];
-    exec($gradleCmd, $output, $retCode);
+    $startTime = time();
+    $timeout = 600; // 10分钟超时
+    $lastCancelCheck = 0;
+    $lastProgress = 40;
+
+    while (true) {
+        // 读取stdout
+        while (($line = fgets($pipes[1])) !== false) {
+            $line = rtrim($line);
+            if ($line === '') continue;
+            $output[] = $line;
+            $newPct = parse_gradle_progress($line, $lastProgress);
+            if ($newPct > $lastProgress) {
+                $lastProgress = $newPct;
+                update_task($pdo, $taskId, [
+                    'progress' => $newPct,
+                    'progress_msg' => gradle_progress_msg($newPct),
+                ]);
+            }
+        }
+        // 读取stderr
+        while (($line = fgets($pipes[2])) !== false) {
+            $output[] = rtrim($line);
+        }
+
+        $status = proc_get_status($proc);
+        if (!$status['running']) break;
+
+        // 超时检查
+        if (time() - $startTime > $timeout) {
+            proc_terminate($proc, 9);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($proc);
+            fail_task($pdo, $taskId, "构建超时（超过 {$timeout} 秒），已终止");
+            exit(1);
+        }
+
+        // 每5秒检查是否被取消
+        if (time() - $lastCancelCheck >= 5) {
+            $lastCancelCheck = time();
+            if (is_task_cancelled($pdo, $taskId)) {
+                proc_terminate($proc, 9);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($proc);
+                fwrite(STDERR, "Task $taskId cancelled by user\n");
+                exit(0);
+            }
+        }
+
+        usleep(200000); // 200ms
+    }
+
+    // 读取剩余输出
+    while (($line = fgets($pipes[1])) !== false) { $output[] = rtrim($line); }
+    while (($line = fgets($pipes[2])) !== false) { $output[] = rtrim($line); }
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $retCode = $status['exitcode'];
+    if ($retCode === -1) {
+        $retCode = proc_close($proc);
+    } else {
+        proc_close($proc);
+    }
 
     if ($retCode !== 0) {
         $errorOutput = implode("\n", array_slice($output, -50));
@@ -299,6 +359,36 @@ function update_task(PDO $pdo, int $id, array $fields): void {
 function fail_task(PDO $pdo, int $id, string $error): void {
     update_task($pdo, $id, ['status' => 'failed', 'error_msg' => $error]);
     fwrite(STDERR, "Task $id failed: $error\n");
+}
+
+function is_task_cancelled(PDO $pdo, int $taskId): bool {
+    $stmt = $pdo->prepare('SELECT status FROM build_tasks WHERE id = ?');
+    $stmt->execute([$taskId]);
+    $row = $stmt->fetch();
+    return !$row || $row['status'] === 'failed';
+}
+
+function parse_gradle_progress(string $line, int $current): int {
+    if (str_contains($line, 'Downloading') || str_contains($line, 'downloading')) return max($current, 45);
+    if (str_contains($line, 'compileReleaseJava') || str_contains($line, 'compileReleaseKotlin')) return max($current, 55);
+    if (str_contains($line, 'mergeReleaseResources') || str_contains($line, 'processReleaseResources')) return max($current, 60);
+    if (str_contains($line, 'dexBuilder') || str_contains($line, 'mergeDex') || str_contains($line, 'mergeExtDex')) return max($current, 70);
+    if (str_contains($line, 'packageRelease')) return max($current, 75);
+    if (str_contains($line, 'assembleRelease') && !str_contains($line, 'Task :')) return max($current, 80);
+    if (str_contains($line, 'BUILD SUCCESSFUL')) return 85;
+    return $current;
+}
+
+function gradle_progress_msg(int $pct): string {
+    return match (true) {
+        $pct <= 45 => '下载依赖...',
+        $pct <= 55 => '编译Java/Kotlin代码...',
+        $pct <= 60 => '合并资源文件...',
+        $pct <= 70 => '生成DEX...',
+        $pct <= 75 => '打包APK...',
+        $pct <= 80 => '签名APK...',
+        default    => '编译完成',
+    };
 }
 
 function recursive_copy(string $src, string $dst): void {

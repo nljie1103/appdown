@@ -15,7 +15,7 @@ if ($method === 'GET') {
 
     // Android 环境检测
     if ($action === 'android_status') {
-        $androidHome = getenv('ANDROID_HOME') ?: '/opt/android-sdk';
+        $androidHome = detect_android_home() ?: '/opt/android-sdk';
 
         // Java 17
         $javaOut = [];
@@ -65,6 +65,79 @@ if ($method === 'GET') {
         $logPath = __DIR__ . '/../../data/android_install.log';
         $log = file_exists($logPath) ? file_get_contents($logPath) : '';
         $status = get_setting($pdo, 'android_install_status', 'idle');
+        json_response(['status' => $status, 'log' => $log]);
+    }
+
+    // ========== iOS 环境检测 ==========
+    if ($action === 'ios_status') {
+        // Docker 已安装
+        $dockerOut = [];
+        @exec('docker --version 2>/dev/null', $dockerOut);
+        $hasDocker = !empty($dockerOut[0]) && str_contains($dockerOut[0], 'Docker');
+
+        // Docker 运行中
+        $dockerRunning = false;
+        if ($hasDocker) {
+            @exec('docker info > /dev/null 2>&1', $drOut, $drCode);
+            $dockerRunning = ($drCode === 0);
+        }
+
+        // KVM 可用
+        $kvmOut = [];
+        @exec('test -e /dev/kvm && echo 1', $kvmOut);
+        $hasKvm = (trim($kvmOut[0] ?? '') === '1');
+
+        // 容器已创建
+        $containerExists = false;
+        $containerRunning = false;
+        if ($dockerRunning) {
+            $ceOut = [];
+            @exec('docker ps -a --format "{{.Names}}" 2>/dev/null', $ceOut);
+            $containerExists = in_array('ysapp-ios-builder', $ceOut);
+
+            $crOut = [];
+            @exec('docker ps --format "{{.Names}}" 2>/dev/null', $crOut);
+            $containerRunning = in_array('ysapp-ios-builder', $crOut);
+        }
+
+        // SSH 可连接
+        $sshOk = false;
+        if ($containerRunning) {
+            $sshOut = [];
+            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "echo ok" 2>/dev/null', $sshOut);
+            $sshOk = (trim($sshOut[0] ?? '') === 'ok');
+        }
+
+        // Xcode 已安装
+        $xcodeVer = '';
+        $hasXcode = false;
+        if ($sshOk) {
+            $xcOut = [];
+            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p 50922 user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
+            $xcLine = trim($xcOut[0] ?? '');
+            if (str_contains($xcLine, 'Xcode')) {
+                $hasXcode = true;
+                $xcodeVer = $xcLine;
+            }
+        }
+
+        json_response([
+            'docker'            => ['ok' => $hasDocker, 'version' => trim($dockerOut[0] ?? '')],
+            'docker_running'    => ['ok' => $dockerRunning],
+            'kvm'               => ['ok' => $hasKvm],
+            'container_exists'  => ['ok' => $containerExists],
+            'container_running' => ['ok' => $containerRunning],
+            'ssh'               => ['ok' => $sshOk],
+            'xcode'             => ['ok' => $hasXcode, 'version' => $xcodeVer],
+            'all_ok'            => $hasDocker && $dockerRunning && $hasKvm && $containerExists && $containerRunning && $sshOk && $hasXcode,
+        ]);
+    }
+
+    // iOS 安装日志轮询
+    if ($action === 'ios_install_log') {
+        $logPath = __DIR__ . '/../../data/ios_install.log';
+        $log = file_exists($logPath) ? file_get_contents($logPath) : '';
+        $status = get_setting($pdo, 'ios_install_status', 'idle');
         json_response(['status' => $status, 'log' => $log]);
     }
 
@@ -158,6 +231,99 @@ if ($method === 'POST') {
         );
         exec($cmd);
 
+        json_response(['ok' => true]);
+    }
+
+    // ========== iOS 环境安装/卸载 ==========
+    if ($action === 'install_ios') {
+        $currentStatus = get_setting($pdo, 'ios_install_status', 'idle');
+        if ($currentStatus === 'running') {
+            json_response(['error' => '安装程序正在运行中，请勿重复操作'], 400);
+        }
+
+        $workerScript = realpath(__DIR__ . '/../../tools/install-ios-worker.php');
+        if (!$workerScript || !file_exists($workerScript)) {
+            json_response(['error' => 'iOS worker 脚本不存在'], 500);
+        }
+
+        $setupScript = realpath(__DIR__ . '/../../tools/setup-ios-env.sh');
+        if (!$setupScript || !file_exists($setupScript)) {
+            json_response(['error' => 'iOS 安装脚本不存在'], 500);
+        }
+
+        $dataDir = realpath(__DIR__ . '/../../data');
+        $logFile = $dataDir . '/ios_install.log';
+        file_put_contents($logFile, "正在启动 iOS 环境安装...\n");
+
+        set_setting($pdo, 'ios_install_status', 'running');
+
+        $phpBin = PHP_BINDIR . '/php';
+        if (!file_exists($phpBin)) $phpBin = 'php';
+        $cmd = sprintf(
+            'nohup %s %s %s > /dev/null 2>&1 &',
+            escapeshellarg($phpBin),
+            escapeshellarg($workerScript),
+            escapeshellarg($logFile)
+        );
+        exec($cmd);
+
+        json_response(['ok' => true, 'log_file' => 'data/ios_install.log']);
+    }
+
+    // 验证 Xcode 安装
+    if ($action === 'verify_ios_xcode') {
+        $xcOut = [];
+        @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p 50922 user@localhost "xcodebuild -version 2>/dev/null" 2>/dev/null', $xcOut, $xcCode);
+        $xcodeInfo = implode("\n", $xcOut);
+        $hasXcode = str_contains($xcodeInfo, 'Xcode');
+        json_response([
+            'ok' => $hasXcode,
+            'info' => $xcodeInfo ?: '无法连接到 macOS 容器或 Xcode 未安装',
+        ]);
+    }
+
+    // 卸载 iOS 环境
+    if ($action === 'uninstall_ios') {
+        $currentStatus = get_setting($pdo, 'ios_install_status', 'idle');
+        if ($currentStatus === 'running') {
+            json_response(['error' => '当前有安装/卸载任务正在运行'], 400);
+        }
+
+        $workerScript = realpath(__DIR__ . '/../../tools/install-ios-worker.php');
+        if (!$workerScript) {
+            json_response(['error' => 'worker 脚本不存在'], 500);
+        }
+
+        $uninstallScript = realpath(__DIR__ . '/../../tools/uninstall-ios-env.sh');
+        if (!$uninstallScript) {
+            json_response(['error' => 'iOS 卸载脚本不存在'], 500);
+        }
+
+        $dataDir = realpath(__DIR__ . '/../../data');
+        $logFile = $dataDir . '/ios_install.log';
+        file_put_contents($logFile, "正在启动 iOS 环境卸载...\n");
+
+        set_setting($pdo, 'ios_install_status', 'running');
+
+        $phpBin = PHP_BINDIR . '/php';
+        if (!file_exists($phpBin)) $phpBin = 'php';
+        $cmd = sprintf(
+            'nohup %s %s %s %s > /dev/null 2>&1 &',
+            escapeshellarg($phpBin),
+            escapeshellarg($workerScript),
+            escapeshellarg($logFile),
+            escapeshellarg($uninstallScript)
+        );
+        exec($cmd);
+
+        json_response(['ok' => true]);
+    }
+
+    // 重置 iOS 安装状态
+    if ($action === 'reset_ios_install_status') {
+        set_setting($pdo, 'ios_install_status', 'idle');
+        $logPath = __DIR__ . '/../../data/ios_install.log';
+        if (file_exists($logPath)) @unlink($logPath);
         json_response(['ok' => true]);
     }
 
