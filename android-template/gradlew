@@ -42,9 +42,9 @@ if [ ! -f "$WRAPPER_JAR" ] || ! is_valid_jar "$WRAPPER_JAR"; then
     # 2. China mirrors (Tencent / Aliyun gradle dist → extract jar)
     if [ $DOWNLOADED -eq 0 ]; then
         for MIRROR_BASE in \
-            "https://mirrors.cloud.tencent.com/gradle" \
-            "https://mirrors.aliyun.com/macports/distfiles/gradle"; do
-            MIRROR_URL="${MIRROR_BASE}/gradle-${GRADLE_VERSION}-bin.zip"
+            "https://mirrors.cloud.tencent.com/gradle/" \
+            "https://mirrors.aliyun.com/macports/distfiles/gradle/"; do
+            MIRROR_URL="${MIRROR_BASE}gradle-${GRADLE_VERSION}-bin.zip"
             echo "  Trying China mirror: $MIRROR_BASE ..."
             DIST_TMP=$(mktemp /tmp/gradle-dist-XXXXXX.zip)
             curl -sL --connect-timeout 15 --max-time 120 -o "$DIST_TMP" "$MIRROR_URL" 2>/dev/null || \
