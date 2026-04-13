@@ -955,7 +955,7 @@ async function loadKeys() {
         let html = '<table class="data-table"><thead><tr><th>名称</th><th>别名</th><th>组织</th><th>有效期</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
         for (const k of rows) {
             const org = [k.common_name, k.org_name].filter(Boolean).join(' / ') || '-';
-            html += `<tr><td>${escapeHTML(k.name)}</td><td><code>${escapeHTML(k.alias)}</code></td><td>${escapeHTML(org)}</td><td>${k.validity_years}年</td><td style="white-space:nowrap;">${k.created_at || ''}</td><td style="white-space:nowrap;"><a class="btn btn-outline btn-sm" href="/${escapeHTML(k.file_url)}" download title="下载"><i class="fas fa-download"></i></a> <button class="btn btn-outline btn-sm" onclick="deleteKey(${k.id})" title="删除" style="color:#e74c3c;"><i class="fas fa-trash"></i></button></td></tr>`;
+            html += `<tr><td>${escapeHTML(k.name)}</td><td><code>${escapeHTML(k.alias)}</code></td><td>${escapeHTML(org)}</td><td>${k.validity_years}年</td><td style="white-space:nowrap;">${k.created_at || ''}</td><td style="white-space:nowrap;">${k.file_url ? `<a class="btn btn-outline btn-sm" href="/${escapeHTML(k.file_url)}" download title="下载"><i class="fas fa-download"></i></a> ` : ''}<button class="btn btn-outline btn-sm" onclick="deleteKey(${k.id})" title="删除" style="color:#e74c3c;"><i class="fas fa-trash"></i></button></td></tr>`;
         }
         el.innerHTML = html + '</tbody></table>';
     } catch(e) { el.innerHTML = '<p style="color:#e74c3c;text-align:center;padding:20px;">加载失败</p>'; }

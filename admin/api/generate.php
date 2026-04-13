@@ -291,7 +291,7 @@ if ($method === 'PUT') {
         $existStmt->execute([$fileUrl, $platformId]);
         $existRow = $existStmt->fetch();
         if ($existRow) {
-            $pdo->prepare("UPDATE app_attachments SET version = ?, file_size = ?, changelog = ?, updated_at = datetime('now') WHERE id = ?")->execute([$version, $fileSize, $fileRow['app_name'], $existRow['id']]);
+            $pdo->prepare("UPDATE app_attachments SET version = ?, file_size = ?, changelog = ? WHERE id = ?")->execute([$version, $fileSize, $fileRow['app_name'], $existRow['id']]);
         } else {
             $pdo->prepare('INSERT INTO app_attachments (app_id, platform_id, version, file_url, file_size, changelog) VALUES (?, ?, ?, ?, ?, ?)')->execute([$appId, $platformId, $version, $fileUrl, $fileSize, $fileRow['app_name']]);
         }
