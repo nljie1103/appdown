@@ -6,46 +6,85 @@ APP_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 WRAPPER_JAR="$APP_BASE_DIR/gradle/wrapper/gradle-wrapper.jar"
 WRAPPER_PROPS="$APP_BASE_DIR/gradle/wrapper/gradle-wrapper.properties"
 
-if [ ! -f "$WRAPPER_JAR" ]; then
+# Validate that a file is a real JAR (ZIP format, starts with PK magic bytes)
+is_valid_jar() {
+    [ -s "$1" ] || return 1
+    MAGIC=$(od -A n -N 2 -t x1 "$1" 2>/dev/null | tr -d ' ')
+    [ "$MAGIC" = "504b" ]
+}
+
+try_download() {
+    local url="$1" label="$2"
+    rm -f "$WRAPPER_JAR"
+    echo "  Trying $label..."
+    curl -sL --connect-timeout 15 --max-time 60 -o "$WRAPPER_JAR" "$url" 2>/dev/null || \
+    wget -q --timeout=15 -O "$WRAPPER_JAR" "$url" 2>/dev/null
+    if is_valid_jar "$WRAPPER_JAR"; then
+        return 0
+    fi
+    rm -f "$WRAPPER_JAR"
+    return 1
+}
+
+if [ ! -f "$WRAPPER_JAR" ] || ! is_valid_jar "$WRAPPER_JAR"; then
+    rm -f "$WRAPPER_JAR"
     echo "Downloading Gradle wrapper..."
     DIST_URL=$(grep distributionUrl "$WRAPPER_PROPS" | sed 's/.*=//' | sed 's/\\:/:/g')
     GRADLE_VERSION=$(echo "$DIST_URL" | sed 's/.*gradle-//' | sed 's/-bin.*//' | sed 's/-all.*//')
 
     DOWNLOADED=0
 
-    # 1. Try custom mirror (set GRADLE_WRAPPER_MIRROR env var)
+    # 1. Custom mirror (env var)
     if [ -n "$GRADLE_WRAPPER_MIRROR" ] && [ $DOWNLOADED -eq 0 ]; then
-        echo "  Trying custom mirror..."
-        curl -sL --connect-timeout 10 -o "$WRAPPER_JAR" "${GRADLE_WRAPPER_MIRROR}" 2>/dev/null || \
-        wget -q --timeout=10 -O "$WRAPPER_JAR" "${GRADLE_WRAPPER_MIRROR}" 2>/dev/null
-        [ -s "$WRAPPER_JAR" ] && DOWNLOADED=1
+        try_download "$GRADLE_WRAPPER_MIRROR" "custom mirror" && DOWNLOADED=1
     fi
 
-    # 2. Try GitHub release (most reliable official source)
+    # 2. China mirrors (Tencent / Aliyun gradle dist → extract jar)
     if [ $DOWNLOADED -eq 0 ]; then
-        echo "  Trying GitHub releases..."
-        GITHUB_URL="https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
-        curl -sL --connect-timeout 15 -o "$WRAPPER_JAR" "$GITHUB_URL" 2>/dev/null || \
-        wget -q --timeout=15 -O "$WRAPPER_JAR" "$GITHUB_URL" 2>/dev/null
-        [ -s "$WRAPPER_JAR" ] && DOWNLOADED=1
+        for MIRROR_BASE in \
+            "https://mirrors.cloud.tencent.com/gradle" \
+            "https://mirrors.aliyun.com/macports/distfiles/gradle"; do
+            MIRROR_URL="${MIRROR_BASE}/gradle-${GRADLE_VERSION}-bin.zip"
+            echo "  Trying China mirror: $MIRROR_BASE ..."
+            DIST_TMP=$(mktemp /tmp/gradle-dist-XXXXXX.zip)
+            curl -sL --connect-timeout 15 --max-time 120 -o "$DIST_TMP" "$MIRROR_URL" 2>/dev/null || \
+            wget -q --timeout=15 -O "$DIST_TMP" "$MIRROR_URL" 2>/dev/null
+            if [ -s "$DIST_TMP" ]; then
+                unzip -p "$DIST_TMP" "*/gradle/wrapper/gradle-wrapper.jar" > "$WRAPPER_JAR" 2>/dev/null
+                if is_valid_jar "$WRAPPER_JAR"; then
+                    rm -f "$DIST_TMP"
+                    DOWNLOADED=1
+                    break
+                fi
+                rm -f "$WRAPPER_JAR"
+            fi
+            rm -f "$DIST_TMP"
+        done
     fi
 
-    # 3. Try extracting from dist zip (download dist, extract jar, cleanup)
+    # 3. GitHub raw
+    if [ $DOWNLOADED -eq 0 ]; then
+        GITHUB_URL="https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
+        try_download "$GITHUB_URL" "GitHub releases" && DOWNLOADED=1
+    fi
+
+    # 4. Official dist zip (fallback)
     if [ $DOWNLOADED -eq 0 ] && [ -n "$DIST_URL" ]; then
-        echo "  Trying to extract from distribution..."
+        echo "  Trying official distribution..."
         DIST_TMP=$(mktemp /tmp/gradle-dist-XXXXXX.zip)
-        curl -sL --connect-timeout 30 -o "$DIST_TMP" "$DIST_URL" 2>/dev/null || \
+        curl -sL --connect-timeout 30 --max-time 180 -o "$DIST_TMP" "$DIST_URL" 2>/dev/null || \
         wget -q --timeout=30 -O "$DIST_TMP" "$DIST_URL" 2>/dev/null
         if [ -s "$DIST_TMP" ]; then
             unzip -p "$DIST_TMP" "*/gradle/wrapper/gradle-wrapper.jar" > "$WRAPPER_JAR" 2>/dev/null
-            [ -s "$WRAPPER_JAR" ] && DOWNLOADED=1
+            is_valid_jar "$WRAPPER_JAR" && DOWNLOADED=1 || rm -f "$WRAPPER_JAR"
         fi
         rm -f "$DIST_TMP"
     fi
 
-    if [ $DOWNLOADED -eq 0 ] || [ ! -s "$WRAPPER_JAR" ]; then
+    if [ $DOWNLOADED -eq 0 ] || ! is_valid_jar "$WRAPPER_JAR"; then
         rm -f "$WRAPPER_JAR"
-        echo "Error: Failed to download gradle-wrapper.jar"
+        echo "Error: Failed to download gradle-wrapper.jar (all sources tried)"
+        echo "Possible causes: network restricted, mirror unreachable, or proxy interference"
         echo "You can manually place it at: $WRAPPER_JAR"
         echo "Or set GRADLE_WRAPPER_MIRROR to a direct download URL for the jar"
         exit 1
