@@ -1,0 +1,38 @@
+# ============================================
+# AppDown Apache 安全规则
+# （与 README 中 Nginx 安全规则等效）
+# ============================================
+
+# 禁止访问数据库和公共库
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # data/ 目录（数据库、缓存）
+    RewriteRule ^data/ - [F,L]
+
+    # includes/ 目录（PHP 公共库）
+    RewriteRule ^includes/ - [F,L]
+
+    # 构建工具和模板目录
+    RewriteRule ^tools/ - [F,L]
+    RewriteRule ^android-template/ - [F,L]
+    RewriteRule ^ios-template/ - [F,L]
+
+    # 安装锁和日志
+    RewriteRule ^install/install\.lock$ - [F,L]
+    RewriteRule ^install/access\.log$ - [F,L]
+
+    # 禁止在上传目录执行 PHP
+    RewriteRule ^uploads/.*\.php$ - [F,L]
+
+    # 禁止直接下载签名密钥
+    RewriteRule ^uploads/keystores/ - [F,L]
+</IfModule>
+
+# 禁止访问隐藏文件（.git, .env 等）
+<IfModule mod_rewrite.c>
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+</IfModule>
+
+# 禁止列出目录内容
+Options -Indexes

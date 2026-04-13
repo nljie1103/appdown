@@ -246,6 +246,7 @@ appdown/
 ├── style.css                   # 前端全局样式
 ├── privacy.php                 # 隐私政策页
 ├── terms.php                   # 服务条款页
+├── .htaccess                   # Apache 目录保护
 │
 ├── api/                        # 公共 API
 │   ├── config.php              #   站点配置 JSON（带文件缓存）
@@ -382,11 +383,11 @@ appdown/
 │   ├── .htaccess               #   Apache 目录保护
 │   ├── index.php               #   PHP 目录保护（兜底）
 │   ├── .gitkeep                #   保持空目录
-│   ├── app.db                  #   SQLite 数据库（.gitignore 排除）
-│   ├── config_cache.json       #   配置缓存（.gitignore 排除）
-│   └── gradle-cache/           #   Gradle 下载缓存（.gitignore 排除）
+│   ├── app.db                  #   SQLite 数据库
+│   ├── config_cache.json       #   配置缓存
+│   └── gradle-cache/           #   Gradle 下载缓存
 │
-└── uploads/                    # 用户上传文件（内容被 .gitignore 排除）
+└── uploads/                    # 用户上传文件
     ├── apps/                   #   应用图标
     ├── images/                 #   公共图片库
     ├── fonts/                  #   自定义字体
