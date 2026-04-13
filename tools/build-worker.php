@@ -68,6 +68,17 @@ try {
     recursive_copy($templateDir, $buildDir);
     chmod($buildDir . '/gradlew', 0755);
 
+    // 如有自定义 Gradle 镜像，替换 distributionUrl
+    $gradleMirror = get_setting($pdo, 'custom_gradle_mirror');
+    if ($gradleMirror) {
+        $propsFile = $buildDir . '/gradle/wrapper/gradle-wrapper.properties';
+        if (file_exists($propsFile)) {
+            $props = file_get_contents($propsFile);
+            $props = preg_replace('/distributionUrl=.*/', 'distributionUrl=' . str_replace(':', '\\:', $gradleMirror), $props);
+            file_put_contents($propsFile, $props);
+        }
+    }
+
     // 写入配置
     update_task($pdo, $taskId, ['progress' => 15, 'progress_msg' => '写入应用配置...']);
     $config = [
