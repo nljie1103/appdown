@@ -13,6 +13,10 @@ DIST_URL=$(grep distributionUrl "$WRAPPER_PROPS" | sed 's/.*=//' | sed 's/\\:/:/
 GRADLE_VERSION=$(echo "$DIST_URL" | sed 's/.*gradle-//' | sed 's/-bin.*//' | sed 's/-all.*//')
 DIST_NAME="gradle-${GRADLE_VERSION}-bin.zip"
 
+# Persistent cache directory (survives server reboots, unlike /tmp)
+GRADLE_CACHE="${GRADLE_CACHE:-$APP_BASE_DIR/data/gradle-cache}"
+mkdir -p "$GRADLE_CACHE"
+
 # Validate that a file is a real JAR/ZIP (starts with PK magic bytes)
 is_valid_zip() {
     [ -s "$1" ] || return 1
@@ -45,7 +49,7 @@ if [ ! -f "$WRAPPER_JAR" ] || ! is_valid_zip "$WRAPPER_JAR"; then
         for MIRROR_BASE in \
             "https://mirrors.cloud.tencent.com/gradle/" \
             "https://mirrors.aliyun.com/macports/distfiles/gradle/"; do
-            DIST_TMP=$(mktemp /tmp/gradle-dist-XXXXXX.zip)
+            DIST_TMP="$GRADLE_CACHE/gradle-dist-tmp-$$.zip"
             try_download "${MIRROR_BASE}${DIST_NAME}" "$DIST_TMP" "China mirror ($MIRROR_BASE)" 120
             if is_valid_zip "$DIST_TMP"; then
                 unzip -p "$DIST_TMP" "*/gradle/wrapper/gradle-wrapper.jar" > "$WRAPPER_JAR" 2>/dev/null
@@ -80,7 +84,7 @@ DIST_CACHE="$GRADLE_USER_HOME/wrapper/dists"
 CACHED_DIR=$(find "$DIST_CACHE" -maxdepth 3 -name "gradle-$GRADLE_VERSION" -type d 2>/dev/null | head -1)
 
 if [ -z "$CACHED_DIR" ]; then
-    LOCAL_ZIP="/tmp/$DIST_NAME"
+    LOCAL_ZIP="$GRADLE_CACHE/$DIST_NAME"
 
     # Reuse previously downloaded zip if valid
     if [ -s "$LOCAL_ZIP" ] && ! is_valid_zip "$LOCAL_ZIP"; then
@@ -110,7 +114,7 @@ if [ -z "$CACHED_DIR" ]; then
     else
         echo "Warning: Could not pre-download Gradle distribution."
         echo "  Wrapper will attempt to download from: $DIST_URL"
-        echo "  If this fails, manually download $DIST_NAME and place at: /tmp/$DIST_NAME"
+        echo "  If this fails, manually download $DIST_NAME and place at: $GRADLE_CACHE/$DIST_NAME"
     fi
 else
     echo "Gradle $GRADLE_VERSION already cached."

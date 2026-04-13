@@ -164,6 +164,18 @@ function identifySource(string $key): array {
     ];
     if (isset($uaMap[$key])) return $uaMap[$key];
 
+    // 爬虫来源识别（bot:xxx 格式）
+    if (strpos($key, 'bot:') === 0) {
+        $botName = substr($key, 4);
+        $botIcons = [
+            'Googlebot' => 'fab fa-google', 'Baiduspider' => 'fas fa-paw',
+            'Bingbot' => 'fab fa-microsoft', 'YandexBot' => 'fab fa-yandex-international',
+            'Bytespider' => 'fab fa-tiktok', 'python-requests' => 'fab fa-python',
+            'curl' => 'fas fa-terminal', 'wget' => 'fas fa-terminal', 'Scrapy' => 'fab fa-python',
+        ];
+        return ['name' => $botName . ' (爬虫)', 'type' => 'bot', 'icon' => $botIcons[$botName] ?? 'fas fa-robot'];
+    }
+
     // 域名匹配规则
     $rules = [
         // 搜索引擎

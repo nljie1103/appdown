@@ -3,6 +3,7 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 data/config_cache.json
+data/gradle-cache/
 
 # Uploads (user content)
 uploads/images/*

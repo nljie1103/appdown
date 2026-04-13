@@ -1086,19 +1086,23 @@ function findIssuerCert(string $leafCertPem, string $provisionData, string $aia)
  */
 function downloadWithCurl(string $url): ?string {
     if (!function_exists('curl_init')) return null;
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 10,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_USERAGENT => 'Mozilla/5.0',
-    ]);
-    $data = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return ($code === 200 && $data !== false && $data !== '') ? $data : null;
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_USERAGENT => 'Mozilla/5.0',
+        ]);
+        $data = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($code === 200 && $data !== false && $data !== '') return $data;
+        if ($attempt < 3) sleep(1);
+    }
+    return null;
 }
 
 // ===== DER 解析工具 =====
@@ -1263,21 +1267,25 @@ function ocspBuildRequest(string $issuerNameHash, string $issuerKeyHash, string 
 }
 
 function ocspSendRequest(string $url, string $requestDer): ?string {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $requestDer,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/ocsp-request', 'Accept: application/ocsp-response'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_SSL_VERIFYPEER => false,
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return ($code === 200 && $resp !== false && $resp !== '') ? $resp : null;
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $requestDer,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/ocsp-request', 'Accept: application/ocsp-response'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($code === 200 && $resp !== false && $resp !== '') return $resp;
+        if ($attempt < 3) sleep(1);
+    }
+    return null;
 }
 
 function ocspParseResponse(string $data): ?array {

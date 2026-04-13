@@ -16,6 +16,23 @@ $date = today();
 
 $pdo = get_db();
 
+// 爬虫UA检测：开启时标记为 bot:xxx 来源
+if (get_setting($pdo, 'filter_bots') === '1') {
+    $botPatterns = [
+        'Googlebot' => 'Googlebot', 'Baiduspider' => 'Baiduspider', 'bingbot' => 'Bingbot',
+        'YandexBot' => 'YandexBot', 'Sogou' => 'Sogou', '360Spider' => '360Spider',
+        'Bytespider' => 'Bytespider', 'python-requests' => 'python-requests',
+        'curl/' => 'curl', 'Wget/' => 'wget', 'Scrapy/' => 'Scrapy',
+        'AhrefsBot' => 'AhrefsBot', 'SemrushBot' => 'SemrushBot',
+    ];
+    foreach ($botPatterns as $needle => $label) {
+        if (stripos($ua, $needle) !== false) {
+            $referer = 'bot:' . $label;
+            break;
+        }
+    }
+}
+
 // 简单限流: 同IP同分钟最多10次
 $minute_key = date('Y-m-d H:i');
 $count = $pdo->prepare("SELECT COUNT(*) as c FROM page_visits WHERE ip = ? AND created_at >= datetime('now', '-1 minute')

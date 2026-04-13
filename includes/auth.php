@@ -6,6 +6,16 @@
 function is_logged_in(): bool {
     if (empty($_SESSION['admin_id'])) return false;
 
+    // Session 超时检查：超过 2 小时自动登出
+    $timeout = 7200;
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+        $_SESSION = [];
+        session_destroy();
+        session_start();
+        return false;
+    }
+    $_SESSION['last_activity'] = time();
+
     // 验证安装指纹：如果网站重装了，旧session失效
     $lockFile = __DIR__ . '/../install/install.lock';
     if (file_exists($lockFile)) {
@@ -68,6 +78,7 @@ function do_login(string $username, string $password): bool {
     session_regenerate_id(true);
     $_SESSION['admin_id'] = $user['id'];
     $_SESSION['admin_user'] = $username;
+    $_SESSION['last_activity'] = time();
 
     // 记录安装指纹，防止重装后session串用
     $lockFile = __DIR__ . '/../install/install.lock';

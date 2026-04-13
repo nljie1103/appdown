@@ -60,6 +60,8 @@ try {
 
     // 复制模板
     update_task($pdo, $taskId, ['progress' => 10, 'progress_msg' => '复制模板项目...']);
+    $gradleCacheDir = realpath(__DIR__ . '/..') . '/data/gradle-cache';
+    if (!is_dir($gradleCacheDir)) mkdir($gradleCacheDir, 0755, true);
     $templateDir = realpath(__DIR__ . '/../android-template');
     if (!$templateDir || !is_dir($templateDir)) {
         fail_task($pdo, $taskId, 'Android 模板项目不存在');
@@ -189,6 +191,7 @@ try {
         'ANDROID_HOME' => $androidHome,
         'PATH' => getenv('PATH'),
         'HOME' => getenv('HOME') ?: '/tmp',
+        'GRADLE_USER_HOME' => realpath(__DIR__ . '/..') . '/data/gradle-cache',
     ];
 
     $descriptors = [

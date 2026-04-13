@@ -101,6 +101,10 @@ admin_header('站点设置', 'settings');
         <label>后台登录验证码 <label class="toggle" style="margin-left:8px;"><input type="checkbox" id="captcha_enabled"><span class="toggle-slider"></span></label></label>
         <p style="color:var(--text-secondary);font-size:0.85em;margin-top:4px;">开启后登录需输入算术验证码，防止暴力破解</p>
     </div>
+    <div class="form-group" style="margin-top:12px;">
+        <label>爬虫UA过滤 <label class="toggle" style="margin-left:8px;"><input type="checkbox" id="filter_bots"><span class="toggle-slider"></span></label></label>
+        <p style="color:var(--text-secondary);font-size:0.85em;margin-top:4px;">开启后自动识别搜索引擎爬虫和脚本工具，在来源统计中单独标记（如 Googlebot、Baiduspider），不影响正常记录</p>
+    </div>
 </div>
 
 <div class="card">
@@ -123,7 +127,7 @@ let uploadTarget = '';
 const fields = ['site_title','site_heading','logo_url','favicon_url','copyright',
                 'notice_text','notice_enabled','stats_downloads','stats_rating',
                 'stats_daily_active','carousel_interval','captcha_enabled',
-                'bg_type','bg_color','bg_gradient','bg_image','inapp_redirect'];
+                'bg_type','bg_color','bg_gradient','bg_image','inapp_redirect','filter_bots'];
 
 // 渐变预设
 const GRADIENT_PRESETS = [
