@@ -151,7 +151,7 @@ admin_header('仪表盘', 'dashboard');
             dlBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-secondary);">今日暂无下载</td></tr>';
         } else {
             dlBody.innerHTML = dlEntries.map(e =>
-                `<tr><td>${e.app}</td><td>${e.type}</td><td>${e.count}</td></tr>`
+                `<tr><td>${escapeHTML(e.app)}</td><td>${escapeHTML(e.type)}</td><td>${e.count}</td></tr>`
             ).join('');
         }
     } catch (err) {

@@ -18,10 +18,6 @@ if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH
         }
         echo json_encode([
             'error' => $e->getMessage(),
-            '_debug' => [
-                'file' => basename($e->getFile()),
-                'line' => $e->getLine(),
-            ],
         ], JSON_UNESCAPED_UNICODE);
         exit;
     });

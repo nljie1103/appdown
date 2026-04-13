@@ -239,47 +239,160 @@ chmod +x tools/setup-ios-env.sh tools/setup-ios-xcode.sh tools/uninstall-ios-env
 
 ```
 appdown/
-├── index.html              # 前端主页（API动态加载）
-├── install/                # 安装程序（安装后自动锁定）
-├── api/                    # 公共API
-│   ├── config.php          #   站点配置JSON（带缓存）
-│   ├── plist.php           #   iOS plist动态生成
-│   ├── mobileconfig.php    #   iOS Mobileconfig 描述文件生成（支持签名）
-│   └── track.php           #   访问/下载事件追踪
-├── ios/                    # iOS安装引导页
-│   ├── index.php           #   路由（根据模板分发）
-│   ├── template-modern.php #   毛玻璃风格模板
-│   ├── template-classic.php#   仿App Store模板
-│   └── static/             #   安装教程截图
-├── android/                # Android安装引导页
-├── includes/               # PHP公共库（禁止Web访问）
-├── admin/                  # 管理后台
-│   ├── dashboard.php       #   统计仪表盘
-│   ├── apps.php            #   应用列表
-│   ├── app-edit.php        #   应用编辑（下载+轮播+iOS+MC签名）
-│   ├── generate.php        #   生成应用（APK管理/生成/签名密钥）
-│   ├── attachments.php     #   附件管理 + 公共图片库
-│   ├── features.php        #   特色卡片（分类管理）
-│   ├── links.php           #   友情链接（图标管理）
-│   ├── fonts.php           #   字体管理
-│   ├── settings.php        #   站点设置（含MC签名证书配置）
-│   ├── custom-code.php     #   自定义代码 + 特效配置
-│   ├── backup.php          #   数据导入导出
-│   ├── system.php          #   系统信息
-│   └── api/                #   后台AJAX接口
-├── android-template/       # Android WebView 模板项目（Gradle）
-├── ios-template/           # iOS WKWebView 模板项目（Xcode/SwiftUI）
-├── tools/                  # 命令行工具
-│   ├── build-worker.php    #   APK后台构建脚本（CLI）
-│   ├── ios-build-worker.php#   IPA后台构建脚本（CLI）
-│   ├── setup-android-env.sh#   Android一键环境部署脚本
-│   ├── setup-ios-env.sh    #   iOS环境Phase 1：Docker+容器
-│   ├── setup-ios-xcode.sh  #   iOS环境Phase 2：Xcode安装（交互式）
-│   ├── uninstall-android-env.sh # Android环境卸载
-│   └── uninstall-ios-env.sh#   iOS环境卸载
-├── static/                 # 静态资源（FontAwesome）
-├── data/                   # SQLite数据库（自动创建）
-└── uploads/                # 用户上传文件
+├── .gitignore                  # Git 忽略规则
+├── LICENSE                     # MIT 开源协议
+├── README.md                   # 项目说明文档
+├── index.html                  # 前端主页（API 动态加载）
+├── style.css                   # 前端全局样式
+├── privacy.php                 # 隐私政策页
+├── terms.php                   # 服务条款页
+│
+├── api/                        # 公共 API
+│   ├── config.php              #   站点配置 JSON（带文件缓存）
+│   ├── plist.php               #   iOS plist 动态生成（OTA 安装）
+│   ├── mobileconfig.php        #   Mobileconfig 描述文件生成（支持 SSL 签名）
+│   └── track.php               #   访问 / 下载事件追踪（含爬虫 UA 过滤）
+│
+├── install/                    # 安装程序
+│   └── index.php               #   环境检测 + 初始化向导（安装后自动锁定）
+│
+├── ios/                        # iOS 安装引导页
+│   ├── index.php               #   路由（根据模板设置分发）
+│   ├── template-modern.php     #   毛玻璃风格模板
+│   ├── template-classic.php    #   仿 App Store 模板
+│   └── static/                 #   安装教程截图（step1-5）
+│
+├── android/                    # Android 安装引导页
+│   ├── index.php               #   路由（根据模板设置分发）
+│   ├── template-modern.php     #   毛玻璃风格模板
+│   └── template-classic.php    #   仿 App Store 模板
+│
+├── includes/                   # PHP 公共库（禁止 Web 访问）
+│   ├── init.php                #   全局初始化（异常处理、错误处理）
+│   ├── db.php                  #   数据库连接 + 自动迁移
+│   ├── auth.php                #   登录验证 + Session 超时管理
+│   ├── csrf.php                #   CSRF 令牌生成与校验
+│   ├── helpers.php             #   通用工具函数
+│   ├── layout.php              #   后台页面布局模板
+│   ├── upload.php              #   文件上传 + 冲突处理 + 安全删除
+│   └── mobileconfig.php        #   Mobileconfig 生成与签名逻辑
+│
+├── admin/                      # 管理后台
+│   ├── index.php               #   后台首页（重定向到仪表盘）
+│   ├── login.php               #   登录页面
+│   ├── logout.php              #   登出处理
+│   ├── account.php             #   账号管理（修改密码）
+│   ├── dashboard.php           #   统计仪表盘
+│   ├── apps.php                #   应用列表
+│   ├── app-edit.php            #   应用编辑（下载按钮 + 轮播 + iOS + MC 签名）
+│   ├── generate.php            #   生成应用（APK/IPA 构建 + 签名密钥 + MC 生成）
+│   ├── attachments.php         #   附件管理 + 公共图片库
+│   ├── features.php            #   特色卡片管理（分类 + 图标）
+│   ├── links.php               #   友情链接管理（图标）
+│   ├── fonts.php               #   字体管理
+│   ├── settings.php            #   站点设置（基本 / 安全 / MC 证书）
+│   ├── custom-code.php         #   自定义代码 + 特效配置
+│   ├── backup.php              #   数据导入导出
+│   ├── system.php              #   系统信息 + 构建环境管理
+│   ├── assets/                 #   后台静态资源
+│   │   ├── admin.css           #     后台全局样式
+│   │   ├── admin.js            #     后台公共 JS（escapeHTML、Modal 等）
+│   │   └── fa-icons.json       #     FontAwesome 图标列表（图标选择器用）
+│   └── api/                    #   后台 AJAX 接口
+│       ├── account.php         #     账号管理接口
+│       ├── apps.php            #     应用 CRUD
+│       ├── downloads.php       #     下载按钮 CRUD
+│       ├── images.php          #     轮播图 CRUD
+│       ├── attachments.php     #     附件平台分类 CRUD
+│       ├── attachment-files.php#     附件文件上传 / 编辑 / 删除
+│       ├── package-info.php    #     安装包解析（APK/IPA 签名 + OCSP 检测）
+│       ├── features.php        #     特色卡片 + 分类 CRUD
+│       ├── links.php           #     友情链接 CRUD
+│       ├── image-library.php   #     公共图片库 CRUD
+│       ├── fonts.php           #     字体管理 CRUD
+│       ├── settings.php        #     站点设置读写
+│       ├── custom-code.php     #     自定义代码读写
+│       ├── dashboard.php       #     仪表盘统计数据
+│       ├── backup.php          #     导入导出处理
+│       ├── upload.php          #     通用文件上传
+│       ├── reorder.php         #     拖拽排序
+│       ├── generate.php        #     APK/IPA 构建任务 + 生成结果管理
+│       ├── mobileconfig.php    #     Mobileconfig 生成 / 证书管理
+│       ├── keystores.php       #     签名密钥管理（生成 / 导入）
+│       └── system.php          #     构建环境检测 / 安装卸载 / 路径配置
+│
+├── android-template/           # Android WebView 模板项目（Gradle）
+│   ├── .htaccess               #   Apache 目录保护
+│   ├── index.php               #   PHP 目录保护（兜底）
+│   ├── build.gradle            #   项目级 Gradle 配置
+│   ├── settings.gradle         #   Gradle 项目设置
+│   ├── gradle.properties       #   Gradle 属性
+│   ├── gradlew                 #   Gradle Wrapper 启动脚本（含镜像回退）
+│   ├── gradle/wrapper/         #   Gradle Wrapper JAR + 配置
+│   └── app/                    #   应用模块
+│       ├── build.gradle        #     应用级构建配置（版本号通过参数传入）
+│       ├── proguard-rules.pro  #     ProGuard 混淆规则
+│       └── src/main/
+│           ├── AndroidManifest.xml
+│           ├── assets/config.json          # WebView 配置（构建时覆盖）
+│           ├── java/com/webview/app/
+│           │   ├── MainActivity.java       # 主界面（WebView）
+│           │   ├── SplashActivity.java     # 启动页
+│           │   └── WebViewApp.java         # Application 类
+│           └── res/                        # 资源文件（构建时替换）
+│
+├── ios-template/               # iOS WKWebView 模板项目（Xcode/SwiftUI）
+│   ├── .htaccess               #   Apache 目录保护
+│   ├── index.php               #   PHP 目录保护（兜底）
+│   ├── ExportOptions.plist     #   Xcode 导出配置（无签名模式）
+│   ├── WebViewApp.xcodeproj/   #   Xcode 项目文件
+│   └── WebViewApp/             #   应用源码
+│       ├── WebViewAppApp.swift #     SwiftUI App 入口
+│       ├── ContentView.swift   #     主界面（WKWebView）
+│       ├── Info.plist          #     应用信息配置
+│       ├── config.json         #     WebView 配置（构建时覆盖）
+│       └── Assets.xcassets/    #     图标 + 颜色资源
+│
+├── tools/                      # 命令行工具（禁止 Web 访问）
+│   ├── build-worker.php        #   APK 后台构建脚本（CLI）
+│   ├── ios-build-worker.php    #   IPA 后台构建脚本（CLI）
+│   ├── install-android-worker.php  # Android 环境安装工作进程
+│   ├── install-ios-worker.php  #   iOS 环境安装工作进程
+│   ├── xcode-install-worker.php#   Xcode 安装工作进程（Apple ID 交互）
+│   ├── setup-android-env.sh    #   Android 一键环境部署脚本
+│   ├── setup-ios-env.sh        #   iOS 环境 Phase 1：Docker + 容器
+│   ├── setup-ios-xcode.sh      #   iOS 环境 Phase 2：Xcode 安装（交互式）
+│   ├── uninstall-android-env.sh#   Android 环境卸载
+│   └── uninstall-ios-env.sh    #   iOS 环境卸载
+│
+├── static/                     # 静态资源
+│   └── fontawesome-free-7.1.0-web/  # Font Awesome 7.1.0（本地部署）
+│       ├── css/                #     样式文件
+│       ├── js/                 #     脚本文件
+│       ├── metadata/           #     图标元数据
+│       ├── scss/               #     SASS 源码
+│       ├── sprites/            #     SVG 精灵图
+│       ├── sprites-full/       #     SVG 精灵图（完整版）
+│       ├── svgs/               #     单个 SVG 图标
+│       ├── svgs-full/          #     单个 SVG 图标（完整版）
+│       ├── webfonts/           #     Web 字体文件
+│       └── LICENSE.txt         #     FontAwesome 许可证
+│
+├── data/                       # 数据目录（自动创建）
+│   ├── .htaccess               #   Apache 目录保护
+│   ├── index.php               #   PHP 目录保护（兜底）
+│   ├── .gitkeep                #   保持空目录
+│   ├── app.db                  #   SQLite 数据库（.gitignore 排除）
+│   ├── config_cache.json       #   配置缓存（.gitignore 排除）
+│   └── gradle-cache/           #   Gradle 下载缓存（.gitignore 排除）
+│
+└── uploads/                    # 用户上传文件（内容被 .gitignore 排除）
+    ├── apps/                   #   应用图标
+    ├── images/                 #   公共图片库
+    ├── fonts/                  #   自定义字体
+    ├── apks/                   #   生成的 APK 文件
+    ├── ipas/                   #   生成的 IPA 文件
+    └── keystores/              #   签名密钥文件
 ```
 
 ## 🖥 后台功能
