@@ -143,10 +143,13 @@ function parse_size(string $val): int {
 }
 
 function delete_upload(string $url): void {
-    if (substr($url, 0, 8) === 'uploads/' && strpos($url, '..') === false) {
-        $path = __DIR__ . '/../' . $url;
-        if (file_exists($path)) {
-            unlink($path);
-        }
+    if (substr($url, 0, 8) !== 'uploads/' || strpos($url, '..') !== false) {
+        return;
+    }
+    $uploadsDir = realpath(__DIR__ . '/../uploads');
+    if (!$uploadsDir) return;
+    $path = realpath(__DIR__ . '/../' . $url);
+    if ($path && str_starts_with($path, $uploadsDir . DIRECTORY_SEPARATOR) && is_file($path)) {
+        unlink($path);
     }
 }
