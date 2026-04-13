@@ -168,6 +168,31 @@ sudo /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
 
 > ⚠️ 构建脚本会自动检测系统已安装的 JDK 和 SDK（包括非标准路径），也可通过 `JAVA_HOME` 和 `ANDROID_HOME` 环境变量手动指定。
 
+### Gradle 构建依赖（网络受限时）
+
+APK 构建依赖两个 Gradle 文件，构建脚本会自动按 **官方源 → 腾讯云镜像 → 阿里云镜像** 的顺序尝试下载。如果服务器网络受限导致全部失败，可手动下载后放置到指定位置：
+
+| 文件 | 大小 | 作用 | 放置位置 |
+|:---|:---|:---|:---|
+| `gradle-wrapper.jar` | ~43 KB | Gradle 引导程序 | `android-template/gradle/wrapper/gradle-wrapper.jar`（已随仓库提供） |
+| `gradle-8.5-bin.zip` | ~150 MB | Gradle 完整发行包 | `/tmp/gradle-8.5-bin.zip`（服务器上） |
+
+**`gradle-wrapper.jar`** 已包含在仓库中，无需额外操作。
+
+**`gradle-8.5-bin.zip`** 首次构建时会自动下载并缓存到 `~/.gradle/wrapper/dists/`，后续构建不再重复下载。如自动下载失败，可手动下载后放到服务器 `/tmp/` 目录：
+
+```bash
+# 下载地址（任选其一）
+# 官方源
+wget -O /tmp/gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
+# 腾讯云镜像
+wget -O /tmp/gradle-8.5-bin.zip https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip
+# 阿里云镜像
+wget -O /tmp/gradle-8.5-bin.zip https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.5-bin.zip
+```
+
+构建脚本会自动检测 `/tmp/gradle-8.5-bin.zip`，存在则直接使用本地文件，无需联网。
+
 ### IPA 生成环境部署（可选）
 
 如需使用「生成应用」的 IPA 功能（URL 转 IPA），需要 Docker-OSX（在 Linux 上通过 Docker 运行 macOS）。
