@@ -116,20 +116,19 @@ admin_header('编辑应用', 'apps');
     <!-- Mobileconfig配置面板 -->
     <div id="panelMc" style="display:none;">
 
-        <div class="form-group">
-            <label>Mobileconfig 文件地址</label>
-            <input type="hidden" id="mcFileId" value="">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <input type="text" class="form-control" id="mcFileUrl" style="flex:1;min-width:200px;" placeholder="输入链接或点击按钮从附件库选择">
-                <button class="btn btn-outline" type="button" onclick="showAttPicker('mcFileUrl')" title="从附件库选择"><i class="fas fa-paperclip"></i> 附件库</button>
-                <button class="btn btn-outline" type="button" onclick="clearMcFile()"><i class="fas fa-times"></i></button>
-            </div>
-            <select class="form-control att-picker" id="mcFileUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'mcFileUrl')">
-                <option value="">-- 选择一个文件 --</option>
-            </select>
-            <small style="color:var(--text-secondary);font-size:0.8em;">可直接输入链接或从附件库选择（在"生成应用"页生成后关联到应用即可在附件库中找到）</small>
-        </div>
         <div class="form-row">
+            <div class="form-group">
+                <label>Mobileconfig 文件地址</label>
+                <input type="hidden" id="mcFileId" value="">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" class="form-control" id="mcFileUrl" style="flex:1;" placeholder="输入链接或从附件选择">
+                    <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('mcFileUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
+                    <button class="btn btn-outline btn-sm" type="button" onclick="clearMcFile()" title="清除"><i class="fas fa-times"></i></button>
+                </div>
+                <select class="form-control att-picker" id="mcFileUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'mcFileUrl')">
+                    <option value="">-- 选择一个文件 --</option>
+                </select>
+            </div>
             <div class="form-group">
                 <label>安装页模板</label>
                 <select class="form-control" id="mcTemplate">
@@ -152,21 +151,21 @@ admin_header('编辑应用', 'apps');
 <div class="card">
     <h3>Android安装页配置</h3>
     <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后用户可通过 <code style="color:#e53e3e;font-weight:700;">/android/?app=应用标识</code> 访问Android安装引导页</p>
-    <div class="form-group">
-        <label>APK文件地址</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-            <input type="text" class="form-control" id="androidApkUrl" placeholder="如: https://example.com/app.apk 或选择附件" style="flex:1;">
-            <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('androidApkUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
+    <div class="form-row">
+        <div class="form-group">
+            <label>APK文件地址</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" class="form-control" id="androidApkUrl" placeholder="如: https://example.com/app.apk 或选择附件" style="flex:1;">
+                <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('androidApkUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
+            </div>
+            <select class="form-control att-picker" id="androidApkUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'androidApkUrl')">
+                <option value="">-- 选择一个版本 --</option>
+            </select>
         </div>
-        <select class="form-control att-picker" id="androidApkUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'androidApkUrl')">
-            <option value="">-- 选择一个版本 --</option>
-        </select>
-    </div>
-    <div class="form-row">
         <div class="form-group"><label>应用版本</label><input type="text" class="form-control" id="androidVersion" placeholder="如: 1.2.0"></div>
-        <div class="form-group"><label>应用大小</label><input type="text" class="form-control" id="androidSize" placeholder="如: 12.5 MB"></div>
     </div>
     <div class="form-row">
+        <div class="form-group"><label>应用大小</label><input type="text" class="form-control" id="androidSize" placeholder="如: 12.5 MB"></div>
         <div class="form-group">
             <label>安装页模板</label>
             <select class="form-control" id="androidTemplate">
