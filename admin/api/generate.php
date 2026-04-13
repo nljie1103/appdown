@@ -169,7 +169,7 @@ if ($method === 'POST') {
 
         // 后台启动 worker
         $phpBin = PHP_BINDIR . '/php';
-        if (!file_exists($phpBin)) $phpBin = 'php';
+        if (!@file_exists($phpBin)) $phpBin = 'php';
         $workerScript = realpath(__DIR__ . '/../../tools/build-worker.php');
         if (!$workerScript) json_response(['error' => 'build-worker.php 不存在'], 500);
         $dataDir = realpath(__DIR__ . '/../../data') ?: (__DIR__ . '/../../data');
@@ -230,7 +230,7 @@ if ($method === 'POST') {
         }
 
         $phpBin = PHP_BINDIR . '/php';
-        if (!file_exists($phpBin)) $phpBin = 'php';
+        if (!@file_exists($phpBin)) $phpBin = 'php';
         $workerScript = realpath(__DIR__ . '/../../tools/ios-build-worker.php');
         if (!$workerScript) json_response(['error' => 'ios-build-worker.php 不存在'], 500);
         $dataDir = realpath(__DIR__ . '/../../data') ?: (__DIR__ . '/../../data');

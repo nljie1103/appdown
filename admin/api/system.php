@@ -193,7 +193,7 @@ if ($method === 'POST') {
 
         // 后台启动 worker（PHP_BINARY 在 FPM 下返回 php-fpm，需用 PHP_BINDIR）
         $phpBin = PHP_BINDIR . '/php';
-        if (!file_exists($phpBin)) $phpBin = 'php';
+        if (!@file_exists($phpBin)) $phpBin = 'php';
         $cmd = sprintf(
             'nohup %s %s %s > /dev/null 2>&1 &',
             escapeshellarg($phpBin),
@@ -238,7 +238,7 @@ if ($method === 'POST') {
 
         // 复用 install worker，传 uninstall 脚本路径
         $phpBin = PHP_BINDIR . '/php';
-        if (!file_exists($phpBin)) $phpBin = 'php';
+        if (!@file_exists($phpBin)) $phpBin = 'php';
         $cmd = sprintf(
             'nohup %s %s %s %s > /dev/null 2>&1 &',
             escapeshellarg($phpBin),
@@ -275,7 +275,7 @@ if ($method === 'POST') {
         set_setting($pdo, 'ios_install_status', 'running');
 
         $phpBin = PHP_BINDIR . '/php';
-        if (!file_exists($phpBin)) $phpBin = 'php';
+        if (!@file_exists($phpBin)) $phpBin = 'php';
         $cmd = sprintf(
             'nohup %s %s %s > /dev/null 2>&1 &',
             escapeshellarg($phpBin),
@@ -324,7 +324,7 @@ if ($method === 'POST') {
         set_setting($pdo, 'ios_install_status', 'running');
 
         $phpBin = PHP_BINDIR . '/php';
-        if (!file_exists($phpBin)) $phpBin = 'php';
+        if (!@file_exists($phpBin)) $phpBin = 'php';
         $cmd = sprintf(
             'nohup %s %s %s %s > /dev/null 2>&1 &',
             escapeshellarg($phpBin),
@@ -380,7 +380,7 @@ if ($method === 'POST') {
         set_setting($pdo, 'ios_xcode_status', 'installing');
 
         $phpBin = PHP_BINDIR . '/php';
-        if (!file_exists($phpBin)) $phpBin = 'php';
+        if (!@file_exists($phpBin)) $phpBin = 'php';
         $cmd = sprintf(
             'nohup %s %s %s %s > /dev/null 2>&1 &',
             escapeshellarg($phpBin),

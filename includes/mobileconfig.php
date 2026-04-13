@@ -121,6 +121,18 @@ function resolve_cert_content(string $mode, string $value): string {
  * 使用 OpenSSL PKCS#7 签名 mobileconfig
  */
 function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string $chainPem = '') {
+    // 验证签名证书
+    $certRes = @openssl_x509_read($certPem);
+    if (!$certRes) {
+        return ['error' => '签名证书无效: ' . openssl_error_string()];
+    }
+
+    // 验证私钥
+    $keyRes = @openssl_pkey_get_private($keyPem);
+    if (!$keyRes) {
+        return ['error' => '私钥无效: ' . openssl_error_string()];
+    }
+
     $tmpDir = sys_get_temp_dir();
     $tmpIn = tempnam($tmpDir, 'mc_in_');
     $tmpOut = tempnam($tmpDir, 'mc_out_');
@@ -131,13 +143,18 @@ function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string 
     file_put_contents($tmpCert, $certPem);
     file_put_contents($tmpKey, $keyPem);
 
+    // 验证 chain 中包含有效的 PEM 证书，无效则跳过 chain
     $extraCertsFile = null;
     if (!empty($chainPem)) {
-        $extraCertsFile = tempnam($tmpDir, 'mc_chain_');
-        file_put_contents($extraCertsFile, $chainPem);
+        // 检查 chain 是否包含至少一个有效的 PEM 证书块
+        if (preg_match('/-----BEGIN CERTIFICATE-----/', $chainPem) && @openssl_x509_read($chainPem)) {
+            $extraCertsFile = tempnam($tmpDir, 'mc_chain_');
+            file_put_contents($extraCertsFile, $chainPem);
+        }
+        // chain 无效时不传，仅用 cert+key 签名
     }
 
-    $result = openssl_pkcs7_sign(
+    $result = @openssl_pkcs7_sign(
         $tmpIn, $tmpOut,
         'file://' . $tmpCert, 'file://' . $tmpKey,
         [], PKCS7_BINARY | PKCS7_NOATTR,
@@ -151,7 +168,9 @@ function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string 
 
     if (!$result) {
         @unlink($tmpOut);
-        return false;
+        $err = '';
+        while ($msg = openssl_error_string()) $err .= $msg . '; ';
+        return ['error' => '签名失败: ' . ($err ?: '未知OpenSSL错误')];
     }
 
     $smime = file_get_contents($tmpOut);
@@ -254,7 +273,10 @@ function generate_and_save_mobileconfig(array $params, ?array $cert, string $des
         $chainPem = resolve_cert_content($cert['mode'] ?? '', $cert['chain'] ?? '');
         if (!empty($certPem) && !empty($keyPem)) {
             $signResult = sign_mobileconfig($xml, $certPem, $keyPem, $chainPem);
-            if ($signResult !== false) {
+            if (is_array($signResult) && isset($signResult['error'])) {
+                return ['ok' => false, 'error' => $signResult['error']];
+            }
+            if ($signResult !== false && !empty($signResult)) {
                 $output = $signResult;
                 $signed = true;
             }
