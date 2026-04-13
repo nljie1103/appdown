@@ -239,7 +239,7 @@ function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string 
 
     $smime = file_get_contents($tmpOut);
     @unlink($tmpOut);
-    if (empty($smime)) return false;
+    if (empty($smime)) return ['error' => '签名失败：openssl_pkcs7_sign 输出为空'];
 
     // S/MIME -> DER
     $tmpSmime = tempnam($tmpDir, 'mc_smime_');
@@ -255,12 +255,19 @@ function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string 
 
     if ($retCode !== 0 || !file_exists($tmpDer)) {
         @unlink($tmpDer);
-        return extract_der_from_smime($smime);
+        $der = extract_der_from_smime($smime);
+        if ($der === false || empty($der)) {
+            return ['error' => '签名失败：S/MIME 转 DER 失败（openssl smime 命令和降级提取均失败）'];
+        }
+        return $der;
     }
 
     $der = file_get_contents($tmpDer);
     @unlink($tmpDer);
-    return (!empty($der)) ? $der : false;
+    if (empty($der)) {
+        return ['error' => '签名失败：DER 输出为空'];
+    }
+    return $der;
 }
 
 /**
@@ -340,10 +347,11 @@ function generate_and_save_mobileconfig(array $params, ?array $cert, string $des
             if (is_array($signResult) && isset($signResult['error'])) {
                 return ['ok' => false, 'error' => $signResult['error']];
             }
-            if ($signResult !== false && !empty($signResult)) {
-                $output = $signResult;
-                $signed = true;
+            if ($signResult === false || empty($signResult)) {
+                return ['ok' => false, 'error' => '签名失败：PKCS#7签名输出为空（S/MIME转DER失败）'];
             }
+            $output = $signResult;
+            $signed = true;
         } else {
             // 证书已选择但内容无法读取
             $reason = [];
