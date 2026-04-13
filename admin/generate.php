@@ -991,14 +991,17 @@ async function loadMcList() {
             el.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:20px;">暂无生成记录，点击上方"生成新文件"创建</p>';
             return;
         }
-        let html = '<table class="data-table"><thead><tr><th>显示名称</th><th>Bundle ID</th><th>目标URL</th><th>证书</th><th>关联应用</th><th>大小</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+        let html = '<table class="data-table"><thead><tr><th>显示名称</th><th>Bundle ID</th><th>目标URL</th><th>签名</th><th>关联应用</th><th>大小</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
         for (const r of mcListData) {
             const fname = r.file_path ? r.file_path.split('/').pop() : '';
+            const signedHtml = r.cert_id
+                ? `<span style="color:#27ae60;" title="${escapeHTML(r.cert_name || '')}"><i class="fas fa-lock"></i> 已签名</span>`
+                : '<span style="color:var(--text-secondary);"><i class="fas fa-lock-open"></i> 未签名</span>';
             html += `<tr>
                 <td>${escapeHTML(r.display_name)}</td>
                 <td><code style="font-size:0.8em;">${escapeHTML(r.bundle_id || '-')}</code></td>
                 <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHTML(r.target_url)}">${escapeHTML(r.target_url)}</td>
-                <td>${r.cert_name ? escapeHTML(r.cert_name) : '<span style="color:var(--text-secondary);">全局/无</span>'}</td>
+                <td style="white-space:nowrap;">${signedHtml}</td>
                 <td>${r.linked_app_name ? escapeHTML(r.linked_app_name) : '<span style="color:var(--text-secondary);">未关联</span>'}</td>
                 <td>${escapeHTML(r.file_size || '-')}</td>
                 <td style="white-space:nowrap;">${r.created_at || ''}</td>
@@ -1201,7 +1204,7 @@ async function loadMcCerts() {
             return;
         }
         const modeLabel = { text: '文本', path: '路径', upload: '上传' };
-        let html = '<table class="data-table"><thead><tr><th>名称</th><th>颁发者</th><th>模式</th><th>组织名</th><th>全局默认</th><th>到期时间</th><th>操作</th></tr></thead><tbody>';
+        let html = '<table class="data-table"><thead><tr><th>名称</th><th>颁发者</th><th>模式</th><th>组织名</th><th style="text-align:center;">全局默认</th><th>到期时间</th><th>操作</th></tr></thead><tbody>';
         for (const c of rows) {
             // 到期时间高亮：已过期红色，30天内即将过期橙色
             let expiresHtml = '-';
@@ -1222,7 +1225,7 @@ async function loadMcCerts() {
                 <td style="font-size:0.85em;color:#555;">${escapeHTML(c.cert_issuer || '-')}</td>
                 <td>${modeLabel[c.mode] || c.mode}</td>
                 <td>${escapeHTML(c.payload_org || '-')}</td>
-                <td style="text-align:center;">${c.is_global ? '<span style="color:#27ae60;font-weight:600;">⭐ 是</span>' : '<button class="btn btn-outline btn-sm" onclick="setGlobalCert(${c.id})" title="设为全局">设为全局</button>'}</td>
+                <td style="text-align:center;">${c.is_global ? '<span style="color:#27ae60;font-weight:600;">&#11088; 是</span>' : '<span style="color:var(--text-secondary);cursor:pointer;" onclick="setGlobalCert(' + c.id + ')" title="点击设为全局">否</span>'}</td>
                 <td style="white-space:nowrap;">${expiresHtml}</td>
                 <td style="white-space:nowrap;">
                     <button class="btn btn-outline btn-sm" onclick="showEditCertModal(${c.id})" title="编辑"><i class="fas fa-edit"></i></button>
