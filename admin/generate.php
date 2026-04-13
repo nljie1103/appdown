@@ -991,16 +991,17 @@ async function loadMcList() {
             el.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:20px;">暂无生成记录，点击上方"生成新文件"创建</p>';
             return;
         }
-        let html = '<table class="data-table"><thead><tr><th>显示名称</th><th>Bundle ID</th><th>目标URL</th><th>签名</th><th>关联应用</th><th>大小</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+        let html = '<table class="data-table"><thead><tr><th>显示名称</th><th>Bundle ID</th><th>目标URL</th><th>证书</th><th>签名</th><th>关联应用</th><th>大小</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
         for (const r of mcListData) {
             const fname = r.file_path ? r.file_path.split('/').pop() : '';
             const signedHtml = r.cert_id
-                ? `<span style="color:#27ae60;" title="${escapeHTML(r.cert_name || '')}"><i class="fas fa-lock"></i> 已签名</span>`
+                ? '<span style="color:#27ae60;"><i class="fas fa-lock"></i> 已签名</span>'
                 : '<span style="color:var(--text-secondary);"><i class="fas fa-lock-open"></i> 未签名</span>';
             html += `<tr>
                 <td>${escapeHTML(r.display_name)}</td>
                 <td><code style="font-size:0.8em;">${escapeHTML(r.bundle_id || '-')}</code></td>
                 <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHTML(r.target_url)}">${escapeHTML(r.target_url)}</td>
+                <td>${r.cert_name ? escapeHTML(r.cert_name) : '<span style="color:var(--text-secondary);">无</span>'}</td>
                 <td style="white-space:nowrap;">${signedHtml}</td>
                 <td>${r.linked_app_name ? escapeHTML(r.linked_app_name) : '<span style="color:var(--text-secondary);">未关联</span>'}</td>
                 <td>${escapeHTML(r.file_size || '-')}</td>
