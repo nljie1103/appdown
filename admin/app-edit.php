@@ -259,7 +259,6 @@ admin_header('编辑应用', 'apps');
                 <option value="web">Web</option>
                 <option value="tv">TV</option>
                 <option value="other">其他</option>
-                <option value="ios" style="color:#999;">iOS (旧版，建议更换)</option>
             </select>
         </div>
         <div class="form-group">
