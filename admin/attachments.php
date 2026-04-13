@@ -278,6 +278,13 @@ function selectPlatform(platId) {
     renderFiles(plat.files || []);
 }
 
+function getFileTypeBadge(url) {
+    const ext = (url || '').split('.').pop().toLowerCase();
+    const colors = { apk:'#3ddc84', ipa:'#007aff', exe:'#00bcf2', mobileconfig:'#ff9500', dmg:'#a259ff', zip:'#6c757d' };
+    const color = colors[ext] || '#6c757d';
+    return `<span style="background:${color};color:#fff;font-size:0.7em;padding:2px 6px;border-radius:4px;margin-left:6px;">${ext.toUpperCase()}</span>`;
+}
+
 function renderFiles(files) {
     const el = document.getElementById('fileList');
     if (!files.length) {
@@ -287,7 +294,7 @@ function renderFiles(files) {
     el.innerHTML = files.map((f, i) => `
         <div class="file-row">
             <div class="file-info">
-                <div class="ver">${escapeHTML(f.version)} ${i === 0 ? '<span style="background:var(--primary);color:#fff;font-size:0.7em;padding:2px 6px;border-radius:4px;margin-left:6px;">最新</span>' : ''}</div>
+                <div class="ver">${escapeHTML(f.version)} ${getFileTypeBadge(f.file_url)} ${i === 0 ? '<span style="background:var(--primary);color:#fff;font-size:0.7em;padding:2px 6px;border-radius:4px;margin-left:6px;">最新</span>' : ''}</div>
                 <div class="meta">${escapeHTML(f.file_size)} · ${f.created_at}</div>
                 ${f.changelog ? `<div class="log">${escapeHTML(f.changelog)}</div>` : ''}
             </div>
