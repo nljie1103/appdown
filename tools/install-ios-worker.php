@@ -52,13 +52,30 @@ try {
     // 检测当前是否已经是 root
     $isRoot = function_exists('posix_getuid') ? (posix_getuid() === 0) : (trim(shell_exec('id -u') ?? '') === '0');
 
+    // 从数据库读取自定义配置，通过环境变量传给安装脚本
+    $envParts = [];
+    $envKeys = [
+        'custom_docker_data_root' => 'DOCKER_DATA_ROOT',
+        'custom_docker_mirror'    => 'DOCKER_MIRROR',
+        'custom_docker_osx_image' => 'DOCKER_OSX_IMAGE',
+        'custom_ios_ssh_port'     => 'SSH_PORT',
+        'custom_ios_container'    => 'CONTAINER_NAME',
+    ];
+    foreach ($envKeys as $settingKey => $envName) {
+        $val = get_setting($pdo, $settingKey);
+        if ($val !== '' && $val !== null) {
+            $envParts[] = $envName . '=' . escapeshellarg($val);
+        }
+    }
+    $envPrefix = $envParts ? implode(' ', $envParts) . ' ' : '';
+
     if ($isRoot) {
-        $cmd = sprintf('bash %s > %s 2>&1', escapeshellarg($script), escapeshellarg($logFile));
+        $cmd = sprintf('%sbash %s > %s 2>&1', $envPrefix, escapeshellarg($script), escapeshellarg($logFile));
     } else {
         // 非 root，尝试 sudo（免密）
         exec('sudo -n true 2>/dev/null', $sudoOut, $sudoCode);
         if ($sudoCode === 0) {
-            $cmd = sprintf('sudo bash %s > %s 2>&1', escapeshellarg($script), escapeshellarg($logFile));
+            $cmd = sprintf('sudo %sbash %s > %s 2>&1', $envPrefix, escapeshellarg($script), escapeshellarg($logFile));
         } else {
             $fallbackCmd = 'sudo bash ' . $script;
             $msg = "[错误] 当前 PHP 用户没有 sudo 免密权限，无法自动安装。\n\n";

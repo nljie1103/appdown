@@ -10,10 +10,12 @@
 
 set -e
 
-# ========== 配置 ==========
-DOCKER_OSX_IMAGE="sickcodes/docker-osx:sonoma"
-CONTAINER_NAME="ysapp-ios-builder"
-SSH_PORT=50922
+# ========== 配置（可通过环境变量覆盖） ==========
+DOCKER_OSX_IMAGE="${DOCKER_OSX_IMAGE:-sickcodes/docker-osx:sonoma}"
+CONTAINER_NAME="${CONTAINER_NAME:-ysapp-ios-builder}"
+SSH_PORT="${SSH_PORT:-50922}"
+DOCKER_DATA_ROOT="${DOCKER_DATA_ROOT:-}"
+DOCKER_MIRROR="${DOCKER_MIRROR:-}"
 BUILD_DIR=""  # 运行时根据脚本位置计算
 
 RED='\033[0;31m'
@@ -44,8 +46,10 @@ echo "==========================================="
 echo ""
 echo "将安装以下组件："
 echo "  - Docker CE（如未安装）"
-echo "  - Docker-OSX macOS Sonoma 镜像（约 20GB）"
-echo "  - 持久化 macOS 容器 ($CONTAINER_NAME)"
+echo "  - Docker-OSX 镜像: $DOCKER_OSX_IMAGE"
+echo "  - 持久化 macOS 容器 ($CONTAINER_NAME, SSH端口 $SSH_PORT)"
+[ -n "$DOCKER_DATA_ROOT" ] && echo "  - Docker 数据目录: $DOCKER_DATA_ROOT"
+[ -n "$DOCKER_MIRROR" ] && echo "  - Docker 镜像加速: $DOCKER_MIRROR"
 echo ""
 echo "项目目录: $PROJECT_DIR"
 echo "构建目录: $BUILD_DIR"
@@ -125,6 +129,57 @@ if ! systemctl is-active --quiet docker; then
     systemctl enable docker
 fi
 log "Docker 服务运行中"
+
+# 配置 Docker daemon（数据目录 + 镜像加速）
+if [ -n "$DOCKER_DATA_ROOT" ] || [ -n "$DOCKER_MIRROR" ]; then
+    log "正在配置 Docker daemon.json ..."
+    python3 - "$DOCKER_DATA_ROOT" "$DOCKER_MIRROR" << 'PYSCRIPT'
+import json, sys, os
+daemon_file = "/etc/docker/daemon.json"
+cfg = {}
+if os.path.exists(daemon_file):
+    try:
+        with open(daemon_file) as f:
+            cfg = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        cfg = {}
+data_root = sys.argv[1]
+mirror = sys.argv[2]
+changed = False
+if data_root:
+    os.makedirs(data_root, exist_ok=True)
+    if cfg.get("data-root") != data_root:
+        cfg["data-root"] = data_root
+        changed = True
+        print(f"  data-root -> {data_root}")
+if mirror:
+    urls = [u.strip() for u in mirror.split(",") if u.strip()]
+    if cfg.get("registry-mirrors") != urls:
+        cfg["registry-mirrors"] = urls
+        changed = True
+        print(f"  registry-mirrors -> {urls}")
+if changed:
+    with open(daemon_file, "w") as f:
+        json.dump(cfg, f, indent=2)
+    print("daemon.json 已更新")
+else:
+    print("daemon.json 无需更改")
+PYSCRIPT
+    if [ $? -eq 0 ]; then
+        log "Docker daemon.json 配置完成"
+        # 重启 Docker 使配置生效
+        log "重启 Docker 服务 ..."
+        systemctl restart docker
+        sleep 2
+        if systemctl is-active --quiet docker; then
+            log "Docker 服务重启成功"
+        else
+            warn "Docker 服务重启失败，请手动检查 /etc/docker/daemon.json"
+        fi
+    else
+        warn "daemon.json 配置失败（python3 不可用？），跳过"
+    fi
+fi
 
 # ========== Step 3: 拉取 Docker-OSX 镜像 ==========
 echo ""

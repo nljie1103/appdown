@@ -305,9 +305,27 @@ admin_header('系统信息', 'system');
     </table>
     <details style="margin-top:12px;">
         <summary style="cursor:pointer;font-weight:600;font-size:0.9em;color:var(--primary);">
-            <i class="fas fa-cog"></i> 自定义路径配置
+            <i class="fas fa-cog"></i> 自定义配置
         </summary>
         <div style="margin-top:10px;display:grid;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="min-width:140px;font-size:0.85em;font-weight:600;">Docker 数据目录</label>
+                <input type="text" class="form-control" id="customDockerDataRoot"
+                       value="<?= htmlspecialchars(get_setting($pdo, 'custom_docker_data_root')) ?>"
+                       placeholder="留空则默认 /var/lib/docker" style="flex:1;">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="min-width:140px;font-size:0.85em;font-weight:600;">Docker 镜像加速</label>
+                <input type="text" class="form-control" id="customDockerMirror"
+                       value="<?= htmlspecialchars(get_setting($pdo, 'custom_docker_mirror')) ?>"
+                       placeholder="多个用逗号分隔，如 https://mirror.ccs.tencentyun.com" style="flex:1;">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="min-width:140px;font-size:0.85em;font-weight:600;">Docker-OSX 镜像</label>
+                <input type="text" class="form-control" id="customDockerOsxImage"
+                       value="<?= htmlspecialchars(get_setting($pdo, 'custom_docker_osx_image')) ?>"
+                       placeholder="留空则默认 sickcodes/docker-osx:sonoma" style="flex:1;">
+            </div>
             <div style="display:flex;align-items:center;gap:8px;">
                 <label style="min-width:140px;font-size:0.85em;font-weight:600;">SSH 端口</label>
                 <input type="text" class="form-control" id="customIosSshPort"
@@ -322,7 +340,7 @@ admin_header('系统信息', 'system');
             </div>
             <div style="text-align:right;">
                 <button class="btn btn-outline btn-sm" onclick="saveEnvPaths('ios')">
-                    <i class="fas fa-save"></i> 保存路径
+                    <i class="fas fa-save"></i> 保存配置
                 </button>
             </div>
         </div>
@@ -348,6 +366,10 @@ admin_header('系统信息', 'system');
                 <li><strong>Phase 2</strong>（半自动）: 填写 Apple ID 下载安装 Xcode（需要两步验证）</li>
                 <li><strong>Phase 3</strong>（自动）: 点击按钮验证 Xcode 是否安装成功</li>
             </ol>
+            <p style="margin-top:8px;color:#888;font-size:0.85em;">
+                <i class="fas fa-info-circle"></i> 智能检测：已安装的 Docker 不会重装，已有的镜像不会重新拉取，只执行缺少的步骤。
+                安装前可在上方「自定义配置」中设置 Docker 数据目录和镜像加速源。
+            </p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button id="btn-install-ios" class="btn btn-primary" onclick="installIosEnv()">
@@ -759,6 +781,9 @@ async function saveEnvPaths(type) {
         payload.custom_java_home = document.getElementById('customJavaHome').value.trim();
         payload.custom_android_home = document.getElementById('customAndroidHome').value.trim();
     } else if (type === 'ios') {
+        payload.custom_docker_data_root = document.getElementById('customDockerDataRoot').value.trim();
+        payload.custom_docker_mirror = document.getElementById('customDockerMirror').value.trim();
+        payload.custom_docker_osx_image = document.getElementById('customDockerOsxImage').value.trim();
         payload.custom_ios_ssh_port = document.getElementById('customIosSshPort').value.trim();
         payload.custom_ios_container = document.getElementById('customIosContainer').value.trim();
     }

@@ -436,7 +436,8 @@ if ($method === 'POST') {
     // 保存自定义环境路径
     if ($action === 'save_env_paths') {
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
-        $allowed = ['custom_java_home', 'custom_android_home', 'custom_ios_ssh_port', 'custom_ios_container'];
+        $allowed = ['custom_java_home', 'custom_android_home', 'custom_ios_ssh_port', 'custom_ios_container',
+                     'custom_docker_data_root', 'custom_docker_mirror', 'custom_docker_osx_image'];
         foreach ($allowed as $k) {
             if (isset($input[$k])) {
                 $val = trim($input[$k]);
@@ -452,6 +453,27 @@ if ($method === 'POST') {
                 if ($k === 'custom_ios_container' && $val !== '') {
                     if (!preg_match('/^[a-zA-Z0-9._-]+$/', $val)) {
                         json_response(['error' => '容器名称只允许字母、数字、点、下划线和连字符'], 400);
+                    }
+                }
+                // Docker 数据目录必须是绝对路径
+                if ($k === 'custom_docker_data_root' && $val !== '') {
+                    if ($val[0] !== '/') {
+                        json_response(['error' => 'Docker 数据目录必须是绝对路径（以 / 开头）'], 400);
+                    }
+                }
+                // Docker 镜像加速 URL 基本校验
+                if ($k === 'custom_docker_mirror' && $val !== '') {
+                    $mirrors = array_filter(array_map('trim', explode(',', $val)));
+                    foreach ($mirrors as $m) {
+                        if (!preg_match('#^https?://#', $m)) {
+                            json_response(['error' => '镜像加速地址必须以 http:// 或 https:// 开头: ' . $m], 400);
+                        }
+                    }
+                }
+                // Docker-OSX 镜像名格式校验
+                if ($k === 'custom_docker_osx_image' && $val !== '') {
+                    if (!preg_match('#^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$#', $val)) {
+                        json_response(['error' => '镜像名格式无效，示例: sickcodes/docker-osx:sonoma'], 400);
                     }
                 }
                 set_setting($pdo, $k, $val);
