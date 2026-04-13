@@ -344,7 +344,15 @@ function generate_and_save_mobileconfig(array $params, ?array $cert, string $des
                 $output = $signResult;
                 $signed = true;
             }
+        } else {
+            // 证书已选择但内容无法读取
+            $reason = [];
+            if (empty($certPem)) $reason[] = '证书内容为空';
+            if (empty($keyPem)) $reason[] = '私钥内容为空';
+            return ['ok' => false, 'error' => '签名失败：' . implode('、', $reason) . '（模式: ' . ($cert['mode'] ?? 'unknown') . '）'];
         }
+    } elseif ($cert && !function_exists('openssl_pkcs7_sign')) {
+        return ['ok' => false, 'error' => '签名失败：PHP 未安装 OpenSSL 扩展'];
     }
 
     // 生成文件名

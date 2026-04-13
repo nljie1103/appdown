@@ -107,7 +107,7 @@ admin_header('编辑应用', 'apps');
         </div>
         <div class="form-group"><label>应用简介</label><textarea class="form-control" id="iosDesc" rows="3" placeholder="iOS安装页展示的应用描述"></textarea></div>
         <div id="plistPreview" style="display:none;margin-bottom:12px;">
-            <label style="font-size:0.85em;color:var(--text-secondary);">自动生成的安装链接：</label>
+            <label style="font-size:0.85em;color:var(--text-secondary);">Plist 安装链接：</label>
             <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="plistUrlDisplay"></div>
         </div>
         <button class="btn btn-primary" onclick="saveIosConfig()"><i class="fas fa-save"></i> 保存Plist配置</button>
@@ -115,10 +115,6 @@ admin_header('编辑应用', 'apps');
 
     <!-- Mobileconfig配置面板 -->
     <div id="panelMc" style="display:none;">
-        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
-            <i class="fas fa-info-circle" style="color:#0284c7;font-size:1.1em;"></i>
-            <span style="font-size:0.9em;color:#0c4a6e;">Mobileconfig 文件现在在 <a href="/admin/generate.php" style="color:#0284c7;font-weight:600;">生成应用</a> 页面独立管理。在此处可关联已生成的文件到本应用。</span>
-        </div>
 
         <div class="form-group">
             <label>关联的 Mobileconfig 文件</label>
