@@ -241,80 +241,106 @@ function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string 
     @unlink($tmpOut);
     if (empty($smime)) return ['error' => '签名失败：openssl_pkcs7_sign 输出为空'];
 
-    // S/MIME -> DER
-    $tmpSmime = tempnam($tmpDir, 'mc_smime_');
-    $tmpDer = tempnam($tmpDir, 'mc_der_');
-    file_put_contents($tmpSmime, $smime);
+    // S/MIME -> DER：用纯 PHP 提取，不依赖命令行 openssl
+    $der = extract_der_from_smime($smime);
 
-    $cmd = sprintf(
-        'openssl smime -inform S/MIME -outform DER -in %s -out %s 2>/dev/null',
-        escapeshellarg($tmpSmime), escapeshellarg($tmpDer)
-    );
-    exec($cmd, $output, $retCode);
-    @unlink($tmpSmime);
+    // 纯 PHP 失败时尝试命令行 openssl smime
+    if ($der === false || empty($der)) {
+        $tmpSmime = tempnam($tmpDir, 'mc_smime_');
+        $tmpDer = tempnam($tmpDir, 'mc_der_');
+        file_put_contents($tmpSmime, $smime);
 
-    if ($retCode !== 0 || !file_exists($tmpDer)) {
-        @unlink($tmpDer);
-        $der = extract_der_from_smime($smime);
-        if ($der === false || empty($der)) {
-            return ['error' => '签名失败：S/MIME 转 DER 失败（openssl smime 命令和降级提取均失败）'];
+        $cmd = sprintf(
+            'openssl smime -inform S/MIME -outform DER -in %s -out %s 2>/dev/null',
+            escapeshellarg($tmpSmime), escapeshellarg($tmpDer)
+        );
+        exec($cmd, $output, $retCode);
+        @unlink($tmpSmime);
+
+        if ($retCode === 0 && file_exists($tmpDer)) {
+            $der = file_get_contents($tmpDer);
         }
-        return $der;
+        @unlink($tmpDer);
     }
 
-    $der = file_get_contents($tmpDer);
-    @unlink($tmpDer);
-    if (empty($der)) {
-        return ['error' => '签名失败：DER 输出为空'];
+    // 两种方式都失败
+    if ($der === false || empty($der)) {
+        return ['error' => '签名失败：S/MIME 转 DER 失败（请检查服务器 OpenSSL 版本）'];
     }
     return $der;
 }
 
 /**
- * 从 S/MIME 输出中提取 DER 格式的签名数据（降级方案）
+ * 从 S/MIME 输出中提取 DER 格式的签名数据
+ * openssl_pkcs7_sign 的输出是 S/MIME 格式，需要转成 DER 给 iOS 用
  */
 function extract_der_from_smime(string $smime) {
-    $lines = explode("\n", $smime);
-    $boundary = '';
-    foreach ($lines as $line) {
-        if (preg_match('/boundary="?([^";\s]+)"?/', $line, $m)) {
-            $boundary = $m[1];
-            break;
-        }
+    // openssl_pkcs7_sign 带 PKCS7_BINARY 输出格式通常是：
+    // MIME-Version: 1.0
+    // Content-Type: application/x-pkcs7-mime; smime-type=signed-data; name="smime.p7m"
+    // Content-Transfer-Encoding: base64
+    //
+    // <base64 data>
+    //
+    // 或者 multipart 格式（不带 PKCS7_BINARY 时）
+
+    // 方式1：无 boundary 的简单格式 — 找到头部与内容的分界（空行）
+    // 同时支持 \n\n 和 \r\n\r\n
+    $headerEnd = false;
+    $posCRLF = strpos($smime, "\r\n\r\n");
+    $posLF = strpos($smime, "\n\n");
+    if ($posCRLF !== false && ($posLF === false || $posCRLF < $posLF)) {
+        $headerEnd = $posCRLF + 4;
+    } elseif ($posLF !== false) {
+        $headerEnd = $posLF + 2;
     }
 
-    if (empty($boundary)) {
-        $posLF = strpos($smime, "\n\n");
-        $posCRLF = strpos($smime, "\r\n\r\n");
-        if ($posLF !== false) {
-            $base64Data = substr($smime, $posLF + 2);
-        } elseif ($posCRLF !== false) {
-            $base64Data = substr($smime, $posCRLF + 4);
-        } else {
-            return false;
-        }
-        $base64Data = trim(str_replace(["\r", "\n"], '', $base64Data));
-        $der = base64_decode($base64Data);
-        return $der !== false ? $der : false;
-    }
-
-    $parts = preg_split('/--' . preg_quote($boundary, '/') . '(--)?\s*/', $smime);
-    foreach ($parts as $part) {
-        if (stripos($part, 'pkcs7-signature') !== false || stripos($part, 'application/pkcs7') !== false) {
-            $posLF = strpos($part, "\n\n");
-            $posCRLF = strpos($part, "\r\n\r\n");
-            if ($posLF !== false) {
-                $base64Data = substr($part, $posLF + 2);
-            } elseif ($posCRLF !== false) {
-                $base64Data = substr($part, $posCRLF + 4);
-            } else {
-                continue;
-            }
+    if ($headerEnd !== false) {
+        // 检查头部是否包含 signed-data 或 pkcs7（确认是签名数据）
+        $headers = substr($smime, 0, $headerEnd);
+        if (stripos($headers, 'pkcs7') !== false || stripos($headers, 'signed-data') !== false || stripos($headers, 'base64') !== false) {
+            $base64Data = substr($smime, $headerEnd);
             $base64Data = trim(str_replace(["\r", "\n", " "], '', $base64Data));
-            $der = base64_decode($base64Data);
-            return $der !== false ? $der : false;
+            if (!empty($base64Data)) {
+                $der = base64_decode($base64Data, true);
+                if ($der !== false && strlen($der) > 0) {
+                    return $der;
+                }
+            }
         }
     }
+
+    // 方式2：multipart 格式 — 找 boundary 并提取 pkcs7 部分
+    $boundary = '';
+    if (preg_match('/boundary="?([^";\s]+)"?/', $smime, $m)) {
+        $boundary = $m[1];
+    }
+
+    if (!empty($boundary)) {
+        $parts = preg_split('/--' . preg_quote($boundary, '/') . '(--)?\s*/', $smime);
+        foreach ($parts as $part) {
+            if (stripos($part, 'pkcs7') !== false || stripos($part, 'signed-data') !== false) {
+                $partHeaderEnd = false;
+                $pCRLF = strpos($part, "\r\n\r\n");
+                $pLF = strpos($part, "\n\n");
+                if ($pCRLF !== false && ($pLF === false || $pCRLF < $pLF)) {
+                    $partHeaderEnd = $pCRLF + 4;
+                } elseif ($pLF !== false) {
+                    $partHeaderEnd = $pLF + 2;
+                }
+                if ($partHeaderEnd !== false) {
+                    $base64Data = trim(str_replace(["\r", "\n", " "], '', substr($part, $partHeaderEnd)));
+                    if (!empty($base64Data)) {
+                        $der = base64_decode($base64Data, true);
+                        if ($der !== false && strlen($der) > 0) {
+                            return $der;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     return false;
 }
 
