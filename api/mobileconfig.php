@@ -24,7 +24,7 @@ if (!$app) {
     exit('app not found');
 }
 
-// 优先：预生成文件
+// 优先：预生成文件（通过 mc_file_id 关联）
 if (!empty($app['mc_file_id'])) {
     $mcStmt = $pdo->prepare('SELECT file_path FROM generated_mobileconfigs WHERE id = ?');
     $mcStmt->execute([$app['mc_file_id']]);
@@ -34,6 +34,23 @@ if (!empty($app['mc_file_id'])) {
         if (file_exists($fullPath)) {
             header('Content-Type: application/x-apple-aspen-config');
             header('Content-Disposition: attachment; filename="' . basename($mcFile['file_path']) . '"');
+            header('Content-Length: ' . filesize($fullPath));
+            readfile($fullPath);
+            exit;
+        }
+    }
+}
+
+// 其次：通过 mc_file_url 直接指定文件路径
+if (!empty($app['mc_file_url'])) {
+    $fileUrl = $app['mc_file_url'];
+    // 相对路径转为服务器绝对路径
+    if (!preg_match('#^https?://#', $fileUrl)) {
+        $fullPath = realpath(__DIR__ . '/../' . ltrim($fileUrl, '/'));
+        $projectRoot = realpath(__DIR__ . '/..');
+        if ($fullPath && strpos($fullPath, $projectRoot) === 0 && file_exists($fullPath)) {
+            header('Content-Type: application/x-apple-aspen-config');
+            header('Content-Disposition: attachment; filename="' . basename($fullPath) . '"');
             header('Content-Length: ' . filesize($fullPath));
             readfile($fullPath);
             exit;

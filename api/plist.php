@@ -6,6 +6,28 @@
 
 require_once __DIR__ . '/../includes/init.php';
 
+/**
+ * 对URL中的非ASCII字符（中文等）进行编码，保留URL结构字符
+ * 例：https://example.com/uploads/测试.ipa → https://example.com/uploads/%E6%B5%8B%E8%AF%95.ipa
+ */
+function encode_url_path(string $url): string {
+    $parts = parse_url($url);
+    if (isset($parts['path'])) {
+        $segments = explode('/', $parts['path']);
+        $segments = array_map('rawurlencode', $segments);
+        $parts['path'] = implode('/', $segments);
+    }
+    // 重建URL
+    $result = '';
+    if (isset($parts['scheme'])) $result .= $parts['scheme'] . '://';
+    if (isset($parts['host'])) $result .= $parts['host'];
+    if (isset($parts['port'])) $result .= ':' . $parts['port'];
+    if (isset($parts['path'])) $result .= $parts['path'];
+    if (isset($parts['query'])) $result .= '?' . $parts['query'];
+    if (isset($parts['fragment'])) $result .= '#' . $parts['fragment'];
+    return $result;
+}
+
 $slug = trim($_GET['app'] ?? '');
 if (empty($slug) || !preg_match('/^[a-z0-9_-]+$/', $slug)) {
     http_response_code(404);
@@ -44,6 +66,8 @@ $ipaUrl = $app['ios_ipa_url'];
 if (!preg_match('#^https?://#', $ipaUrl)) {
     $ipaUrl = $baseUrl . '/' . ltrim($ipaUrl, '/');
 }
+// 对URL中的非ASCII字符编码（兼容Safari低版本不支持中文URL）
+$ipaUrl = encode_url_path($ipaUrl);
 
 // 图标URL
 $iconUrl = $app['icon_url'] ?: '';
@@ -59,6 +83,9 @@ if (!$iconUrl) {
     if ($iconUrl && !preg_match('#^https?://#', $iconUrl)) {
         $iconUrl = $baseUrl . '/' . ltrim($iconUrl, '/');
     }
+}
+if ($iconUrl) {
+    $iconUrl = encode_url_path($iconUrl);
 }
 
 $bundleId = $app['ios_bundle_id'] ?: 'com.app.' . $app['slug'];
