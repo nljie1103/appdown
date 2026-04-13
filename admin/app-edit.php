@@ -123,7 +123,6 @@ admin_header('编辑应用', 'apps');
                 <div style="display:flex;gap:8px;align-items:center;">
                     <input type="text" class="form-control" id="mcFileUrl" style="flex:1;" placeholder="输入链接或从附件选择">
                     <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('mcFileUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
-                    <button class="btn btn-outline btn-sm" type="button" onclick="clearMcFile()" title="清除"><i class="fas fa-times"></i></button>
                 </div>
                 <select class="form-control att-picker" id="mcFileUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'mcFileUrl')">
                     <option value="">-- 选择一个文件 --</option>
