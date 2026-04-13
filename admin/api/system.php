@@ -169,17 +169,23 @@ if ($method === 'POST') {
         // 防重复
         $currentStatus = get_setting($pdo, 'android_install_status', 'idle');
         if ($currentStatus === 'running') {
-            json_response(['error' => '安装程序正在运行中，请勿重复操作'], 400);
+            // 检查日志文件是否超过5分钟未更新，自动重置卡死状态
+            $logPath = __DIR__ . '/../../data/android_install.log';
+            if (file_exists($logPath) && (time() - filemtime($logPath)) > 300) {
+                set_setting($pdo, 'android_install_status', 'idle');
+            } else {
+                json_response(['error' => '安装程序正在运行中，请勿重复操作'], 400);
+            }
         }
 
         // 验证安装脚本存在
         $workerScript = realpath(__DIR__ . '/../../tools/install-android-worker.php');
-        if (!$workerScript || !file_exists($workerScript)) {
+        if (!$workerScript) {
             json_response(['error' => '安装 worker 脚本不存在'], 500);
         }
 
         $setupScript = realpath(__DIR__ . '/../../tools/setup-android-env.sh');
-        if (!$setupScript || !file_exists($setupScript)) {
+        if (!$setupScript) {
             json_response(['error' => '安装脚本 setup-android-env.sh 不存在'], 500);
         }
 
@@ -217,7 +223,12 @@ if ($method === 'POST') {
     if ($action === 'uninstall_android') {
         $currentStatus = get_setting($pdo, 'android_install_status', 'idle');
         if ($currentStatus === 'running') {
-            json_response(['error' => '当前有安装/卸载任务正在运行'], 400);
+            $logPath = __DIR__ . '/../../data/android_install.log';
+            if (file_exists($logPath) && (time() - filemtime($logPath)) > 300) {
+                set_setting($pdo, 'android_install_status', 'idle');
+            } else {
+                json_response(['error' => '当前有安装/卸载任务正在运行'], 400);
+            }
         }
 
         $workerScript = realpath(__DIR__ . '/../../tools/install-android-worker.php');
@@ -255,16 +266,21 @@ if ($method === 'POST') {
     if ($action === 'install_ios') {
         $currentStatus = get_setting($pdo, 'ios_install_status', 'idle');
         if ($currentStatus === 'running') {
-            json_response(['error' => '安装程序正在运行中，请勿重复操作'], 400);
+            $logPath = __DIR__ . '/../../data/ios_install.log';
+            if (file_exists($logPath) && (time() - filemtime($logPath)) > 300) {
+                set_setting($pdo, 'ios_install_status', 'idle');
+            } else {
+                json_response(['error' => '安装程序正在运行中，请勿重复操作'], 400);
+            }
         }
 
         $workerScript = realpath(__DIR__ . '/../../tools/install-ios-worker.php');
-        if (!$workerScript || !file_exists($workerScript)) {
+        if (!$workerScript) {
             json_response(['error' => 'iOS worker 脚本不存在'], 500);
         }
 
         $setupScript = realpath(__DIR__ . '/../../tools/setup-ios-env.sh');
-        if (!$setupScript || !file_exists($setupScript)) {
+        if (!$setupScript) {
             json_response(['error' => 'iOS 安装脚本不存在'], 500);
         }
 
@@ -304,7 +320,12 @@ if ($method === 'POST') {
     if ($action === 'uninstall_ios') {
         $currentStatus = get_setting($pdo, 'ios_install_status', 'idle');
         if ($currentStatus === 'running') {
-            json_response(['error' => '当前有安装/卸载任务正在运行'], 400);
+            $logPath = __DIR__ . '/../../data/ios_install.log';
+            if (file_exists($logPath) && (time() - filemtime($logPath)) > 300) {
+                set_setting($pdo, 'ios_install_status', 'idle');
+            } else {
+                json_response(['error' => '当前有安装/卸载任务正在运行'], 400);
+            }
         }
 
         $workerScript = realpath(__DIR__ . '/../../tools/install-ios-worker.php');

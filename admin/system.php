@@ -476,7 +476,11 @@ async function uninstallAndroidEnv() {
     try {
         await API.post('/admin/api/system.php?action=uninstall_android', {});
         startPolling();
-    } catch (e) {}
+    } catch (e) {
+        AlertModal.error('卸载失败', e.message || '请求出错，请重试');
+        // 重置卡住的状态
+        try { await API.post('/admin/api/system.php?action=reset_install_status', {}); } catch(_){}
+    }
 }
 
 async function installAndroidEnv() {
@@ -493,6 +497,8 @@ async function installAndroidEnv() {
     } catch (e) {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-download"></i> 一键安装 Android 环境';
+        AlertModal.error('安装失败', e.message || '请求出错，请重试');
+        try { await API.post('/admin/api/system.php?action=reset_install_status', {}); } catch(_){}
     }
 }
 
@@ -564,6 +570,8 @@ async function installIosEnv() {
     } catch (e) {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-download"></i> Phase 1: 安装 Docker + macOS 容器';
+        AlertModal.error('安装失败', e.message || '请求出错，请重试');
+        try { await API.post('/admin/api/system.php?action=reset_ios_install_status', {}); } catch(_){}
     }
 }
 
@@ -576,7 +584,11 @@ async function uninstallIosEnv() {
     try {
         await API.post('/admin/api/system.php?action=uninstall_ios', {});
         startIosPolling();
-    } catch (e) {}
+    } catch (e) {
+        AlertModal.error('卸载失败', e.message || '请求出错，请重试');
+        // 重置卡住的状态
+        try { await API.post('/admin/api/system.php?action=reset_ios_install_status', {}); } catch(_){}
+    }
 }
 
 async function verifyIosXcode() {
