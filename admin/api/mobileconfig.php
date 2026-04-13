@@ -313,9 +313,16 @@ if ($method === 'PUT') {
         elseif ($bytes >= 1024) { $fileSize = round($bytes / 1024, 1) . ' KB'; }
         else { $fileSize = $bytes . ' B'; }
 
-        // 添加到附件库
-        $stmt = $pdo->prepare('INSERT INTO app_attachments (app_id, platform_id, version, file_url, file_size, changelog) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$appId, $platformId, $version, $mcRow['file_path'], $fileSize, $mcRow['display_name']]);
+        // 添加到附件库（去重：同文件+同分类则更新）
+        $existStmt = $pdo->prepare('SELECT id FROM app_attachments WHERE file_url = ? AND platform_id = ?');
+        $existStmt->execute([$mcRow['file_path'], $platformId]);
+        $existRow = $existStmt->fetch();
+        if ($existRow) {
+            $pdo->prepare("UPDATE app_attachments SET version = ?, file_size = ?, changelog = ?, updated_at = datetime('now') WHERE id = ?")->execute([$version, $fileSize, $mcRow['display_name'], $existRow['id']]);
+        } else {
+            $stmt = $pdo->prepare('INSERT INTO app_attachments (app_id, platform_id, version, file_url, file_size, changelog) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$appId, $platformId, $version, $mcRow['file_path'], $fileSize, $mcRow['display_name']]);
+        }
 
         // 更新 mobileconfig 关联记录
         $pdo->prepare("UPDATE generated_mobileconfigs SET app_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$appId, $mcId]);

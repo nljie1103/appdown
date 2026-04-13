@@ -229,15 +229,24 @@ admin_header('生成应用', 'generate');
 
 <div class="modal-overlay" id="associateModal">
     <div class="modal" style="max-width:400px;">
-        <h3>关联到应用</h3>
+        <h3>关联到附件库</h3>
+        <p style="font-size:0.85em;color:var(--text-secondary);margin-bottom:12px;">将APK文件添加到应用的附件分类中</p>
         <div class="form-group">
             <label>选择应用</label>
-            <select class="form-control" id="assocAppId"><option value="">-- 不关联 --</option></select>
+            <select class="form-control" id="assocAppId" onchange="loadApkAssocPlatforms()"><option value="">-- 请选择 --</option></select>
+        </div>
+        <div class="form-group">
+            <label>附件分类</label>
+            <select class="form-control" id="assocPlatformId"><option value="">-- 先选择应用 --</option></select>
+        </div>
+        <div class="form-group">
+            <label>版本号</label>
+            <input type="text" class="form-control" id="assocVersion" value="1.0" placeholder="如: 1.0">
         </div>
         <input type="hidden" id="assocApkId">
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('associateModal')">取消</button>
-            <button class="btn btn-primary" onclick="doAssociate()">保存</button>
+            <button class="btn btn-primary" onclick="doAssociate()">关联</button>
         </div>
     </div>
 </div>
@@ -376,15 +385,24 @@ admin_header('生成应用', 'generate');
 <!-- IPA 弹窗 -->
 <div class="modal-overlay" id="ipaAssociateModal">
     <div class="modal" style="max-width:400px;">
-        <h3>关联到应用</h3>
+        <h3>关联到附件库</h3>
+        <p style="font-size:0.85em;color:var(--text-secondary);margin-bottom:12px;">将IPA文件添加到应用的附件分类中</p>
         <div class="form-group">
             <label>选择应用</label>
-            <select class="form-control" id="ipaAssocAppId"><option value="">-- 不关联 --</option></select>
+            <select class="form-control" id="ipaAssocAppId" onchange="loadIpaAssocPlatforms()"><option value="">-- 请选择 --</option></select>
+        </div>
+        <div class="form-group">
+            <label>附件分类</label>
+            <select class="form-control" id="ipaAssocPlatformId"><option value="">-- 先选择应用 --</option></select>
+        </div>
+        <div class="form-group">
+            <label>版本号</label>
+            <input type="text" class="form-control" id="ipaAssocVersion" value="1.0" placeholder="如: 1.0">
         </div>
         <input type="hidden" id="ipaAssocIpaId">
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="Modal.hide('ipaAssociateModal')">取消</button>
-            <button class="btn btn-primary" onclick="doIpaAssociate()">保存</button>
+            <button class="btn btn-primary" onclick="doIpaAssociate()">关联</button>
         </div>
     </div>
 </div>
@@ -774,17 +792,35 @@ async function showAssociate(apkId) {
     document.getElementById('assocApkId').value = apkId;
     if (!allApps.length) await loadApps();
     const sel = document.getElementById('assocAppId');
-    sel.innerHTML = '<option value="">-- 不关联 --</option>';
+    sel.innerHTML = '<option value="">-- 请选择 --</option>';
     for (const a of allApps) sel.innerHTML += `<option value="${a.id}">${escapeHTML(a.name)}</option>`;
+    document.getElementById('assocPlatformId').innerHTML = '<option value="">-- 先选择应用 --</option>';
+    document.getElementById('assocVersion').value = '1.0';
     Modal.show('associateModal');
+}
+
+async function loadApkAssocPlatforms() {
+    const appId = document.getElementById('assocAppId').value;
+    const sel = document.getElementById('assocPlatformId');
+    if (!appId) { sel.innerHTML = '<option value="">-- 先选择应用 --</option>'; return; }
+    try {
+        const platforms = await API.get('/admin/api/attachments.php?app_id=' + appId);
+        sel.innerHTML = '<option value="">-- 请选择分类 --</option>';
+        for (const p of platforms) sel.innerHTML += `<option value="${p.id}">${escapeHTML(p.name)}</option>`;
+        if (!platforms.length) sel.innerHTML = '<option value="">该应用暂无附件分类</option>';
+    } catch(e) { sel.innerHTML = '<option value="">加载失败</option>'; }
 }
 
 async function doAssociate() {
     const apkId = parseInt(document.getElementById('assocApkId').value);
     const appId = document.getElementById('assocAppId').value;
+    const platformId = document.getElementById('assocPlatformId').value;
+    const version = document.getElementById('assocVersion').value.trim() || '1.0';
+    if (!appId) { Toast.error('请选择应用'); return; }
+    if (!platformId) { Toast.error('请选择附件分类'); return; }
     try {
-        await API.put('/admin/api/generate.php', { action: 'associate', apk_id: apkId, app_id: appId ? parseInt(appId) : null });
-        Toast.success('关联已更新'); Modal.hide('associateModal'); loadApks();
+        await API.put('/admin/api/generate.php', { action: 'associate', apk_id: apkId, app_id: parseInt(appId), platform_id: parseInt(platformId), version: version });
+        Toast.success('已关联到附件库'); Modal.hide('associateModal'); loadApks();
     } catch(e) {}
 }
 
@@ -1497,23 +1533,40 @@ async function deleteIpa(id) {
     } catch (e) {}
 }
 
-function showIpaAssociate(ipaId) {
+async function showIpaAssociate(ipaId) {
     document.getElementById('ipaAssocIpaId').value = ipaId;
+    if (!allApps.length) await loadApps();
     const sel = document.getElementById('ipaAssocAppId');
-    sel.innerHTML = '<option value="">-- 不关联 --</option>';
+    sel.innerHTML = '<option value="">-- 请选择 --</option>';
     allApps.forEach(a => sel.innerHTML += `<option value="${a.id}">${escapeHTML(a.name)}</option>`);
+    document.getElementById('ipaAssocPlatformId').innerHTML = '<option value="">-- 先选择应用 --</option>';
+    document.getElementById('ipaAssocVersion').value = '1.0';
     Modal.show('ipaAssociateModal');
 }
 
-async function doIpaAssociate() {
-    const ipaId = document.getElementById('ipaAssocIpaId').value;
+async function loadIpaAssocPlatforms() {
     const appId = document.getElementById('ipaAssocAppId').value;
+    const sel = document.getElementById('ipaAssocPlatformId');
+    if (!appId) { sel.innerHTML = '<option value="">-- 先选择应用 --</option>'; return; }
     try {
-        await API.put('/admin/api/generate.php', { action: 'associate', type: 'ipa', ipa_id: parseInt(ipaId), app_id: appId ? parseInt(appId) : null });
-        Modal.hide('ipaAssociateModal');
-        AlertModal.success('关联成功');
-        loadIpas();
-    } catch (e) {}
+        const platforms = await API.get('/admin/api/attachments.php?app_id=' + appId);
+        sel.innerHTML = '<option value="">-- 请选择分类 --</option>';
+        for (const p of platforms) sel.innerHTML += `<option value="${p.id}">${escapeHTML(p.name)}</option>`;
+        if (!platforms.length) sel.innerHTML = '<option value="">该应用暂无附件分类</option>';
+    } catch(e) { sel.innerHTML = '<option value="">加载失败</option>'; }
+}
+
+async function doIpaAssociate() {
+    const ipaId = parseInt(document.getElementById('ipaAssocIpaId').value);
+    const appId = document.getElementById('ipaAssocAppId').value;
+    const platformId = document.getElementById('ipaAssocPlatformId').value;
+    const version = document.getElementById('ipaAssocVersion').value.trim() || '1.0';
+    if (!appId) { Toast.error('请选择应用'); return; }
+    if (!platformId) { Toast.error('请选择附件分类'); return; }
+    try {
+        await API.put('/admin/api/generate.php', { action: 'associate', type: 'ipa', ipa_id: ipaId, app_id: parseInt(appId), platform_id: parseInt(platformId), version: version });
+        Toast.success('已关联到附件库'); Modal.hide('ipaAssociateModal'); loadIpas();
+    } catch(e) {}
 }
 
 function showIpaRename(id, currentName) {

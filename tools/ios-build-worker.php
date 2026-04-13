@@ -17,6 +17,7 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/upload.php';
 
 $taskId = (int)($argv[1] ?? 0);
 if (!$taskId) {
@@ -269,8 +270,10 @@ try {
     $ipaDir = $projectRoot . '/uploads/ipas';
     if (!is_dir($ipaDir)) mkdir($ipaDir, 0755, true);
 
-    $safeName = preg_replace('/[^\w\-]/', '_', $params['app_name']);
-    $ipaFilename = $safeName . '_' . ($params['version_name'] ?? '1.0.0') . '_' . time() . '.ipa';
+    $safeName = preg_replace('/[^\w\x{4e00}-\x{9fff}\-]/u', '_', $params['app_name']);
+    $safeName = trim(preg_replace('/_+/', '_', $safeName), '_') ?: 'app';
+    $version = $params['version_name'] ?? '1.0.0';
+    $ipaFilename = resolve_filename_collision($ipaDir, $safeName . '-' . $version, 'ipa');
     $localIpaPath = $localBuildDir . '/build/app.ipa';
     $destPath = $ipaDir . '/' . $ipaFilename;
 

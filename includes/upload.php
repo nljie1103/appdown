@@ -3,6 +3,22 @@
  * 文件上传处理
  */
 
+/**
+ * 生成无冲突文件名：base.ext → base(1).ext → base(2).ext ...
+ */
+function resolve_filename_collision(string $dir, string $base, string $ext): string {
+    $filename = $base . '.' . $ext;
+    if (!file_exists($dir . '/' . $filename)) {
+        return $filename;
+    }
+    $i = 1;
+    do {
+        $filename = $base . '(' . $i . ').' . $ext;
+        $i++;
+    } while (file_exists($dir . '/' . $filename));
+    return $filename;
+}
+
 function handle_upload(string $field, string $category, string $custom_name = ''): array {
     if (empty($_FILES[$field]) || $_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
         $code = $_FILES[$field]['error'] ?? -1;
@@ -62,10 +78,10 @@ function handle_upload(string $field, string $category, string $custom_name = ''
     }
 
     $dest_path = $dest_dir . '/' . $safe_name;
-    // 如有同名文件，追加随机后缀
+    // 如有同名文件，追加 (1)(2) 后缀
     if (file_exists($dest_path)) {
         $base = pathinfo($safe_name, PATHINFO_FILENAME);
-        $safe_name = $base . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+        $safe_name = resolve_filename_collision($dest_dir, $base, $ext);
         $dest_path = $dest_dir . '/' . $safe_name;
     }
     if (!move_uploaded_file($file['tmp_name'], $dest_path)) {

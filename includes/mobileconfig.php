@@ -4,6 +4,8 @@
  * 提供 plist XML 生成、证书签名、文件保存等核心功能
  */
 
+require_once __DIR__ . '/upload.php';
+
 /**
  * 生成未签名的 mobileconfig plist XML
  */
@@ -392,7 +394,8 @@ function generate_and_save_mobileconfig(array $params, ?array $cert, string $des
     // 生成文件名
     $safeName = preg_replace('/[^a-zA-Z0-9\x{4e00}-\x{9fff}_-]/u', '_', $params['display_name'] ?? 'app');
     $safeName = trim(preg_replace('/_+/', '_', $safeName), '_') ?: 'app';
-    $filename = $safeName . '_' . time() . '.mobileconfig';
+    $version = $params['version'] ?? '1';
+    $filename = resolve_filename_collision($destDir, $safeName . '-' . $version, 'mobileconfig');
     $fullPath = $destDir . '/' . $filename;
 
     if (file_put_contents($fullPath, $output) === false) {

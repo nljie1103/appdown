@@ -117,7 +117,7 @@ admin_header('编辑应用', 'apps');
     <div id="panelMc" style="display:none;">
 
         <div class="form-group">
-            <label>关联的 Mobileconfig 文件</label>
+            <label>Mobileconfig 文件地址</label>
             <input type="hidden" id="mcFileId" value="">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                 <input type="text" class="form-control" id="mcFileUrl" style="flex:1;min-width:200px;" placeholder="输入链接或点击按钮从附件库选择">
@@ -516,7 +516,7 @@ function updatePlistPreview() {
     const urlDisplay = document.getElementById('plistUrlDisplay');
     if (ipaUrl && appSlug) {
         const plistUrl = location.origin + '/api/plist.php?app=' + appSlug;
-        const installUrl = 'itms-services://?action=download-manifest&url=' + encodeURIComponent(plistUrl);
+        const installUrl = 'itms-services://?action=download-manifest&url=' + plistUrl;
         urlDisplay.textContent = installUrl;
         previewDiv.style.display = '';
     } else {

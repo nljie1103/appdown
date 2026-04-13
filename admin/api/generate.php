@@ -258,15 +258,45 @@ if ($method === 'PUT') {
     if ($action === 'associate') {
         $itemId = (int)($data['apk_id'] ?? $data['ipa_id'] ?? 0);
         $appId = isset($data['app_id']) && $data['app_id'] !== null && $data['app_id'] !== '' ? (int)$data['app_id'] : null;
+        $platformId = (int)($data['platform_id'] ?? 0);
+        $version = trim($data['version'] ?? '1.0');
         if (!$itemId) json_response(['error' => '缺少id'], 400);
+        if (!$appId || !$platformId) json_response(['error' => '请选择应用和附件分类'], 400);
 
-        if ($appId) {
-            $app = $pdo->prepare('SELECT id FROM apps WHERE id = ?');
-            $app->execute([$appId]);
-            if (!$app->fetch()) json_response(['error' => '应用不存在'], 400);
-        }
+        // 验证应用存在
+        $app = $pdo->prepare('SELECT id FROM apps WHERE id = ?');
+        $app->execute([$appId]);
+        if (!$app->fetch()) json_response(['error' => '应用不存在'], 400);
+
+        // 验证附件分类属于该应用
+        $platCheck = $pdo->prepare('SELECT id FROM app_platforms WHERE id = ? AND app_id = ?');
+        $platCheck->execute([$platformId, $appId]);
+        if (!$platCheck->fetch()) json_response(['error' => '附件分类不属于该应用'], 400);
 
         $table = ($type === 'ipa') ? 'generated_ipas' : 'generated_apks';
+        $urlCol = ($type === 'ipa') ? 'ipa_url' : 'apk_url';
+        $sizeCol = ($type === 'ipa') ? 'ipa_size' : 'apk_size';
+
+        // 获取文件信息
+        $fileStmt = $pdo->prepare("SELECT app_name, $urlCol, $sizeCol FROM $table WHERE id = ?");
+        $fileStmt->execute([$itemId]);
+        $fileRow = $fileStmt->fetch();
+        if (!$fileRow) json_response(['error' => '记录不存在'], 404);
+
+        $fileUrl = $fileRow[$urlCol];
+        $fileSize = $fileRow[$sizeCol];
+
+        // 添加到附件库（去重：同文件+同分类则更新）
+        $existStmt = $pdo->prepare('SELECT id FROM app_attachments WHERE file_url = ? AND platform_id = ?');
+        $existStmt->execute([$fileUrl, $platformId]);
+        $existRow = $existStmt->fetch();
+        if ($existRow) {
+            $pdo->prepare("UPDATE app_attachments SET version = ?, file_size = ?, changelog = ?, updated_at = datetime('now') WHERE id = ?")->execute([$version, $fileSize, $fileRow['app_name'], $existRow['id']]);
+        } else {
+            $pdo->prepare('INSERT INTO app_attachments (app_id, platform_id, version, file_url, file_size, changelog) VALUES (?, ?, ?, ?, ?, ?)')->execute([$appId, $platformId, $version, $fileUrl, $fileSize, $fileRow['app_name']]);
+        }
+
+        // 更新关联记录
         $stmt = $pdo->prepare("UPDATE $table SET app_id = ? WHERE id = ?");
         $stmt->execute([$appId, $itemId]);
         json_response(['ok' => true]);

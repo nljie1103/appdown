@@ -15,6 +15,7 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/upload.php';
 
 $taskId = (int)($argv[1] ?? 0);
 if (!$taskId) {
@@ -296,8 +297,10 @@ try {
     update_task($pdo, $taskId, ['progress' => 90, 'progress_msg' => '复制到目标目录...']);
     $apkDir = __DIR__ . '/../uploads/apks';
     if (!is_dir($apkDir)) mkdir($apkDir, 0755, true);
-    $safeName = preg_replace('/[^\w\-]/', '_', $params['app_name']);
-    $apkFilename = $safeName . '_' . ($params['version_name'] ?? '1.0.0') . '_' . time() . '.apk';
+    $safeName = preg_replace('/[^\w\x{4e00}-\x{9fff}\-]/u', '_', $params['app_name']);
+    $safeName = trim(preg_replace('/_+/', '_', $safeName), '_') ?: 'app';
+    $version = $params['version_name'] ?? '1.0.0';
+    $apkFilename = resolve_filename_collision($apkDir, $safeName . '-' . $version, 'apk');
     $destPath = $apkDir . '/' . $apkFilename;
     if (!copy($apkPath, $destPath)) {
         fail_task($pdo, $taskId, 'APK复制到目标目录失败');
