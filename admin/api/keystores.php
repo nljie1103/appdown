@@ -58,12 +58,12 @@ if ($method === 'POST') {
         $storePwd = $data['store_password'] ?? '';
         $keyPwd = $data['key_password'] ?? '';
         $validity = max(1, (int)($data['validity_years'] ?? 25));
-        $cn = trim($data['common_name'] ?? '');
-        $ou = trim($data['org_unit'] ?? '');
-        $org = trim($data['org_name'] ?? '');
-        $loc = trim($data['locality'] ?? '');
-        $st = trim($data['state_name'] ?? '');
-        $c = trim($data['country'] ?? '');
+        $cn = mb_substr(trim($data['common_name'] ?? ''), 0, 64);
+        $ou = mb_substr(trim($data['org_unit'] ?? ''), 0, 64);
+        $org = mb_substr(trim($data['org_name'] ?? ''), 0, 64);
+        $loc = mb_substr(trim($data['locality'] ?? ''), 0, 64);
+        $st = mb_substr(trim($data['state_name'] ?? ''), 0, 64);
+        $c = mb_substr(trim($data['country'] ?? ''), 0, 2);
 
         if (empty($name) || empty($alias)) {
             json_response(['error' => '名称和别名为必填项'], 400);
