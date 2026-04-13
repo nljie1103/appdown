@@ -240,13 +240,13 @@ chmod +x tools/setup-ios-env.sh tools/setup-ios-xcode.sh tools/uninstall-ios-env
 ```
 appdown/
 ├── .gitignore                  # Git 忽略规则
+├── .htaccess                   # Apache 安全规则（根目录，保护敏感目录/禁止目录列表）
 ├── LICENSE                     # MIT 开源协议
 ├── README.md                   # 项目说明文档
 ├── index.html                  # 前端主页（API 动态加载）
 ├── style.css                   # 前端全局样式
 ├── privacy.php                 # 隐私政策页
 ├── terms.php                   # 服务条款页
-├── .htaccess                   # Apache 目录保护
 │
 ├── api/                        # 公共 API
 │   ├── config.php              #   站点配置 JSON（带文件缓存）
@@ -414,11 +414,17 @@ appdown/
 | 💾 导入导出 | 按数据类别选择性备份，支持 AES-256-GCM 加密，含上传文件 |
 | 🖧 系统信息 | 运行环境检测、Android/iOS构建环境管理、自定义路径配置、一键安装/卸载 |
 
-## 🔧 Nginx 安全规则
+## 🔧 安全规则
 
-> ⚠️ 项目已内置 `.htaccess` 文件保护敏感目录（Apache 自动生效）。**Nginx 不支持 `.htaccess`**，需手动添加以下规则。
+### Apache
 
-在 Nginx server 块中添加（宝塔面板：网站 → 设置 → 伪静态）：
+项目已内置根目录 `.htaccess` 和子目录 `.htaccess`，**Apache 用户无需额外配置**，部署后自动生效。
+
+> 需要 Apache 启用 `mod_rewrite` 模块（绝大多数环境默认已启用）。
+
+### Nginx
+
+**Nginx 不支持 `.htaccess`**，需手动在 server 块中添加以下规则（宝塔面板：网站 → 设置 → 伪静态）：
 
 ```nginx
 # 禁止访问数据库和公共库

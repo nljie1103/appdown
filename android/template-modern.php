@@ -1,7 +1,7 @@
 <?php
 /**
  * Android安装引导页 - 现代风格
- * 变量由 index.php 提供: $appName, $downloadHref, $themeColor, $iconUrl, $siteName
+ * 变量由 index.php 提供: $appName, $downloadHref, $themeColor, $iconUrl, $siteName, $version, $size, $description
  */
 ?>
 <!doctype html>
@@ -103,9 +103,11 @@
         <div class="app-card">
             <h2 style="font-size:1.1em;margin-bottom:12px;">应用信息</h2>
             <ul class="info-list">
+<?php if ($size): ?>    <li><span>大小</span><span><?= $size ?></span></li><?php endif; ?>
+<?php if ($version): ?> <li><span>版本</span><span><?= $version ?></span></li><?php endif; ?>
+<?php if ($description): ?><li><span>简介</span><span><?= $description ?></span></li><?php endif; ?>
                 <li><span>平台</span><span>Android</span></li>
                 <li><span>格式</span><span>APK安装包</span></li>
-                <li><span>语言</span><span>简体中文</span></li>
                 <li><span>价格</span><span>免费</span></li>
             </ul>
         </div>

@@ -71,6 +71,10 @@ function init_schema(PDO $pdo): void {
             mc_payload_org  TEXT NOT NULL DEFAULT '',
             mc_file_id      INTEGER DEFAULT NULL,
             mc_file_url     TEXT NOT NULL DEFAULT '',
+            android_apk_url     TEXT NOT NULL DEFAULT '',
+            android_version     TEXT NOT NULL DEFAULT '',
+            android_size        TEXT NOT NULL DEFAULT '',
+            android_description TEXT NOT NULL DEFAULT '',
             android_template TEXT NOT NULL DEFAULT 'modern',
             feature_category_id INTEGER NOT NULL DEFAULT 0,
             sort_order      INTEGER NOT NULL DEFAULT 0,
@@ -397,6 +401,18 @@ function migrate_schema(PDO $pdo): void {
     }
     if (!in_array('android_template', $colNames)) {
         $pdo->exec("ALTER TABLE apps ADD COLUMN android_template TEXT NOT NULL DEFAULT 'modern'");
+    }
+    if (!in_array('android_apk_url', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN android_apk_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('android_version', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN android_version TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('android_size', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN android_size TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('android_description', $colNames)) {
+        $pdo->exec("ALTER TABLE apps ADD COLUMN android_description TEXT NOT NULL DEFAULT ''");
     }
 
     // app_downloads 增加 btn_icon 列

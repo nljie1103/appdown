@@ -2,7 +2,7 @@
 /**
  * Android安装引导页路由
  * 访问: /android/?app=slug
- * 根据应用的 android_template 字段选择模板
+ * 根据应用的 android_ 系列字段提供安装信息
  */
 
 require_once __DIR__ . '/../includes/init.php';
@@ -25,11 +25,8 @@ if (!$app) {
     exit;
 }
 
-// 从下载按钮中获取第一个Android类型的下载链接
-$dlStmt = $pdo->prepare("SELECT href FROM app_downloads WHERE app_id = ? AND btn_type IN ('android', 'android-install') AND is_active = 1 AND href != '#' AND href != '' ORDER BY sort_order ASC LIMIT 1");
-$dlStmt->execute([$app['id']]);
-$dlRow = $dlStmt->fetch();
-$downloadUrl = $dlRow ? $dlRow['href'] : '';
+// 从应用配置读取APK地址
+$downloadUrl = $app['android_apk_url'] ?? '';
 
 // 获取站点设置
 $settings = [];
@@ -54,6 +51,9 @@ $appName = htmlspecialchars($app['name']);
 $themeColor = htmlspecialchars($app['theme_color'] ?? '#4CAF50');
 $iconUrl = htmlspecialchars($app['icon_url'] ?: ($settings['logo_url'] ?? ''));
 $downloadHref = htmlspecialchars($downloadUrl);
+$version = htmlspecialchars($app['android_version'] ?? '');
+$size = htmlspecialchars($app['android_size'] ?? '');
+$description = htmlspecialchars($app['android_description'] ?? '');
 
 // 根据模板选择
 $template = $app['android_template'] ?? 'modern';

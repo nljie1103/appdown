@@ -151,13 +151,34 @@ admin_header('编辑应用', 'apps');
 <!-- Android安装页配置 -->
 <div class="card">
     <h3>Android安装页配置</h3>
-    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">用户可通过 <code style="color:#e53e3e;font-weight:700;">/android/?app=应用标识</code> 访问Android安装引导页，下载链接会自动获取第一个Android类型的下载按钮地址</p>
+    <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9em;">配置后用户可通过 <code style="color:#e53e3e;font-weight:700;">/android/?app=应用标识</code> 访问Android安装引导页</p>
     <div class="form-group">
-        <label>安装页模板</label>
-        <select class="form-control" id="androidTemplate">
-            <option value="modern">现代风格</option>
-            <option value="classic">经典风格（仿Play Store）</option>
+        <label>APK文件地址</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" class="form-control" id="androidApkUrl" placeholder="如: https://example.com/app.apk 或选择附件" style="flex:1;">
+            <button class="btn btn-outline btn-sm" type="button" onclick="showAttPicker('androidApkUrl')" title="从附件选择"><i class="fas fa-paperclip"></i></button>
+        </div>
+        <select class="form-control att-picker" id="androidApkUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'androidApkUrl')">
+            <option value="">-- 选择一个版本 --</option>
         </select>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>应用版本</label><input type="text" class="form-control" id="androidVersion" placeholder="如: 1.2.0"></div>
+        <div class="form-group"><label>应用大小</label><input type="text" class="form-control" id="androidSize" placeholder="如: 12.5 MB"></div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>安装页模板</label>
+            <select class="form-control" id="androidTemplate">
+                <option value="modern">现代风格</option>
+                <option value="classic">经典风格（仿Play Store）</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-group"><label>应用简介</label><textarea class="form-control" id="androidDesc" rows="3" placeholder="Android安装页展示的应用描述"></textarea></div>
+    <div id="androidPreview" style="display:none;margin-bottom:12px;">
+        <label style="font-size:0.85em;color:var(--text-secondary);">安装页链接：</label>
+        <div style="background:#f5f5f5;padding:8px 12px;border-radius:6px;font-size:0.85em;word-break:break-all;font-family:monospace;" id="androidUrlDisplay"></div>
     </div>
     <button class="btn btn-primary" onclick="saveAndroidConfig()"><i class="fas fa-save"></i> 保存Android配置</button>
 </div>
@@ -504,7 +525,12 @@ async function loadApp() {
     updateMcPreview();
 
     // Android配置
+    document.getElementById('androidApkUrl').value = app.android_apk_url || '';
+    document.getElementById('androidVersion').value = app.android_version || '';
+    document.getElementById('androidSize').value = app.android_size || '';
+    document.getElementById('androidDesc').value = app.android_description || '';
     document.getElementById('androidTemplate').value = app.android_template || 'modern';
+    updateAndroidPreview();
 
     renderDownloads(app.downloads);
     renderImages(app.images);
@@ -530,6 +556,18 @@ function updateMcPreview() {
     const urlDisplay = document.getElementById('mcUrlDisplay');
     if ((fileId || document.getElementById('mcFileUrl').value) && appSlug) {
         urlDisplay.textContent = location.origin + '/api/mobileconfig.php?app=' + appSlug;
+        previewDiv.style.display = '';
+    } else {
+        previewDiv.style.display = 'none';
+    }
+}
+
+function updateAndroidPreview() {
+    const apkUrl = document.getElementById('androidApkUrl').value.trim();
+    const previewDiv = document.getElementById('androidPreview');
+    const urlDisplay = document.getElementById('androidUrlDisplay');
+    if (apkUrl && appSlug) {
+        urlDisplay.textContent = location.origin + '/android/?app=' + appSlug;
         previewDiv.style.display = '';
     } else {
         previewDiv.style.display = 'none';
@@ -572,9 +610,14 @@ async function saveMcConfig() {
 async function saveAndroidConfig() {
     await API.put('/admin/api/apps.php', {
         id: APP_ID,
+        android_apk_url: document.getElementById('androidApkUrl').value.trim(),
+        android_version: document.getElementById('androidVersion').value.trim(),
+        android_size: document.getElementById('androidSize').value.trim(),
+        android_description: document.getElementById('androidDesc').value.trim(),
         android_template: document.getElementById('androidTemplate').value,
     });
     AlertModal.success('保存成功', 'Android安装页配置已保存');
+    updateAndroidPreview();
 }
 
 async function saveApp() {
