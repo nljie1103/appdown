@@ -128,6 +128,9 @@ admin_header('编辑应用', 'apps');
                 <button class="btn btn-outline" type="button" onclick="showAttPicker('mcFileUrl')" title="从附件库选择"><i class="fas fa-paperclip"></i> 附件库</button>
                 <button class="btn btn-outline" type="button" onclick="clearMcFile()"><i class="fas fa-times"></i></button>
             </div>
+            <select class="form-control att-picker" id="mcFileUrlPicker" style="display:none;margin-top:6px;" onchange="pickAttachment(this,'mcFileUrl')">
+                <option value="">-- 选择一个文件 --</option>
+            </select>
             <small style="color:var(--text-secondary);font-size:0.8em;">可直接输入链接或从附件库选择（在"生成应用"页生成后关联到应用即可在附件库中找到）</small>
         </div>
         <div class="form-row">

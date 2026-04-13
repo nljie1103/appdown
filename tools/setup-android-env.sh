@@ -7,9 +7,9 @@
 
 set -e
 
-# ========== 配置 ==========
+# ========== 配置（可通过环境变量覆盖） ==========
 JAVA_PKG="openjdk-17-jdk"
-ANDROID_HOME="/opt/android-sdk"
+ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
 CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
 # 如果无法访问 Google，使用以下镜像（腾讯云）
 CMDLINE_TOOLS_MIRROR="https://mirrors.cloud.tencent.com/AndroidSDK/commandlinetools-linux-11076708_latest.zip"
@@ -46,6 +46,7 @@ echo "  - OpenJDK 17"
 echo "  - Android SDK 命令行工具"
 echo "  - Build Tools $BUILD_TOOLS_VERSION"
 echo "  - Platform $PLATFORM_VERSION"
+echo "  - SDK 安装目录: $ANDROID_HOME"
 echo ""
 
 # ========== Step 1: 安装 JDK ==========

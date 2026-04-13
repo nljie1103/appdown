@@ -52,15 +52,23 @@ try {
     // 检测当前是否已经是 root
     $isRoot = function_exists('posix_getuid') ? (posix_getuid() === 0) : (trim(shell_exec('id -u') ?? '') === '0');
 
+    // 从数据库读取自定义配置，通过环境变量传给安装脚本
+    $envParts = [];
+    $androidHome = get_setting($pdo, 'custom_android_home');
+    if ($androidHome !== '' && $androidHome !== null) {
+        $envParts[] = 'ANDROID_HOME=' . escapeshellarg($androidHome);
+    }
+    $envPrefix = $envParts ? implode(' ', $envParts) . ' ' : '';
+
     if ($isRoot) {
         // 已经是 root，直接运行
-        $cmd = sprintf('bash %s > %s 2>&1', escapeshellarg($script), escapeshellarg($logFile));
+        $cmd = sprintf('%sbash %s > %s 2>&1', $envPrefix, escapeshellarg($script), escapeshellarg($logFile));
     } else {
         // 非 root，尝试 sudo（免密）
         // 先测试 sudo 是否可用
         exec('sudo -n true 2>/dev/null', $sudoOut, $sudoCode);
         if ($sudoCode === 0) {
-            $cmd = sprintf('sudo bash %s > %s 2>&1', escapeshellarg($script), escapeshellarg($logFile));
+            $cmd = sprintf('sudo %sbash %s > %s 2>&1', $envPrefix, escapeshellarg($script), escapeshellarg($logFile));
         } else {
             // sudo 不可用，写入友好提示
             $fallbackCmd = 'sudo bash ' . $script;

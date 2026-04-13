@@ -461,6 +461,12 @@ if ($method === 'POST') {
                         json_response(['error' => 'Docker 数据目录必须是绝对路径（以 / 开头）'], 400);
                     }
                 }
+                // Android SDK 目录必须是绝对路径
+                if ($k === 'custom_android_home' && $val !== '') {
+                    if ($val[0] !== '/') {
+                        json_response(['error' => 'Android SDK 目录必须是绝对路径（以 / 开头）'], 400);
+                    }
+                }
                 // Docker 镜像加速 URL 基本校验
                 if ($k === 'custom_docker_mirror' && $val !== '') {
                     $mirrors = array_filter(array_map('trim', explode(',', $val)));
