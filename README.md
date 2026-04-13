@@ -80,8 +80,11 @@
 **🔒 安全防护**
 - CSRF 保护 + 预处理语句
 - 登录防爆破（5次锁定15分钟）
+- Session 超时自动登出（2小时）
 - 可选算术验证码
+- 可选爬虫 UA 过滤（独立统计爬虫来源）
 - 安装指纹机制，重装后旧会话自动失效
+- 敏感目录保护（Apache .htaccess + Nginx 规则 + PHP 兜底）
 - 环境检测，安装锁定
 
 </td>
@@ -175,23 +178,23 @@ APK 构建依赖两个 Gradle 文件，构建脚本会自动按 **官方源 → 
 | 文件 | 大小 | 作用 | 放置位置 |
 |:---|:---|:---|:---|
 | `gradle-wrapper.jar` | ~43 KB | Gradle 引导程序 | `android-template/gradle/wrapper/gradle-wrapper.jar`（已随仓库提供） |
-| `gradle-8.5-bin.zip` | ~150 MB | Gradle 完整发行包 | `/tmp/gradle-8.5-bin.zip`（服务器上） |
+| `gradle-8.5-bin.zip` | ~150 MB | Gradle 完整发行包 | `data/gradle-cache/gradle-8.5-bin.zip` |
 
 **`gradle-wrapper.jar`** 已包含在仓库中，无需额外操作。
 
-**`gradle-8.5-bin.zip`** 首次构建时会自动下载并缓存到 `~/.gradle/wrapper/dists/`，后续构建不再重复下载。如自动下载失败，可手动下载后放到服务器 `/tmp/` 目录：
+**`gradle-8.5-bin.zip`** 首次构建时会自动下载并缓存到 `data/gradle-cache/` 目录，后续构建不再重复下载。如自动下载失败，可手动下载后放到该目录：
 
 ```bash
 # 下载地址（任选其一）
 # 官方源
-wget -O /tmp/gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
+wget -O data/gradle-cache/gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
 # 腾讯云镜像
-wget -O /tmp/gradle-8.5-bin.zip https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip
+wget -O data/gradle-cache/gradle-8.5-bin.zip https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip
 # 阿里云镜像
-wget -O /tmp/gradle-8.5-bin.zip https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.5-bin.zip
+wget -O data/gradle-cache/gradle-8.5-bin.zip https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.5-bin.zip
 ```
 
-构建脚本会自动检测 `/tmp/gradle-8.5-bin.zip`，存在则直接使用本地文件，无需联网。
+构建脚本会自动检测 `data/gradle-cache/gradle-8.5-bin.zip`，存在则直接使用本地文件，无需联网。
 
 ### IPA 生成环境部署（可选）
 
@@ -298,6 +301,8 @@ appdown/
 | 🖧 系统信息 | 运行环境检测、Android/iOS构建环境管理、自定义路径配置、一键安装/卸载 |
 
 ## 🔧 Nginx 安全规则
+
+> ⚠️ 项目已内置 `.htaccess` 文件保护敏感目录（Apache 自动生效）。**Nginx 不支持 `.htaccess`**，需手动添加以下规则。
 
 在 Nginx server 块中添加（宝塔面板：网站 → 设置 → 伪静态）：
 
