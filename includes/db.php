@@ -277,6 +277,8 @@ function init_schema(PDO $pdo): void {
             chain       TEXT NOT NULL DEFAULT '',
             payload_org TEXT NOT NULL DEFAULT '',
             is_global   INTEGER NOT NULL DEFAULT 0,
+            cert_issuer TEXT NOT NULL DEFAULT '',
+            cert_expires TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -569,6 +571,8 @@ function migrate_schema(PDO $pdo): void {
             chain       TEXT NOT NULL DEFAULT '',
             payload_org TEXT NOT NULL DEFAULT '',
             is_global   INTEGER NOT NULL DEFAULT 0,
+            cert_issuer TEXT NOT NULL DEFAULT '',
+            cert_expires TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -639,4 +643,13 @@ function migrate_schema(PDO $pdo): void {
             created_at   TEXT NOT NULL DEFAULT (datetime('now'))
         );
     ");
+
+    // mc_certificates 增加证书信息列
+    $mcCols = array_map(function($r) { return $r['name']; }, $pdo->query("PRAGMA table_info(mc_certificates)")->fetchAll());
+    if (!in_array('cert_issuer', $mcCols)) {
+        $pdo->exec("ALTER TABLE mc_certificates ADD COLUMN cert_issuer TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('cert_expires', $mcCols)) {
+        $pdo->exec("ALTER TABLE mc_certificates ADD COLUMN cert_expires TEXT NOT NULL DEFAULT ''");
+    }
 }

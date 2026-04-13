@@ -1201,14 +1201,29 @@ async function loadMcCerts() {
             return;
         }
         const modeLabel = { text: '文本', path: '路径', upload: '上传' };
-        let html = '<table class="data-table"><thead><tr><th>名称</th><th>模式</th><th>组织名</th><th>全局默认</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+        let html = '<table class="data-table"><thead><tr><th>名称</th><th>颁发者</th><th>模式</th><th>组织名</th><th>全局默认</th><th>到期时间</th><th>操作</th></tr></thead><tbody>';
         for (const c of rows) {
+            // 到期时间高亮：已过期红色，30天内即将过期橙色
+            let expiresHtml = '-';
+            if (c.cert_expires) {
+                const exp = new Date(c.cert_expires);
+                const now = new Date();
+                const daysLeft = Math.ceil((exp - now) / 86400000);
+                if (daysLeft < 0) {
+                    expiresHtml = `<span style="color:#e74c3c;font-weight:600;" title="已过期">${escapeHTML(c.cert_expires)}</span>`;
+                } else if (daysLeft < 30) {
+                    expiresHtml = `<span style="color:#e67e22;font-weight:600;" title="${daysLeft}天后过期">${escapeHTML(c.cert_expires)}</span>`;
+                } else {
+                    expiresHtml = `<span title="${daysLeft}天后过期">${escapeHTML(c.cert_expires)}</span>`;
+                }
+            }
             html += `<tr>
                 <td>${escapeHTML(c.name)}</td>
+                <td style="font-size:0.85em;color:#555;">${escapeHTML(c.cert_issuer || '-')}</td>
                 <td>${modeLabel[c.mode] || c.mode}</td>
                 <td>${escapeHTML(c.payload_org || '-')}</td>
                 <td style="text-align:center;">${c.is_global ? '<span style="color:#27ae60;font-weight:600;">⭐ 是</span>' : '<button class="btn btn-outline btn-sm" onclick="setGlobalCert(${c.id})" title="设为全局">设为全局</button>'}</td>
-                <td style="white-space:nowrap;">${c.created_at || ''}</td>
+                <td style="white-space:nowrap;">${expiresHtml}</td>
                 <td style="white-space:nowrap;">
                     <button class="btn btn-outline btn-sm" onclick="showEditCertModal(${c.id})" title="编辑"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-outline btn-sm" onclick="deleteCert(${c.id})" title="删除" style="color:#e74c3c;"><i class="fas fa-trash"></i></button>

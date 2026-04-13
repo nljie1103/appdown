@@ -118,6 +118,70 @@ function resolve_cert_content(string $mode, string $value): string {
 }
 
 /**
+ * 验证证书并提取信息（颁发者品牌、到期时间）
+ * @param string $mode 证书模式
+ * @param string $certRaw 证书原始值
+ * @param string $keyRaw 私钥原始值
+ * @return array ['valid'=>bool, 'error'=>string, 'issuer'=>string, 'expires'=>string]
+ */
+function validate_and_parse_cert(string $mode, string $certRaw, string $keyRaw): array {
+    $result = ['valid' => false, 'error' => '', 'issuer' => '', 'expires' => ''];
+
+    $certPem = resolve_cert_content($mode, $certRaw);
+    if (empty($certPem)) {
+        $result['error'] = '证书内容为空或无法读取';
+        return $result;
+    }
+
+    // 验证证书
+    $certRes = @openssl_x509_read($certPem);
+    if (!$certRes) {
+        $result['error'] = '证书格式无效: ' . (openssl_error_string() ?: '无法解析PEM');
+        return $result;
+    }
+
+    // 解析证书信息
+    $info = openssl_x509_parse($certRes);
+    if (!$info) {
+        $result['error'] = '无法解析证书信息';
+        return $result;
+    }
+
+    // 提取颁发者（品牌）
+    $issuerParts = [];
+    if (!empty($info['issuer']['O'])) $issuerParts[] = $info['issuer']['O'];
+    if (!empty($info['issuer']['CN'])) $issuerParts[] = $info['issuer']['CN'];
+    $result['issuer'] = implode(' - ', $issuerParts) ?: ($info['issuer']['OU'] ?? 'Unknown');
+
+    // 提取到期时间
+    if (!empty($info['validTo_time_t'])) {
+        $result['expires'] = date('Y-m-d H:i:s', $info['validTo_time_t']);
+    }
+
+    // 验证私钥（如果有的话）
+    if (!empty($keyRaw)) {
+        $keyPem = resolve_cert_content($mode, $keyRaw);
+        if (empty($keyPem)) {
+            $result['error'] = '私钥内容为空或无法读取';
+            return $result;
+        }
+        $keyRes = @openssl_pkey_get_private($keyPem);
+        if (!$keyRes) {
+            $result['error'] = '私钥格式无效: ' . (openssl_error_string() ?: '无法解析PEM');
+            return $result;
+        }
+        // 验证证书与私钥匹配
+        if (!@openssl_x509_check_private_key($certRes, $keyRes)) {
+            $result['error'] = '证书与私钥不匹配';
+            return $result;
+        }
+    }
+
+    $result['valid'] = true;
+    return $result;
+}
+
+/**
  * 使用 OpenSSL PKCS#7 签名 mobileconfig
  */
 function sign_mobileconfig(string $xml, string $certPem, string $keyPem, string $chainPem = '') {

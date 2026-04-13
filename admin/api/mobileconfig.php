@@ -120,18 +120,34 @@ if ($method === 'POST') {
         if (!$name) json_response(['error' => '请输入证书名称'], 400);
         if (!in_array($mode, ['text', 'path', 'upload'])) json_response(['error' => '无效模式'], 400);
 
+        $certRaw = trim($data['cert'] ?? '');
+        $keyRaw = trim($data['key'] ?? '');
+
+        // 验证证书有效性并提取信息
+        $certIssuer = '';
+        $certExpires = '';
+        if (!empty($certRaw)) {
+            $parsed = validate_and_parse_cert($mode, $certRaw, $keyRaw);
+            if (!$parsed['valid']) {
+                json_response(['error' => $parsed['error']], 400);
+            }
+            $certIssuer = $parsed['issuer'];
+            $certExpires = $parsed['expires'];
+        }
+
         $isGlobal = !empty($data['is_global']) ? 1 : 0;
         if ($isGlobal) {
             $pdo->exec("UPDATE mc_certificates SET is_global = 0 WHERE is_global = 1");
         }
 
-        $stmt = $pdo->prepare('INSERT INTO mc_certificates (name, mode, cert, "key", chain, payload_org, is_global) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt = $pdo->prepare('INSERT INTO mc_certificates (name, mode, cert, "key", chain, payload_org, is_global, cert_issuer, cert_expires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $name, $mode,
-            trim($data['cert'] ?? ''), trim($data['key'] ?? ''), trim($data['chain'] ?? ''),
+            $certRaw, $keyRaw, trim($data['chain'] ?? ''),
             trim($data['payload_org'] ?? ''), $isGlobal,
+            $certIssuer, $certExpires,
         ]);
-        json_response(['ok' => true, 'id' => $pdo->lastInsertId()]);
+        json_response(['ok' => true, 'id' => $pdo->lastInsertId(), 'cert_issuer' => $certIssuer, 'cert_expires' => $certExpires]);
     }
 
     if ($action === 'import_global_cert') {
@@ -320,20 +336,34 @@ if ($method === 'PUT') {
         $mode = trim($data['mode'] ?? $old['mode']);
         $isGlobal = isset($data['is_global']) ? (!empty($data['is_global']) ? 1 : 0) : (int)$old['is_global'];
 
+        $certVal = isset($data['cert']) ? trim($data['cert']) : $old['cert'];
+        $keyVal = isset($data['key']) ? trim($data['key']) : $old['key'];
+        $chainVal = isset($data['chain']) ? trim($data['chain']) : $old['chain'];
+
+        // 如果证书内容有变更，重新验证并提取信息
+        $certIssuer = $old['cert_issuer'] ?? '';
+        $certExpires = $old['cert_expires'] ?? '';
+        if (isset($data['cert']) && !empty($certVal)) {
+            $parsed = validate_and_parse_cert($mode, $certVal, $keyVal);
+            if (!$parsed['valid']) {
+                json_response(['error' => $parsed['error']], 400);
+            }
+            $certIssuer = $parsed['issuer'];
+            $certExpires = $parsed['expires'];
+        }
+
         if ($isGlobal && !(int)$old['is_global']) {
             $pdo->exec("UPDATE mc_certificates SET is_global = 0 WHERE is_global = 1");
         }
 
-        $stmt = $pdo->prepare('UPDATE mc_certificates SET name=?, mode=?, cert=?, "key"=?, chain=?, payload_org=?, is_global=?, updated_at=datetime(\'now\') WHERE id=?');
+        $stmt = $pdo->prepare('UPDATE mc_certificates SET name=?, mode=?, cert=?, "key"=?, chain=?, payload_org=?, is_global=?, cert_issuer=?, cert_expires=?, updated_at=datetime(\'now\') WHERE id=?');
         $stmt->execute([
             $name, $mode,
-            isset($data['cert']) ? trim($data['cert']) : $old['cert'],
-            isset($data['key']) ? trim($data['key']) : $old['key'],
-            isset($data['chain']) ? trim($data['chain']) : $old['chain'],
+            $certVal, $keyVal, $chainVal,
             trim($data['payload_org'] ?? $old['payload_org']),
-            $isGlobal, $id,
+            $isGlobal, $certIssuer, $certExpires, $id,
         ]);
-        json_response(['ok' => true]);
+        json_response(['ok' => true, 'cert_issuer' => $certIssuer, 'cert_expires' => $certExpires]);
     }
 
     json_response(['error' => '未知操作'], 400);
