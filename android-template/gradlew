@@ -1,98 +1,122 @@
 #!/bin/sh
 # Gradle wrapper bootstrap script
-# If gradle-wrapper.jar doesn't exist, download it
+# 1. Ensure gradle-wrapper.jar exists (with mirror fallback)
+# 2. Pre-download Gradle distribution if not cached (with mirror fallback)
+# 3. Invoke GradleWrapperMain
 
 APP_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 WRAPPER_JAR="$APP_BASE_DIR/gradle/wrapper/gradle-wrapper.jar"
 WRAPPER_PROPS="$APP_BASE_DIR/gradle/wrapper/gradle-wrapper.properties"
 
-# Validate that a file is a real JAR (ZIP format, starts with PK magic bytes)
-is_valid_jar() {
+# Parse version from properties
+DIST_URL=$(grep distributionUrl "$WRAPPER_PROPS" | sed 's/.*=//' | sed 's/\\:/:/g')
+GRADLE_VERSION=$(echo "$DIST_URL" | sed 's/.*gradle-//' | sed 's/-bin.*//' | sed 's/-all.*//')
+DIST_NAME="gradle-${GRADLE_VERSION}-bin.zip"
+
+# Validate that a file is a real JAR/ZIP (starts with PK magic bytes)
+is_valid_zip() {
     [ -s "$1" ] || return 1
     MAGIC=$(od -A n -N 2 -t x1 "$1" 2>/dev/null | tr -d ' ')
     [ "$MAGIC" = "504b" ]
 }
 
 try_download() {
-    local url="$1" label="$2"
-    rm -f "$WRAPPER_JAR"
+    local url="$1" dest="$2" label="$3" timeout="${4:-60}"
+    rm -f "$dest"
     echo "  Trying $label..."
-    curl -sL --connect-timeout 15 --max-time 60 -o "$WRAPPER_JAR" "$url" 2>/dev/null || \
-    wget -q --timeout=15 -O "$WRAPPER_JAR" "$url" 2>/dev/null
-    if is_valid_jar "$WRAPPER_JAR"; then
-        return 0
-    fi
-    rm -f "$WRAPPER_JAR"
-    return 1
+    curl -fSL --connect-timeout 15 --max-time "$timeout" -o "$dest" "$url" 2>/dev/null || \
+    wget -q --timeout=15 -O "$dest" "$url" 2>/dev/null
+    [ -s "$dest" ]
 }
 
-if [ ! -f "$WRAPPER_JAR" ] || ! is_valid_jar "$WRAPPER_JAR"; then
+# ===== Step 1: Ensure gradle-wrapper.jar =====
+if [ ! -f "$WRAPPER_JAR" ] || ! is_valid_zip "$WRAPPER_JAR"; then
     rm -f "$WRAPPER_JAR"
-    echo "Downloading Gradle wrapper..."
-    DIST_URL=$(grep distributionUrl "$WRAPPER_PROPS" | sed 's/.*=//' | sed 's/\\:/:/g')
-    GRADLE_VERSION=$(echo "$DIST_URL" | sed 's/.*gradle-//' | sed 's/-bin.*//' | sed 's/-all.*//')
+    echo "Downloading Gradle wrapper jar..."
 
-    DOWNLOADED=0
-
-    # 1. Custom mirror (env var)
-    if [ -n "$GRADLE_WRAPPER_MIRROR" ] && [ $DOWNLOADED -eq 0 ]; then
-        try_download "$GRADLE_WRAPPER_MIRROR" "custom mirror" && DOWNLOADED=1
+    # Custom mirror (env var)
+    if [ -n "$GRADLE_WRAPPER_MIRROR" ]; then
+        try_download "$GRADLE_WRAPPER_MIRROR" "$WRAPPER_JAR" "custom mirror"
+        is_valid_zip "$WRAPPER_JAR" || rm -f "$WRAPPER_JAR"
     fi
 
-    # 2. China mirrors (Tencent / Aliyun gradle dist → extract jar)
-    if [ $DOWNLOADED -eq 0 ]; then
+    # China mirrors → extract jar from dist zip
+    if [ ! -s "$WRAPPER_JAR" ]; then
         for MIRROR_BASE in \
             "https://mirrors.cloud.tencent.com/gradle/" \
             "https://mirrors.aliyun.com/macports/distfiles/gradle/"; do
-            MIRROR_URL="${MIRROR_BASE}gradle-${GRADLE_VERSION}-bin.zip"
-            echo "  Trying China mirror: $MIRROR_BASE ..."
             DIST_TMP=$(mktemp /tmp/gradle-dist-XXXXXX.zip)
-            curl -sL --connect-timeout 15 --max-time 120 -o "$DIST_TMP" "$MIRROR_URL" 2>/dev/null || \
-            wget -q --timeout=15 -O "$DIST_TMP" "$MIRROR_URL" 2>/dev/null
-            if [ -s "$DIST_TMP" ]; then
+            try_download "${MIRROR_BASE}${DIST_NAME}" "$DIST_TMP" "China mirror ($MIRROR_BASE)" 120
+            if is_valid_zip "$DIST_TMP"; then
                 unzip -p "$DIST_TMP" "*/gradle/wrapper/gradle-wrapper.jar" > "$WRAPPER_JAR" 2>/dev/null
-                if is_valid_jar "$WRAPPER_JAR"; then
-                    rm -f "$DIST_TMP"
-                    DOWNLOADED=1
-                    break
-                fi
+                if is_valid_zip "$WRAPPER_JAR"; then rm -f "$DIST_TMP"; break; fi
                 rm -f "$WRAPPER_JAR"
             fi
             rm -f "$DIST_TMP"
         done
     fi
 
-    # 3. GitHub raw
-    if [ $DOWNLOADED -eq 0 ]; then
-        GITHUB_URL="https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
-        try_download "$GITHUB_URL" "GitHub releases" && DOWNLOADED=1
+    # GitHub raw
+    if [ ! -s "$WRAPPER_JAR" ]; then
+        try_download "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar" \
+            "$WRAPPER_JAR" "GitHub" 60
+        is_valid_zip "$WRAPPER_JAR" || rm -f "$WRAPPER_JAR"
     fi
 
-    # 4. Official dist zip (fallback)
-    if [ $DOWNLOADED -eq 0 ] && [ -n "$DIST_URL" ]; then
-        echo "  Trying official distribution..."
-        DIST_TMP=$(mktemp /tmp/gradle-dist-XXXXXX.zip)
-        curl -sL --connect-timeout 30 --max-time 180 -o "$DIST_TMP" "$DIST_URL" 2>/dev/null || \
-        wget -q --timeout=30 -O "$DIST_TMP" "$DIST_URL" 2>/dev/null
-        if [ -s "$DIST_TMP" ]; then
-            unzip -p "$DIST_TMP" "*/gradle/wrapper/gradle-wrapper.jar" > "$WRAPPER_JAR" 2>/dev/null
-            is_valid_jar "$WRAPPER_JAR" && DOWNLOADED=1 || rm -f "$WRAPPER_JAR"
-        fi
-        rm -f "$DIST_TMP"
-    fi
-
-    if [ $DOWNLOADED -eq 0 ] || ! is_valid_jar "$WRAPPER_JAR"; then
+    if ! is_valid_zip "$WRAPPER_JAR"; then
         rm -f "$WRAPPER_JAR"
-        echo "Error: Failed to download gradle-wrapper.jar (all sources tried)"
-        echo "Possible causes: network restricted, mirror unreachable, or proxy interference"
-        echo "You can manually place it at: $WRAPPER_JAR"
-        echo "Or set GRADLE_WRAPPER_MIRROR to a direct download URL for the jar"
+        echo "Error: Failed to download gradle-wrapper.jar"
+        echo "Place it manually at: $WRAPPER_JAR"
         exit 1
     fi
-    echo "  Gradle wrapper downloaded successfully."
+    echo "  Gradle wrapper jar ready."
 fi
 
-# Determine the Java command to use
+# ===== Step 2: Pre-download Gradle distribution (with mirror fallback) =====
+GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle}"
+DIST_CACHE="$GRADLE_USER_HOME/wrapper/dists"
+
+# Check if Gradle is already extracted in cache
+CACHED_DIR=$(find "$DIST_CACHE" -maxdepth 3 -name "gradle-$GRADLE_VERSION" -type d 2>/dev/null | head -1)
+
+if [ -z "$CACHED_DIR" ]; then
+    LOCAL_ZIP="/tmp/$DIST_NAME"
+
+    # Reuse previously downloaded zip if valid
+    if [ -s "$LOCAL_ZIP" ] && ! is_valid_zip "$LOCAL_ZIP"; then
+        rm -f "$LOCAL_ZIP"
+    fi
+
+    if [ ! -s "$LOCAL_ZIP" ]; then
+        echo "Downloading Gradle $GRADLE_VERSION distribution..."
+        for URL in \
+            "$DIST_URL" \
+            "https://mirrors.cloud.tencent.com/gradle/$DIST_NAME" \
+            "https://mirrors.aliyun.com/macports/distfiles/gradle/$DIST_NAME"; do
+            try_download "$URL" "$LOCAL_ZIP" "$URL" 600
+            if is_valid_zip "$LOCAL_ZIP"; then
+                echo "  Downloaded Gradle distribution successfully."
+                break
+            fi
+            rm -f "$LOCAL_ZIP"
+        done
+    fi
+
+    if is_valid_zip "$LOCAL_ZIP"; then
+        # Point wrapper to local file so it won't re-download
+        FILE_URL=$(echo "$LOCAL_ZIP" | sed 's/:/\\:/g')
+        sed -i "s|distributionUrl=.*|distributionUrl=file\\\\:${FILE_URL}|" "$WRAPPER_PROPS"
+        echo "  Using local distribution: $LOCAL_ZIP"
+    else
+        echo "Warning: Could not pre-download Gradle distribution."
+        echo "  Wrapper will attempt to download from: $DIST_URL"
+        echo "  If this fails, manually download $DIST_NAME and place at: /tmp/$DIST_NAME"
+    fi
+else
+    echo "Gradle $GRADLE_VERSION already cached."
+fi
+
+# ===== Step 3: Invoke Gradle =====
 if [ -n "$JAVA_HOME" ]; then
     JAVACMD="$JAVA_HOME/bin/java"
 else
