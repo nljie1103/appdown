@@ -57,7 +57,7 @@ if ($method === 'POST') {
         $alias = trim($data['alias'] ?? '');
         $storePwd = $data['store_password'] ?? '';
         $keyPwd = $data['key_password'] ?? '';
-        $validity = (int)($data['validity_years'] ?? 25);
+        $validity = max(1, (int)($data['validity_years'] ?? 25));
         $cn = trim($data['common_name'] ?? '');
         $ou = trim($data['org_unit'] ?? '');
         $org = trim($data['org_name'] ?? '');
