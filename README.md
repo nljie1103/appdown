@@ -81,13 +81,17 @@ Admin 2.0 已接入真实 PHP API，而不是静态演示数据，覆盖：
 - 后台构建任务与进度
 - APK 生成记录与关联应用
 - JDK / Android SDK 自动检测
+- 模板自带默认 launcher icon；即使不上传自定义图标也可完成 Release APK 构建
+- 永久 CI 会真实运行 Android 环境脚本、Gradle、JKS 签名与 apksigner 验证
 
 ### 🍎 IPA 生成器
 
 - URL → iOS WKWebView IPA
-- Docker-OSX + macOS + Xcode 构建路线
+- Docker-OSX + macOS + Xcode 构建路线（仅 x86_64 KVM Linux 宿主机）
+- 工程通过 SSH/SCP 传入 macOS，再把真实 xcodebuild 产出的 IPA 拉回服务器
 - 自定义 Bundle ID、版本号、图标
-- 无签名构建模式
+- 当前明确为无签名 IPA 构建模式，不把 unsigned IPA 伪装成可直接安装的签名包
+- 永久 CI 另在真实 macOS Runner 上执行 iOS 模板 xcodebuild archive
 - 后台构建任务与结果管理
 
 ### 📎 附件与版本
@@ -291,13 +295,15 @@ data/gradle-cache/gradle-8.5-bin.zip
 
 需要：
 
-- Linux 宿主机
-- KVM
+- **x86_64 / amd64 Linux 宿主机**（Docker-OSX 不支持 ARM/aarch64 作为这条 KVM 路线的宿主）
+- KVM（`/dev/kvm`）
 - Docker
-- 可运行的 Docker-OSX/macOS
+- 可启动并可通过 SSH 登录的 Docker-OSX/macOS
 - Xcode
 - 建议 ≥ 8GB 内存
 - 建议预留 ≥ 50GB 磁盘
+
+`tools/setup-ios-env.sh` 只有在 Docker、KVM、容器和 **macOS SSH 全部真实通过**后才返回成功；不会再因为“容器已经创建”就把 iOS 环境标成完成。默认 `sickcodes/docker-osx:auto` 是官方预制 Catalina CLI 镜像，适合验证自动化链路；现代 Xcode 应使用已经完成 macOS 安装并启用 SSH 的较新自定义镜像。
 
 环境脚本：
 
@@ -385,6 +391,8 @@ git pull
 |---|---|
 | `main` | 单用户 / 单分发站版本 |
 | `saas` | 多租户版本：根欢迎页、`/super` 超级后台、`/用户名` 独立分发站 |
+
+从 **v1.3.1** 开始两条 Release 线使用相同数字版本：同一批功能/修复同时发布为 `vX.Y.Z` 与 `saas-vX.Y.Z`。例如本次为 `v1.3.1` / `saas-v1.3.1`；tag 前缀继续区分 edition，数字版本保持同步。
 
 开发过程中的 `agent/*` 分支只是临时工作分支，正式发布后会清理，不应作为部署分支使用。
 

@@ -117,16 +117,17 @@ onBeforeUnmount(()=>{if(timer)clearInterval(timer)})
    <div class="field" style="margin-top:9px"><label>Package Name</label><input v-model="apk.package_name" class="input"></div>
    <div class="form-grid" style="margin-top:9px"><div class="field"><label>版本名</label><input v-model="apk.version_name" class="input"></div><div class="field"><label>Version Code</label><input v-model.number="apk.version_code" type="number" min="1" class="input"></div></div>
    <div class="field" style="margin-top:9px"><label>签名 Keystore</label><select v-model.number="apk.keystore_id" class="select"><option :value="0">请选择</option><option v-for="k in keystores" :key="k.id" :value="Number(k.id)">{{k.name}} · {{k.alias}}</option></select><small v-if="!keystores.length">还没有可用 Keystore，请先到“签名密钥”创建或导入。</small></div>
-   <div class="field" style="margin-top:9px"><label>图标 URL</label><input v-model="apk.icon_url" class="input"></div>
+   <div class="field" style="margin-top:9px"><label>图标 URL（可选）</label><input v-model="apk.icon_url" class="input"><small>留空时使用 AppDown 内置默认图标，构建不会因缺少 launcher resource 失败。</small></div>
    <div class="field" style="margin-top:9px"><label>启动图 URL</label><input v-model="apk.splash_url" class="input"></div>
    <div class="form-grid" style="margin-top:9px"><div class="field"><label>启动背景</label><input v-model="apk.splash_color" type="color" class="input" style="padding:4px"></div><div class="field"><label>状态栏</label><input v-model="apk.status_bar_color" type="color" class="input" style="padding:4px"></div></div>
   </div>
   <div class="form-section" v-else>
+   <div class="card" style="padding:10px 12px;margin-bottom:10px"><b>当前生成未签名 IPA</b><div class="subtle" style="margin-top:3px">Builder 会调用真实 xcodebuild 归档并打包 Payload，但不会伪装成已签名可直接安装的 IPA；签名需在后续签名流程完成。</div></div>
    <div class="field"><label>目标 URL</label><input v-model="ipa.url" class="input"></div>
    <div class="field" style="margin-top:9px"><label>应用名称</label><input v-model="ipa.app_name" class="input"></div>
    <div class="field" style="margin-top:9px"><label>Bundle ID</label><input v-model="ipa.bundle_id" class="input"></div>
    <div class="form-grid" style="margin-top:9px"><div class="field"><label>版本</label><input v-model="ipa.version_name" class="input"></div><div class="field"><label>Build Number</label><input v-model.number="ipa.version_code" type="number" min="1" class="input"></div></div>
-   <div class="field" style="margin-top:9px"><label>图标 URL</label><input v-model="ipa.icon_url" class="input"></div>
+   <div class="field" style="margin-top:9px"><label>图标 URL（可选）</label><input v-model="ipa.icon_url" class="input"></div>
    <div class="field" style="margin-top:9px"><label>状态栏颜色</label><input v-model="ipa.status_bar_color" type="color" class="input" style="padding:4px"></div>
   </div>
   <div style="padding:0 17px 17px"><button class="button primary" style="width:100%" :disabled="!!running" @click="build"><Hammer :size="14"/>{{running?'当前有任务正在构建':'开始构建'}}</button></div>
