@@ -1,320 +1,143 @@
 <?php
 /**
- * 安装脚本 - 初始化数据库
- * 安装完成后自动生成 install.lock 锁定文件，无需手动删除
+ * AppDown SaaS 安装器
+ * 只初始化中央控制库和超级管理员；普通租户由 /super 创建。
  */
 
-$lockFile = __DIR__ . '/install.lock';
+declare(strict_types=1);
 
-// 已安装：显示警告并记录IP
-if (file_exists($lockFile)) {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $time = date('Y-m-d H:i:s');
-    @file_put_contents(__DIR__ . '/access.log', "[{$time}] 非法访问尝试 IP: {$ip}\n", FILE_APPEND);
-    http_response_code(403);
-    die('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>禁止访问</title>
-    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;min-height:100vh}
-    .card{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:500px;text-align:center}
-    h2{color:#e74c3c;margin-bottom:12px}p{color:#666;line-height:1.8;margin-top:8px}.ip{background:#f8f8f8;padding:8px 16px;border-radius:6px;font-family:monospace;margin-top:16px;color:#333;display:inline-block}</style>
-    </head><body><div class="card">
-    <h2>⚠ 非法访问</h2>
-    <p>程序已经初始化安装过，当前操作已被记录。</p>
-    <p>如需重新安装，请手动删除 <code>install/install.lock</code> 文件。</p>
-    <div class="ip">您的IP: ' . htmlspecialchars($ip) . '</div>
-    </div></body></html>');
+date_default_timezone_set('Asia/Shanghai');
+session_start([
+    'cookie_httponly' => true,
+    'cookie_samesite' => 'Lax',
+    'cookie_secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    'use_strict_mode' => true,
+]);
+
+$root = dirname(__DIR__);
+$lockFile = __DIR__ . '/install.lock';
+$accessLog = __DIR__ . '/access.log';
+
+function install_abort(string $title, string $message, int $status = 400): void {
+    http_response_code($status);
+    $titleEsc = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $msgEsc = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+    echo '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . $titleEsc . '</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f5f7fb;font-family:system-ui,sans-serif;color:#172033}.card{max-width:560px;margin:20px;background:#fff;border:1px solid #e6eaf0;border-radius:18px;padding:34px;box-shadow:0 18px 60px rgba(30,50,80,.08)}h2{margin:0 0 12px}p{line-height:1.8;color:#667085}a{color:#2563eb}</style></head><body><div class="card"><h2>' . $titleEsc . '</h2><p>' . $msgEsc . '</p><p><a href="/">返回首页</a></p></div></body></html>';
+    exit;
 }
 
-// 环境检测
-function check_environment(): array {
-    $checks = [];
+if (file_exists($lockFile)) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    @file_put_contents($accessLog, '[' . date('Y-m-d H:i:s') . '] 已安装实例访问安装器 IP: ' . $ip . "\n", FILE_APPEND | LOCK_EX);
+    install_abort('安装器已锁定', 'AppDown SaaS 已完成初始化。如确需重新部署，请先做好 data/ 与 uploads/ 备份，再由服务器管理员处理 install.lock。', 403);
+}
 
-    // PHP版本
-    $phpVer = PHP_VERSION;
-    $checks['php_version'] = [
-        'name' => 'PHP 版本',
-        'required' => '>= 8.0',
-        'current' => $phpVer,
-        'pass' => version_compare($phpVer, '8.0.0', '>='),
+function ensure_install_dir(string $path, int $mode = 0750): bool {
+    if (!is_dir($path) && !@mkdir($path, $mode, true) && !is_dir($path)) return false;
+    return is_writable($path);
+}
+
+function check_environment(string $root): array {
+    $dataDir = $root . '/data';
+    $uploadsDir = $root . '/uploads';
+    $checks = [
+        ['name' => 'PHP 版本', 'current' => PHP_VERSION, 'required' => '>= 8.0', 'pass' => version_compare(PHP_VERSION, '8.0.0', '>='), 'optional' => false],
+        ['name' => 'PDO SQLite', 'current' => extension_loaded('pdo_sqlite') ? '已启用' : '未启用', 'required' => '必须', 'pass' => extension_loaded('pdo_sqlite'), 'optional' => false],
+        ['name' => 'Fileinfo', 'current' => extension_loaded('fileinfo') ? '已启用' : '未启用', 'required' => '必须', 'pass' => extension_loaded('fileinfo'), 'optional' => false],
+        ['name' => 'OpenSSL', 'current' => extension_loaded('openssl') ? '已启用' : '未启用', 'required' => '强烈建议', 'pass' => true, 'optional' => true],
+        ['name' => 'Zip / ZipArchive', 'current' => class_exists('ZipArchive') ? '已启用' : '未启用', 'required' => '建议（APK/IPA校验与备份）', 'pass' => true, 'optional' => true],
+        ['name' => 'Sodium', 'current' => extension_loaded('sodium') ? '已启用' : '未启用', 'required' => '建议（备份 Argon2id）', 'pass' => true, 'optional' => true],
+        ['name' => 'cURL', 'current' => extension_loaded('curl') ? '已启用' : '未启用', 'required' => '建议', 'pass' => true, 'optional' => true],
+        ['name' => 'GD', 'current' => extension_loaded('gd') ? '已启用' : '未启用', 'required' => '建议（图片处理）', 'pass' => true, 'optional' => true],
+        ['name' => 'data 目录', 'current' => ensure_install_dir($dataDir) ? '可写' : '不可写', 'required' => '必须可写', 'pass' => is_dir($dataDir) && is_writable($dataDir), 'optional' => false],
+        ['name' => 'uploads 目录', 'current' => ensure_install_dir($uploadsDir, 0755) ? '可写' : '不可写', 'required' => '必须可写', 'pass' => is_dir($uploadsDir) && is_writable($uploadsDir), 'optional' => false],
+        ['name' => 'install 目录', 'current' => is_writable(__DIR__) ? '可写' : '不可写', 'required' => '必须可写', 'pass' => is_writable(__DIR__), 'optional' => false],
     ];
-
-    // PDO SQLite
-    $checks['pdo_sqlite'] = [
-        'name' => 'PDO SQLite 扩展',
-        'required' => '已启用',
-        'current' => extension_loaded('pdo_sqlite') ? '已启用' : '未启用',
-        'pass' => extension_loaded('pdo_sqlite'),
-    ];
-
-    // fileinfo
-    $checks['fileinfo'] = [
-        'name' => 'Fileinfo 扩展',
-        'required' => '已启用',
-        'current' => extension_loaded('fileinfo') ? '已启用' : '未启用',
-        'pass' => extension_loaded('fileinfo'),
-    ];
-
-    // JSON
-    $checks['json'] = [
-        'name' => 'JSON 扩展',
-        'required' => '已启用',
-        'current' => extension_loaded('json') ? '已启用' : '未启用',
-        'pass' => extension_loaded('json'),
-    ];
-
-    // GD (可选 - 图片格式转换压缩)
-    $checks['gd'] = [
-        'name' => 'GD 扩展（可选，图片转换压缩）',
-        'required' => '建议启用',
-        'current' => extension_loaded('gd') ? '已启用' : '未启用',
-        'pass' => true, // 可选，不阻止安装
-        'optional' => true,
-    ];
-
-    // ZIP (可选 - 导入导出/安装包解析)
-    $checks['zip'] = [
-        'name' => 'Zip 扩展（可选，导入导出/安装包解析）',
-        'required' => '建议启用',
-        'current' => extension_loaded('zip') ? '已启用' : '未启用',
-        'pass' => true,
-        'optional' => true,
-    ];
-
-    // OpenSSL (可选 - 安装包解析)
-    $checks['openssl'] = [
-        'name' => 'OpenSSL 扩展（可选，安装包解析）',
-        'required' => '建议启用',
-        'current' => extension_loaded('openssl') ? '已启用' : '未启用',
-        'pass' => true,
-        'optional' => true,
-    ];
-
-    // cURL (可选 - OCSP证书吊销检测)
-    $checks['curl'] = [
-        'name' => 'cURL 扩展（可选，证书吊销检测）',
-        'required' => '建议启用',
-        'current' => function_exists('curl_init') ? '已启用' : '未启用',
-        'pass' => true,
-        'optional' => true,
-    ];
-
-    // data 目录可写
-    $dataDir = dirname(__DIR__) . '/data';
-    if (!is_dir($dataDir)) @mkdir($dataDir, 0755, true);
-    $checks['data_writable'] = [
-        'name' => 'data/ 目录可写',
-        'required' => '可写',
-        'current' => is_writable($dataDir) ? '可写' : '不可写',
-        'pass' => is_writable($dataDir),
-    ];
-
-    // uploads 目录可写
-    $uploadsDir = dirname(__DIR__) . '/uploads';
-    if (!is_dir($uploadsDir)) @mkdir($uploadsDir, 0755, true);
-    $checks['uploads_writable'] = [
-        'name' => 'uploads/ 目录可写',
-        'required' => '可写',
-        'current' => is_writable($uploadsDir) ? '可写' : '不可写',
-        'pass' => is_writable($uploadsDir),
-    ];
-
-    // install 目录可写（用于写 lock 文件）
-    $checks['install_writable'] = [
-        'name' => 'install/ 目录可写',
-        'required' => '可写',
-        'current' => is_writable(__DIR__) ? '可写' : '不可写',
-        'pass' => is_writable(__DIR__),
-    ];
-
     return $checks;
 }
 
-$envChecks = check_environment();
-$envAllPass = !in_array(false, array_column($envChecks, 'pass'));
-
-require_once dirname(__DIR__) . '/includes/init.php';
-
-// 二次检查：数据库中已有管理员
-$pdo = get_db();
-$exists = $pdo->query("SELECT COUNT(*) as c FROM admin_users")->fetch()['c'];
-if ($exists > 0) {
-    @file_put_contents($lockFile, json_encode([
-        'installed_at' => date('Y-m-d H:i:s'),
-        'note' => 'Lock file recreated from existing data'
-    ]));
-    http_response_code(403);
-    die('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>已安装</title>
-    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;min-height:100vh}
-    .card{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:460px;text-align:center}
-    h2{color:#e67e22;margin-bottom:12px}p{color:#666;line-height:1.8}</style>
-    </head><body><div class="card">
-    <h2>已安装</h2>
-    <p>检测到数据库中已有管理员账号，已自动锁定安装程序。</p>
-    <p style="margin-top:12px;"><a href="/admin/login.php" style="color:#007AFF">前往后台登录 →</a></p>
-    </div></body></html>');
+$checks = check_environment($root);
+$requiredPass = true;
+foreach ($checks as $check) {
+    if (!$check['optional'] && !$check['pass']) $requiredPass = false;
 }
 
-$msg = '';
+// 只有 SQLite 环境可用时才检查中央库，防止缺扩展时直接 fatal。
+if (extension_loaded('pdo_sqlite')) {
+    require_once $root . '/includes/saas.php';
+    try {
+        $control = get_saas_db();
+        $existingSuper = (int)$control->query('SELECT COUNT(*) FROM super_users')->fetchColumn();
+        if ($existingSuper > 0) {
+            @file_put_contents($lockFile, json_encode([
+                'mode' => 'saas', 'relocked_at' => date(DATE_ATOM), 'reason' => 'existing_super_user'
+            ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
+            @chmod($lockFile, 0600);
+            install_abort('检测到已有实例', '中央控制库中已经存在超级管理员。安装器已自动重新创建 install.lock，以防止覆盖现有账号。', 403);
+        }
+    } catch (Throwable $e) {
+        $control = null;
+    }
+} else {
+    $control = null;
+}
+
+$error = '';
+$success = false;
+if (empty($_SESSION['install_csrf'])) $_SESSION['install_csrf'] = bin2hex(random_bytes(32));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = trim($_POST['password'] ?? '');
-    $siteName = trim($_POST['site_name'] ?? '');
-
-    if (strlen($username) < 3 || strlen($password) < 6) {
-        $msg = '用户名至少3位，密码至少6位';
+    if (!$requiredPass) {
+        $error = '必需环境检查未通过，请先修复服务器环境。';
+    } elseif (!hash_equals((string)$_SESSION['install_csrf'], (string)($_POST['_csrf'] ?? ''))) {
+        $error = '页面已过期，请刷新后重试。';
     } else {
-        if (empty($siteName)) $siteName = 'APP下载中心';
+        $username = trim((string)($_POST['username'] ?? ''));
+        $password = (string)($_POST['password'] ?? '');
+        $confirm = (string)($_POST['confirm_password'] ?? '');
 
-        // 创建管理员
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare('INSERT INTO admin_users (username, password) VALUES (?, ?)');
-        $stmt->execute([$username, $hash]);
+        if (!preg_match('/^[A-Za-z0-9_]{3,32}$/', $username)) {
+            $error = '超级管理员用户名需为 3-32 位字母、数字或下划线。';
+        } elseif (strlen($password) < 8) {
+            $error = '超级管理员密码至少 8 位。';
+        } elseif ($password !== $confirm) {
+            $error = '两次输入的密码不一致。';
+        } else {
+            try {
+                require_once $root . '/includes/saas.php';
+                $control = get_saas_db();
+                $control->beginTransaction();
+                $stmt = $control->prepare('INSERT INTO super_users (username, password) VALUES (?, ?)');
+                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT)]);
+                $control->commit();
 
-        // 导入默认站点设置
-        $settings = [
-            'site_title'        => $siteName,
-            'site_heading'      => $siteName,
-            'logo_url'          => '',
-            'favicon_url'       => '',
-            'notice_text'       => '',
-            'notice_enabled'    => '0',
-            'copyright'         => '© ' . date('Y') . ' ' . $siteName . '. All rights reserved.',
-            'carousel_interval' => '4000',
-            'stats_downloads'   => '100000',
-            'stats_rating'      => '4.9',
-            'stats_daily_active'=> '1000',
-            'font_url'          => '',
-            'font_family'       => 'system-ui',
-        ];
-        $stmt = $pdo->prepare('INSERT OR IGNORE INTO site_settings (setting_key, setting_val) VALUES (?, ?)');
-        foreach ($settings as $k => $v) {
-            $stmt->execute([$k, $v]);
+                $lockPayload = [
+                    'mode' => 'saas',
+                    'installed_at' => date(DATE_ATOM),
+                    'version' => 'saas-v1.0.0',
+                ];
+                if (@file_put_contents($lockFile, json_encode($lockPayload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
+                    throw new RuntimeException('无法写入 install.lock');
+                }
+                @chmod($lockFile, 0600);
+                $success = true;
+                unset($_SESSION['install_csrf']);
+            } catch (Throwable $e) {
+                if (isset($control) && $control instanceof PDO && $control->inTransaction()) $control->rollBack();
+                error_log('[AppDown SaaS install] ' . $e);
+                $error = '初始化失败：' . $e->getMessage();
+            }
         }
-
-        // 示例应用
-        $pdo->exec("INSERT INTO apps (slug, name, icon, theme_color, sort_order) VALUES ('demo', '示例应用', 'fas fa-mobile-alt', '#007AFF', 1)");
-        $demoId = $pdo->lastInsertId();
-
-        // 示例下载按钮
-        $dlStmt = $pdo->prepare('INSERT INTO app_downloads (app_id, btn_type, btn_text, btn_subtext, href, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
-        $dlStmt->execute([$demoId, 'android', 'Android', '安卓版', '#', 1]);
-        $dlStmt->execute([$demoId, 'ios', 'iOS', '苹果版', '#', 2]);
-        $dlStmt->execute([$demoId, 'web', 'Web', '网页版', '#', 3]);
-
-        // 示例特色卡片
-        $fStmt = $pdo->prepare('INSERT INTO feature_cards (title, description, icon, sort_order) VALUES (?, ?, ?, ?)');
-        $fStmt->execute(['海量资源', '丰富的内容资源，持续更新', 'fas fa-database', 1]);
-        $fStmt->execute(['高清播放', '高清流畅播放，画质清晰', 'fas fa-play-circle', 2]);
-        $fStmt->execute(['多端支持', '支持Android、iOS、Web多平台', 'fas fa-laptop', 3]);
-
-        // 示例友情链接
-        $lStmt = $pdo->prepare('INSERT INTO friend_links (name, url, sort_order) VALUES (?, ?, ?)');
-        $lStmt->execute(['示例链接', '#', 1]);
-
-        // 写入锁定文件
-        $lockData = [
-            'installed_at' => date('Y-m-d H:i:s'),
-            'admin_user'   => $username,
-            'site_name'    => $siteName,
-            'ip'           => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        ];
-        file_put_contents($lockFile, json_encode($lockData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-
-        echo '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>安装成功</title>
-        <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;min-height:100vh}
-        .card{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:460px;text-align:center}
-        h2{color:#27ae60;margin-bottom:16px}p{color:#666;line-height:1.8;margin-top:8px}strong{color:#333}.lock-info{background:#f0fdf4;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-top:16px;color:#166534;font-size:.9em}</style>
-        </head><body><div class="card">
-        <h2>安装成功！</h2>
-        <p>管理员: <strong>' . htmlspecialchars($username) . '</strong></p>
-        <p>站点名称: <strong>' . htmlspecialchars($siteName) . '</strong></p>
-        <p style="margin-top:16px;">请登录后台添加您的应用、上传图片、配置下载链接。</p>
-        <div class="lock-info">安装程序已自动锁定（install.lock），无需手动删除文件。</div>
-        <p style="margin-top:16px;"><a href="/admin/login.php" style="color:#007AFF;font-size:1.1em;">前往后台登录 →</a></p>
-        </div></body></html>';
-        exit;
     }
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>安装 - AppDown</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 480px; }
-        h1 { font-size: 1.5em; margin-bottom: 4px; text-align: center; }
-        p.sub { color: #666; text-align: center; margin-bottom: 24px; font-size: 0.9em; }
-        label { display: block; font-weight: 600; margin-bottom: 6px; margin-top: 16px; font-size: 0.95em; }
-        label small { font-weight: 400; color: #999; }
-        input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1em; }
-        input:focus { outline: none; border-color: #007AFF; box-shadow: 0 0 0 3px rgba(0,122,255,0.15); }
-        button { width: 100%; padding: 12px; background: #007AFF; color: white; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; margin-top: 24px; }
-        button:hover { background: #0066e0; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .error { color: #e74c3c; text-align: center; margin-top: 12px; font-size: 0.9em; }
-        .env-check { margin-bottom: 20px; }
-        .env-check h3 { font-size: 1em; margin-bottom: 10px; color: #333; }
-        .env-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 6px; margin-bottom: 4px; font-size: 0.9em; }
-        .env-item:nth-child(even) { background: #f9f9f9; }
-        .env-name { color: #333; }
-        .env-val { display: flex; align-items: center; gap: 6px; }
-        .env-current { color: #666; font-family: monospace; font-size: 0.85em; }
-        .env-pass { color: #27ae60; font-weight: bold; }
-        .env-fail { color: #e74c3c; font-weight: bold; }
-        .env-optional { color: #f39c12; font-weight: bold; }
-        .env-warn { background: #fef3cd; color: #856404; padding: 10px 14px; border-radius: 8px; margin-top: 10px; font-size: 0.85em; line-height: 1.6; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h1>AppDown 安装</h1>
-        <p class="sub">创建管理员账号，初始化数据库</p>
-
-        <div class="env-check">
-            <h3>环境检测</h3>
-            <?php foreach ($envChecks as $check):
-                $isOptional = !empty($check['optional']);
-                $loaded = ($check['current'] === '已启用' || $check['current'] === '可写');
-                if ($isOptional && !$loaded) {
-                    $statusClass = 'env-optional';
-                    $statusIcon = '&#9888;'; // ⚠
-                } elseif ($check['pass']) {
-                    $statusClass = 'env-pass';
-                    $statusIcon = '&#10004;';
-                } else {
-                    $statusClass = 'env-fail';
-                    $statusIcon = '&#10008;';
-                }
-            ?>
-            <div class="env-item">
-                <span class="env-name"><?= $check['name'] ?></span>
-                <span class="env-val">
-                    <span class="env-current"><?= htmlspecialchars($check['current']) ?></span>
-                    <span class="<?= $statusClass ?>"><?= $statusIcon ?></span>
-                </span>
-            </div>
-            <?php endforeach; ?>
-            <?php if (!$envAllPass): ?>
-            <div class="env-warn">环境检测未通过，请先修复上述标红项再进行安装。</div>
-            <?php endif; ?>
-        </div>
-
-        <form method="POST">
-            <label>站点名称 <small>(可稍后在后台修改)</small></label>
-            <input type="text" name="site_name" placeholder="如: XX影视APP下载中心" value="<?= htmlspecialchars($_POST['site_name'] ?? '') ?>">
-            <label>管理员用户名</label>
-            <input type="text" name="username" required minlength="3" placeholder="至少3个字符" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">
-            <label>管理员密码</label>
-            <input type="password" name="password" required minlength="6" placeholder="至少6个字符">
-            <button type="submit" <?= $envAllPass ? '' : 'disabled title="请先修复环境问题"' ?>>开始安装</button>
-        </form>
-        <?php if ($msg): ?>
-            <p class="error"><?= htmlspecialchars($msg) ?></p>
-        <?php endif; ?>
-    </div>
-</body>
-</html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>安装 AppDown SaaS</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#edf8ff,#f1edff 48%,#fff5ef);color:#172033;font-family:system-ui,-apple-system,sans-serif;min-height:100vh;padding:44px 20px}.wrap{max-width:880px;margin:auto}.head{text-align:center;margin-bottom:28px}.logo{width:58px;height:58px;border-radius:17px;background:linear-gradient(135deg,#2b8cff,#7c55ef);display:grid;place-items:center;color:#fff;font-weight:800;margin:0 auto 15px;box-shadow:0 10px 30px rgba(64,91,210,.22)}h1{margin:0 0 8px;font-size:2rem}.sub{color:#667085;margin:0;line-height:1.7}.card{background:rgba(255,255,255,.86);border:1px solid rgba(255,255,255,.95);border-radius:20px;padding:24px;box-shadow:0 20px 65px rgba(44,65,98,.1);backdrop-filter:blur(20px);margin-bottom:18px}.card h2{font-size:1.05rem;margin:0 0 16px}.checks{display:grid;grid-template-columns:1fr 1fr;gap:9px}.check{padding:11px 13px;border:1px solid #edf0f4;border-radius:11px;background:#fbfcfe;display:flex;justify-content:space-between;gap:12px;font-size:.88rem}.pass{color:#16803c;font-weight:700}.warn{color:#a16207;font-weight:700}.fail{color:#c53030;font-weight:700}.formgrid{display:grid;gap:14px}label{display:block;font-size:.88rem;font-weight:700;margin-bottom:6px}.input{width:100%;padding:12px 14px;border:1px solid #dce2eb;border-radius:10px;font:inherit;background:#fff}.input:focus{outline:0;border-color:#4f86f7;box-shadow:0 0 0 3px rgba(79,134,247,.12)}button,.btn{border:0;border-radius:10px;background:#172033;color:#fff;padding:13px 18px;font-weight:750;font-size:1rem;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}.btnrow{margin-top:4px}.error{background:#fff1f0;border:1px solid #fecaca;color:#b42318;padding:11px 13px;border-radius:10px;margin-bottom:14px}.success{text-align:center;padding:22px 0}.success h2{font-size:1.45rem;color:#166534}.success p{color:#667085;line-height:1.8}.success .btn{margin-top:12px;background:#2563eb}.tip{font-size:.86rem;color:#667085;line-height:1.7;margin-top:10px}@media(max-width:680px){.checks{grid-template-columns:1fr}body{padding:25px 14px}}
+</style></head><body><main class="wrap"><header class="head"><div class="logo">AD</div><h1>安装 AppDown SaaS</h1><p class="sub">初始化中央控制库和超级管理员。安装完成后，在 /super 创建各个独立租户。</p></header>
+<?php if($success): ?><section class="card success"><h2>安装完成</h2><p>超级后台已经初始化。下一步创建第一个租户，然后访问 <code>/用户名/</code> 查看独立分发页。</p><a class="btn" href="/super/">进入超级后台</a></section>
+<?php else: ?>
+<section class="card"><h2>环境检查</h2><div class="checks"><?php foreach($checks as $c): ?><div class="check"><span><?=htmlspecialchars($c['name'])?><br><small style="color:#98a2b3"><?=htmlspecialchars($c['required'])?></small></span><span class="<?=$c['pass']?($c['optional']&&str_contains($c['current'],'未启用')?'warn':'pass'):'fail'?>"><?=htmlspecialchars($c['current'])?></span></div><?php endforeach; ?></div></section>
+<section class="card"><h2>创建超级管理员</h2><?php if($error): ?><div class="error"><?=htmlspecialchars($error)?></div><?php endif; ?><form method="post" class="formgrid"><input type="hidden" name="_csrf" value="<?=htmlspecialchars((string)$_SESSION['install_csrf'])?>"><div><label>超级管理员用户名</label><input class="input" name="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_]+" autocomplete="username" placeholder="例如 admin"></div><div><label>密码</label><input class="input" type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="至少 8 位"></div><div><label>确认密码</label><input class="input" type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></div><div class="btnrow"><button type="submit" <?=$requiredPass?'':'disabled style="opacity:.45;cursor:not-allowed"'?>>初始化 SaaS</button></div></form><p class="tip">超级管理员只用于 <code>/super</code> 管理租户，不是普通分发页账号。每个租户的用户名和密码由超级后台单独创建。</p></section>
+<?php endif; ?></main></body></html>
