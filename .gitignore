@@ -1,14 +1,26 @@
-# Database
+# Database / runtime private data
 data/*.db
 data/*.db-wal
 data/*.db-shm
 data/config_cache.json
 data/gradle-cache/
+data/.secret.key
+data/backups/
+data/maintenance-report.json
+data/ios_known_hosts
+data/*_worker_*.log
+data/*_install.log
+data/ios-build/
 
 # Uploads (user content)
 uploads/images/*
 uploads/fonts/*
 uploads/apps/*
+uploads/apks/*
+uploads/ipas/*
+uploads/mobileconfigs/*
+uploads/keystores/*
+uploads/certs/*
 !uploads/**/.gitkeep
 
 # IDE

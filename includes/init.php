@@ -16,9 +16,9 @@ if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH
             http_response_code(500);
             header('Content-Type: application/json; charset=utf-8');
         }
-        echo json_encode([
-            'error' => $e->getMessage(),
-        ], JSON_UNESCAPED_UNICODE);
+        // 公网 API 不返回文件路径和行号，详细错误交给 PHP/FPM 日志。
+        error_log('[AppDown] ' . $e);
+        echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
         exit;
     });
 }
@@ -32,6 +32,7 @@ session_start([
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/upload.php';

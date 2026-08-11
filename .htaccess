@@ -1,38 +1,42 @@
 # ============================================
 # AppDown Apache 安全规则
-# （与 README 中 Nginx 安全规则等效）
+# 与 nginx-security.conf.example 保持一致
 # ============================================
 
-# 禁止访问数据库和公共库
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # data/ 目录（数据库、缓存）
+    # 数据、公共库、构建工具与模板
     RewriteRule ^data/ - [F,L]
-
-    # includes/ 目录（PHP 公共库）
     RewriteRule ^includes/ - [F,L]
-
-    # 构建工具和模板目录
     RewriteRule ^tools/ - [F,L]
     RewriteRule ^android-template/ - [F,L]
     RewriteRule ^ios-template/ - [F,L]
 
-    # 安装锁和日志
+    # 安装后的锁文件和访问日志
     RewriteRule ^install/install\.lock$ - [F,L]
     RewriteRule ^install/access\.log$ - [F,L]
 
-    # 禁止在上传目录执行 PHP
-    RewriteRule ^uploads/.*\.php$ - [F,L]
+    # 上传目录绝不执行 PHP
+    RewriteRule ^uploads/.*\.php(?:[0-9]*)?$ - [F,L,NC]
 
-    # 禁止直接下载签名密钥
-    RewriteRule ^uploads/keystores/ - [F,L]
-</IfModule>
+    # 签名材料禁止通过 HTTP 直接读取
+    RewriteRule ^uploads/keystores/ - [F,L,NC]
+    RewriteRule ^uploads/certs/ - [F,L,NC]
 
-# 禁止访问隐藏文件（.git, .env 等）
-<IfModule mod_rewrite.c>
+    # 隐藏文件（保留 ACME /.well-known/）
     RewriteRule (^|/)\.(?!well-known/) - [F,L]
 </IfModule>
 
-# 禁止列出目录内容
+# 即使敏感文件被误放到其他目录，也禁止直接下载
+<FilesMatch "\.(?:key|pem|p12|pfx|jks|keystore|bks)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
 Options -Indexes

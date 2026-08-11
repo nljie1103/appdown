@@ -1,0 +1,51 @@
+# AppDown Nginx / 宝塔伪静态安全规则
+# 用法：把本文件内容放到对应站点的 server {} 内。
+# 宝塔：网站 -> 设置 -> 伪静态。
+
+# 数据库、缓存、主密钥、备份
+location ^~ /data/ {
+    deny all;
+    return 404;
+}
+
+# PHP 公共库、构建脚本与模板源码
+location ^~ /includes/ { deny all; return 404; }
+location ^~ /tools/ { deny all; return 404; }
+location ^~ /android-template/ { deny all; return 404; }
+location ^~ /ios-template/ { deny all; return 404; }
+
+# 安装锁与安装访问日志
+location ~* ^/install/(install\.lock|access\.log)$ {
+    deny all;
+    return 404;
+}
+
+# 签名材料永不直接对公网提供
+location ^~ /uploads/keystores/ { deny all; return 404; }
+location ^~ /uploads/certs/ { deny all; return 404; }
+
+# 上传目录禁止 PHP 执行（包含 .php5/.php7 等常见变体）
+location ~* ^/uploads/.*\.php[0-9]*$ {
+    deny all;
+    return 404;
+}
+
+# 其他目录中误放的私钥/密钥库也禁止下载
+location ~* \.(key|pem|p12|pfx|jks|keystore|bks)$ {
+    deny all;
+    return 404;
+}
+
+# 隐藏文件；Let's Encrypt /.well-known 保留
+location ~ (^|/)\.(?!well-known/) {
+    deny all;
+    return 404;
+}
+
+# 推荐安全响应头（不会影响自定义 JS/CSS）
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+
+# 如果 Nginx 前面还有 Cloudflare/其他反代，请在系统级正确配置 real_ip，
+# 或为 PHP-FPM 设置 APPDOWN_TRUSTED_PROXIES="127.0.0.1/32,你的反代CIDR"。

@@ -10,18 +10,60 @@ function json_response($data, int $code = 200): void {
     exit;
 }
 
-function get_client_ip(): string {
-    $headers = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'];
-    foreach ($headers as $h) {
-        if (!empty($_SERVER[$h])) {
-            $ip = explode(',', $_SERVER[$h])[0];
-            $ip = trim($ip);
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                return $ip;
-            }
+function ip_in_cidr(string $ip, string $cidr): bool {
+    $cidr = trim($cidr);
+    if ($cidr === '') return false;
+    if (!str_contains($cidr, '/')) return hash_equals(strtolower($cidr), strtolower($ip));
+    [$network, $prefix] = explode('/', $cidr, 2);
+    $ipBin = @inet_pton($ip);
+    $netBin = @inet_pton($network);
+    if ($ipBin === false || $netBin === false || strlen($ipBin) !== strlen($netBin)) return false;
+    $bits = (int)$prefix;
+    $maxBits = strlen($ipBin) * 8;
+    if ($bits < 0 || $bits > $maxBits) return false;
+    $bytes = intdiv($bits, 8);
+    $rem = $bits % 8;
+    if ($bytes > 0 && substr($ipBin, 0, $bytes) !== substr($netBin, 0, $bytes)) return false;
+    if ($rem === 0) return true;
+    $mask = (0xFF << (8 - $rem)) & 0xFF;
+    return (ord($ipBin[$bytes]) & $mask) === (ord($netBin[$bytes]) & $mask);
+}
+
+function is_trusted_proxy(string $ip): bool {
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) return false;
+    // 同机 Nginx/Apache 反代默认可信；额外代理通过环境变量显式配置。
+    $trusted = ['127.0.0.1/32', '::1/128'];
+    $env = trim((string)getenv('APPDOWN_TRUSTED_PROXIES'));
+    if ($env !== '') {
+        foreach (explode(',', $env) as $item) {
+            $item = trim($item);
+            if ($item !== '') $trusted[] = $item;
         }
     }
-    return '0.0.0.0';
+    foreach ($trusted as $cidr) {
+        if (ip_in_cidr($ip, $cidr)) return true;
+    }
+    return false;
+}
+
+function get_client_ip(): string {
+    $remote = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    if (!filter_var($remote, FILTER_VALIDATE_IP)) $remote = '0.0.0.0';
+
+    if (!is_trusted_proxy($remote)) return $remote;
+
+    // 仅在 REMOTE_ADDR 是可信反代时读取转发头，避免客户端伪造 X-Forwarded-For 绕过限流。
+    $candidates = [];
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) $candidates[] = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    if (!empty($_SERVER['HTTP_X_REAL_IP'])) $candidates[] = $_SERVER['HTTP_X_REAL_IP'];
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        foreach (explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']) as $forwarded) $candidates[] = trim($forwarded);
+    }
+    foreach ($candidates as $candidate) {
+        $candidate = trim((string)$candidate);
+        if (filter_var($candidate, FILTER_VALIDATE_IP)) return $candidate;
+    }
+    return $remote;
 }
 
 function get_request_method(): string {
@@ -73,7 +115,6 @@ function today(): string {
  * 优先级：环境变量 > which java > 候选路径
  */
 function detect_java_home(): string {
-    // 1. 环境变量 JAVA_HOME
     $envJava = getenv('JAVA_HOME');
     if ($envJava) {
         $out = [];
@@ -81,25 +122,19 @@ function detect_java_home(): string {
         if (trim($out[0] ?? '') === '1') return $envJava;
     }
 
-    // 2. which java → readlink → 向上两级（bin/java → bin → JAVA_HOME）
     $whichOut = [];
     @exec('which java 2>/dev/null', $whichOut);
     $javaBin = trim($whichOut[0] ?? '');
     if ($javaBin) {
-        // 解析符号链接获取真实路径
         $realOut = [];
         @exec('readlink -f ' . escapeshellarg($javaBin) . ' 2>/dev/null', $realOut);
         $realPath = trim($realOut[0] ?? '') ?: $javaBin;
-        // java 通常在 JAVA_HOME/bin/java，向上2级
         $candidate = dirname(dirname($realPath));
         $verOut = [];
         @exec(escapeshellarg($candidate . '/bin/java') . ' -version 2>&1', $verOut);
-        if (preg_match('/version\s+"?17/', $verOut[0] ?? '')) {
-            return $candidate;
-        }
+        if (preg_match('/version\s+"?17/', $verOut[0] ?? '')) return $candidate;
     }
 
-    // 3. 常见候选路径
     $candidates = [
         '/usr/lib/jvm/java-17-openjdk-amd64',
         '/usr/lib/jvm/java-17-openjdk',
@@ -113,7 +148,6 @@ function detect_java_home(): string {
         @exec('test -d ' . escapeshellarg($c) . ' && echo 1', $out);
         if (trim($out[0] ?? '') === '1') return $c;
     }
-
     return '';
 }
 
@@ -122,7 +156,6 @@ function detect_java_home(): string {
  * 优先级：ANDROID_HOME > ANDROID_SDK_ROOT > which sdkmanager > 候选路径
  */
 function detect_android_home(): string {
-    // 1. 环境变量 ANDROID_HOME
     $envAndroid = getenv('ANDROID_HOME');
     if ($envAndroid) {
         $out = [];
@@ -130,7 +163,6 @@ function detect_android_home(): string {
         if (trim($out[0] ?? '') === '1') return $envAndroid;
     }
 
-    // 2. 环境变量 ANDROID_SDK_ROOT（旧名称）
     $envSdkRoot = getenv('ANDROID_SDK_ROOT');
     if ($envSdkRoot) {
         $out = [];
@@ -138,7 +170,6 @@ function detect_android_home(): string {
         if (trim($out[0] ?? '') === '1') return $envSdkRoot;
     }
 
-    // 3. which sdkmanager → 向上3级（cmdline-tools/latest/bin/sdkmanager）
     $whichOut = [];
     @exec('which sdkmanager 2>/dev/null', $whichOut);
     $sdkBin = trim($whichOut[0] ?? '');
@@ -146,14 +177,12 @@ function detect_android_home(): string {
         $realOut = [];
         @exec('readlink -f ' . escapeshellarg($sdkBin) . ' 2>/dev/null', $realOut);
         $realPath = trim($realOut[0] ?? '') ?: $sdkBin;
-        // sdkmanager 通常在 ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
         $candidate = dirname(dirname(dirname(dirname($realPath))));
         $out = [];
         @exec('test -d ' . escapeshellarg($candidate . '/cmdline-tools') . ' && echo 1', $out);
         if (trim($out[0] ?? '') === '1') return $candidate;
     }
 
-    // 4. 常见候选路径
     $home = getenv('HOME') ?: '/root';
     $candidates = [
         '/opt/android-sdk',
@@ -167,6 +196,5 @@ function detect_android_home(): string {
         @exec('test -d ' . escapeshellarg($c) . ' && echo 1', $out);
         if (trim($out[0] ?? '') === '1') return $c;
     }
-
     return '';
 }

@@ -30,8 +30,9 @@ if (!empty($app['mc_file_id'])) {
     $mcStmt->execute([$app['mc_file_id']]);
     $mcFile = $mcStmt->fetch();
     if ($mcFile && !empty($mcFile['file_path'])) {
-        $fullPath = __DIR__ . '/../' . $mcFile['file_path'];
-        if (file_exists($fullPath)) {
+        $fullPath = realpath(__DIR__ . '/../' . ltrim($mcFile['file_path'], '/'));
+        $projectRoot = realpath(__DIR__ . '/..');
+        if ($fullPath && $projectRoot && str_starts_with($fullPath, $projectRoot . DIRECTORY_SEPARATOR) && is_file($fullPath)) {
             header('Content-Type: application/x-apple-aspen-config');
             header('Content-Disposition: attachment; filename="' . basename($mcFile['file_path']) . '"');
             header('Content-Length: ' . filesize($fullPath));
@@ -44,11 +45,10 @@ if (!empty($app['mc_file_id'])) {
 // 其次：通过 mc_file_url 直接指定文件路径
 if (!empty($app['mc_file_url'])) {
     $fileUrl = $app['mc_file_url'];
-    // 相对路径转为服务器绝对路径
     if (!preg_match('#^https?://#', $fileUrl)) {
         $fullPath = realpath(__DIR__ . '/../' . ltrim($fileUrl, '/'));
         $projectRoot = realpath(__DIR__ . '/..');
-        if ($fullPath && strpos($fullPath, $projectRoot) === 0 && file_exists($fullPath)) {
+        if ($fullPath && $projectRoot && str_starts_with($fullPath, $projectRoot . DIRECTORY_SEPARATOR) && is_file($fullPath)) {
             header('Content-Type: application/x-apple-aspen-config');
             header('Content-Disposition: attachment; filename="' . basename($fullPath) . '"');
             header('Content-Length: ' . filesize($fullPath));
@@ -64,39 +64,34 @@ if (empty($app['mc_url'])) {
     exit('no mobileconfig configured');
 }
 
-// 图标base64数据
 $iconData = $app['mc_icon_data'] ?? '';
 if (empty($iconData) && !empty($app['icon_url'])) {
-    $iconPath = __DIR__ . '/../' . ltrim($app['icon_url'], '/');
-    if (file_exists($iconPath)) {
+    $iconPath = realpath(__DIR__ . '/../' . ltrim($app['icon_url'], '/'));
+    $projectRoot = realpath(__DIR__ . '/..');
+    if ($iconPath && $projectRoot && str_starts_with($iconPath, $projectRoot . DIRECTORY_SEPARATOR) && is_file($iconPath)) {
         $iconData = base64_encode(file_get_contents($iconPath));
     }
 }
 
-// 加载全局设置
 $rows = $pdo->query('SELECT setting_key, setting_val FROM site_settings')->fetchAll();
 $globalSettings = [];
-foreach ($rows as $r) {
-    $globalSettings[$r['setting_key']] = $r['setting_val'];
-}
+foreach ($rows as $r) $globalSettings[$r['setting_key']] = $r['setting_val'];
 
-// 再fallback到全局logo
 if (empty($iconData)) {
     $logoUrl = $globalSettings['logo_url'] ?? '';
     if ($logoUrl) {
-        $logoPath = __DIR__ . '/../' . ltrim($logoUrl, '/');
-        if (file_exists($logoPath)) {
+        $logoPath = realpath(__DIR__ . '/../' . ltrim($logoUrl, '/'));
+        $projectRoot = realpath(__DIR__ . '/..');
+        if ($logoPath && $projectRoot && str_starts_with($logoPath, $projectRoot . DIRECTORY_SEPARATOR) && is_file($logoPath)) {
             $iconData = base64_encode(file_get_contents($logoPath));
         }
     }
 }
 
-// 组织名称: 应用级 > 全局 > 站点标题
 $organization = $app['mc_payload_org'] ?? '';
 if (empty($organization)) $organization = $globalSettings['mc_payload_org'] ?? '';
 if (empty($organization)) $organization = $globalSettings['site_title'] ?? '';
 
-// 生成 XML
 $unsignedXml = build_mobileconfig_xml([
     'display_name' => $app['name'],
     'target_url'   => $app['mc_url'],
@@ -108,7 +103,7 @@ $unsignedXml = build_mobileconfig_xml([
     'payload_org'  => $organization,
 ]);
 
-// 签名逻辑：应用级证书 > 全局证书
+// 签名逻辑：应用级证书 > 旧全局设置 > 新 mc_certificates 全局证书
 $certPem = '';
 $keyPem = '';
 $chainPem = '';
@@ -129,13 +124,13 @@ if (empty($certPem) || empty($keyPem)) {
     }
 }
 
-// 也检查新的 mc_certificates 表全局证书
 if (empty($certPem) || empty($keyPem)) {
     $gcStmt = $pdo->query('SELECT * FROM mc_certificates WHERE is_global = 1 LIMIT 1');
     $gc = $gcStmt->fetch();
     if ($gc) {
         $certPem = resolve_cert_content($gc['mode'], $gc['cert']);
-        $keyPem = resolve_cert_content($gc['mode'], $gc['key']);
+        $keyValue = decrypt_secret((string)($gc['key'] ?? ''));
+        $keyPem = resolve_cert_content($gc['mode'], $keyValue);
         $chainPem = resolve_cert_content($gc['mode'], $gc['chain']);
     }
 }
@@ -151,7 +146,6 @@ if (!empty($certPem) && !empty($keyPem) && function_exists('openssl_pkcs7_sign')
     }
 }
 
-// 未签名输出
 header('Content-Type: application/x-apple-aspen-config');
 header('Content-Disposition: attachment; filename="' . $slug . '.mobileconfig"');
 echo $unsignedXml;

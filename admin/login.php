@@ -5,7 +5,6 @@
 
 require_once __DIR__ . '/../includes/init.php';
 
-// 未安装时跳转到安装页
 $lockFile = __DIR__ . '/../install/install.lock';
 if (!file_exists($lockFile)) {
     header('Location: /install/');
@@ -17,7 +16,6 @@ if (is_logged_in()) {
     exit;
 }
 
-// 读取站点名称和验证码开关
 $pdo = get_db();
 $settingsRows = $pdo->query("SELECT setting_key, setting_val FROM site_settings WHERE setting_key IN ('site_title','captcha_enabled')")->fetchAll();
 $settings = [];
@@ -25,26 +23,23 @@ foreach ($settingsRows as $r) $settings[$r['setting_key']] = $r['setting_val'];
 $siteName = $settings['site_title'] ?? 'AppDown';
 $captchaEnabled = ($settings['captcha_enabled'] ?? '0') === '1';
 
-// 生成算术验证码
 if ($captchaEnabled) {
     if (empty($_SESSION['captcha_a']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {
-        $a = rand(1, 20);
-        $b = rand(1, 20);
+        $a = random_int(1, 20);
+        $b = random_int(1, 20);
         $_SESSION['captcha_a'] = $a;
         $_SESSION['captcha_b'] = $b;
         $_SESSION['captcha_answer'] = $a + $b;
     }
 }
 
-// 登录频率限制
 $maxAttempts = 5;
 $lockMinutes = 15;
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-
-    // 基于数据库的登录频率限制（不可被清cookie绕过）
+    // 与公共统计统一使用可信代理解析，避免 Cloudflare/Nginx 环境下限流 IP 不一致。
+    $ip = get_client_ip();
     $cutoff = date('Y-m-d H:i:s', time() - $lockMinutes * 60);
     $stmt = $pdo->prepare('SELECT COUNT(*) as c FROM login_attempts WHERE ip = ? AND attempted_at > ?');
     $stmt->execute([$ip, $cutoff]);
@@ -53,13 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($recentAttempts >= $maxAttempts) {
         $error = "登录尝试过多，请 {$lockMinutes} 分钟后再试";
     } else {
-        // 验证码校验
         if ($captchaEnabled) {
             $userAnswer = (int)($_POST['captcha'] ?? 0);
             if ($userAnswer !== ($_SESSION['captcha_answer'] ?? -1)) {
                 $error = '验证码错误';
-                // 重新生成
-                $a = rand(1, 20); $b = rand(1, 20);
+                $a = random_int(1, 20); $b = random_int(1, 20);
                 $_SESSION['captcha_a'] = $a;
                 $_SESSION['captcha_b'] = $b;
                 $_SESSION['captcha_answer'] = $a + $b;
@@ -71,28 +64,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $password = $_POST['password'] ?? '';
 
             if (do_login($username, $password)) {
-                // 登录成功，清除该IP的失败记录
                 $pdo->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([$ip]);
                 header('Location: /admin/dashboard.php');
                 exit;
-            } else {
-                // 记录失败
-                $pdo->prepare('INSERT INTO login_attempts (ip) VALUES (?)')->execute([$ip]);
-                $recentAttempts++;
-                $left = $maxAttempts - $recentAttempts;
-                if ($left <= 0) {
-                    $error = "登录失败次数过多，已锁定 {$lockMinutes} 分钟";
-                } else {
-                    $error = "用户名或密码错误（还可尝试 {$left} 次）";
-                }
+            }
 
-                // 重新生成验证码
-                if ($captchaEnabled) {
-                    $a = rand(1, 20); $b = rand(1, 20);
-                    $_SESSION['captcha_a'] = $a;
-                    $_SESSION['captcha_b'] = $b;
-                    $_SESSION['captcha_answer'] = $a + $b;
-                }
+            $pdo->prepare('INSERT INTO login_attempts (ip) VALUES (?)')->execute([$ip]);
+            $recentAttempts++;
+            $left = $maxAttempts - $recentAttempts;
+            $error = $left <= 0
+                ? "登录失败次数过多，已锁定 {$lockMinutes} 分钟"
+                : "用户名或密码错误（还可尝试 {$left} 次）";
+
+            if ($captchaEnabled) {
+                $a = random_int(1, 20); $b = random_int(1, 20);
+                $_SESSION['captcha_a'] = $a;
+                $_SESSION['captcha_b'] = $b;
+                $_SESSION['captcha_answer'] = $a + $b;
             }
         }
     }
@@ -127,9 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <p class="sub"><?= htmlspecialchars($siteName) ?> 管理系统</p>
         <form method="POST">
             <label>用户名</label>
-            <input type="text" name="username" required autofocus>
+            <input type="text" name="username" required autofocus autocomplete="username">
             <label>密码</label>
-            <input type="password" name="password" required>
+            <input type="password" name="password" required autocomplete="current-password">
 <?php if ($captchaEnabled): ?>
             <label>验证码</label>
             <div class="captcha-row">

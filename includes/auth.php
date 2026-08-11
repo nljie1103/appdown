@@ -3,15 +3,21 @@
  * 登录鉴权
  */
 
+function invalidate_session(): void {
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+        @session_start();
+    }
+}
+
 function is_logged_in(): bool {
     if (empty($_SESSION['admin_id'])) return false;
 
     // Session 超时检查：超过 2 小时自动登出
     $timeout = 7200;
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
-        $_SESSION = [];
-        session_destroy();
-        session_start();
+        invalidate_session();
         return false;
     }
     $_SESSION['last_activity'] = time();
@@ -21,23 +27,28 @@ function is_logged_in(): bool {
     if (file_exists($lockFile)) {
         $fingerprint = md5(filemtime($lockFile) . realpath($lockFile));
         if (($_SESSION['install_fp'] ?? '') !== $fingerprint) {
-            // 安装指纹不匹配，说明是旧session或不同站点
-            $_SESSION = [];
-            session_destroy();
-            session_start();
+            invalidate_session();
             return false;
         }
     }
 
-    // 验证用户在数据库中确实存在
     try {
         $pdo = get_db();
         $stmt = $pdo->prepare('SELECT id FROM admin_users WHERE id = ?');
         $stmt->execute([$_SESSION['admin_id']]);
         if (!$stmt->fetch()) {
-            $_SESSION = [];
+            invalidate_session();
             return false;
         }
+
+        // 修改密码后立即使其他设备上的旧 Session 失效。
+        $epoch = get_setting($pdo, 'auth_session_epoch', '1');
+        if (!hash_equals($epoch, (string)($_SESSION['auth_session_epoch'] ?? ''))) {
+            invalidate_session();
+            return false;
+        }
+
+        schedule_daily_maintenance($pdo);
     } catch (\Exception $e) {
         return false;
     }
@@ -46,7 +57,6 @@ function is_logged_in(): bool {
 }
 
 function require_auth(): void {
-    // 未安装时禁止访问后台
     $lockFile = __DIR__ . '/../install/install.lock';
     if (!file_exists($lockFile)) {
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strpos($_SERVER['CONTENT_TYPE'] ?? '', 'json') !== false) {
@@ -71,24 +81,20 @@ function do_login(string $username, string $password): bool {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
-    if (!$user || !password_verify($password, $user['password'])) {
-        return false;
-    }
+    if (!$user || !password_verify($password, $user['password'])) return false;
 
     session_regenerate_id(true);
     $_SESSION['admin_id'] = $user['id'];
     $_SESSION['admin_user'] = $username;
     $_SESSION['last_activity'] = time();
+    $_SESSION['auth_session_epoch'] = get_setting($pdo, 'auth_session_epoch', '1');
 
-    // 记录安装指纹，防止重装后session串用
     $lockFile = __DIR__ . '/../install/install.lock';
     if (file_exists($lockFile)) {
         $_SESSION['install_fp'] = md5(filemtime($lockFile) . realpath($lockFile));
     }
 
-    $pdo->prepare("UPDATE admin_users SET last_login = datetime('now') WHERE id = ?")
-        ->execute([$user['id']]);
-
+    $pdo->prepare("UPDATE admin_users SET last_login = datetime('now') WHERE id = ?")->execute([$user['id']]);
     return true;
 }
 
