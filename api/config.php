@@ -43,42 +43,60 @@ function tenant_public_href(?string $value, string $slug): string {
     return tenant_absolute_asset_url($value, $slug);
 }
 
+// 批量读取当前租户的应用关联数据，避免每个应用重复执行下载/截图/特色查询。
 $apps = $pdo->query('SELECT id, slug, name, icon, icon_url, theme_color, feature_category_id FROM apps WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+$appIds = array_map(static fn(array $app): int => (int)$app['id'], $apps);
+$downloadsByApp = [];
+$imagesByApp = [];
+$featuresByCategory = [];
+
+if ($appIds) {
+    $marks = implode(',', array_fill(0, count($appIds), '?'));
+
+    $stmt = $pdo->prepare("SELECT app_id, btn_type, btn_icon, btn_text, btn_subtext, href FROM app_downloads WHERE is_active = 1 AND app_id IN ($marks) ORDER BY app_id, sort_order ASC");
+    $stmt->execute($appIds);
+    foreach ($stmt->fetchAll() as $row) {
+        $appId = (int)$row['app_id'];
+        unset($row['app_id']);
+        $row['href'] = tenant_public_href($row['href'] ?? '', $slug);
+        $downloadsByApp[$appId][] = $row;
+    }
+
+    $stmt = $pdo->prepare("SELECT app_id, image_url, alt_text FROM app_images WHERE app_id IN ($marks) ORDER BY app_id, sort_order ASC");
+    $stmt->execute($appIds);
+    foreach ($stmt->fetchAll() as $row) {
+        $appId = (int)$row['app_id'];
+        unset($row['app_id']);
+        $row['image_url'] = tenant_public_asset($row['image_url'] ?? '', $slug);
+        $imagesByApp[$appId][] = $row;
+    }
+}
+
+$categoryIds = [];
+foreach ($apps as $app) {
+    $categoryId = (int)($app['feature_category_id'] ?? 0);
+    if ($categoryId > 0) $categoryIds[$categoryId] = $categoryId;
+}
+if ($categoryIds) {
+    $ids = array_values($categoryIds);
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT category_id, title, description, icon, icon_url FROM feature_cards WHERE is_active = 1 AND category_id IN ($marks) ORDER BY category_id, sort_order ASC");
+    $stmt->execute($ids);
+    foreach ($stmt->fetchAll() as $row) {
+        $categoryId = (int)$row['category_id'];
+        unset($row['category_id']);
+        $row['icon_url'] = tenant_public_asset($row['icon_url'] ?? '', $slug);
+        $featuresByCategory[$categoryId][] = $row;
+    }
+}
+
 foreach ($apps as &$app) {
     $appId = (int)$app['id'];
+    $categoryId = (int)($app['feature_category_id'] ?? 0);
     $app['icon_url'] = tenant_public_asset($app['icon_url'] ?? '', $slug);
-
-    $dlStmt = $pdo->prepare('SELECT btn_type, btn_icon, btn_text, btn_subtext, href FROM app_downloads WHERE app_id = ? AND is_active = 1 ORDER BY sort_order ASC');
-    $dlStmt->execute([$appId]);
-    $downloads = $dlStmt->fetchAll();
-    foreach ($downloads as &$download) {
-        $download['href'] = tenant_public_href($download['href'] ?? '', $slug);
-    }
-    unset($download);
-    $app['downloads'] = $downloads;
-
-    $imgStmt = $pdo->prepare('SELECT image_url, alt_text FROM app_images WHERE app_id = ? ORDER BY sort_order ASC');
-    $imgStmt->execute([$appId]);
-    $images = $imgStmt->fetchAll();
-    foreach ($images as &$image) {
-        $image['image_url'] = tenant_public_asset($image['image_url'] ?? '', $slug);
-    }
-    unset($image);
-    $app['images'] = $images;
-
-    $featureCategoryId = (int)($app['feature_category_id'] ?? 0);
-    if ($featureCategoryId > 0) {
-        $fcStmt = $pdo->prepare('SELECT title, description, icon, icon_url FROM feature_cards WHERE category_id = ? AND is_active = 1 ORDER BY sort_order ASC');
-        $fcStmt->execute([$featureCategoryId]);
-        $appFeatures = $fcStmt->fetchAll();
-        foreach ($appFeatures as &$feature) {
-            // index.html 对 feature.icon_url 直接作为 src，因此使用根绝对 URL。
-            $feature['icon_url'] = tenant_public_asset($feature['icon_url'] ?? '', $slug);
-        }
-        unset($feature);
-        $app['features'] = $appFeatures;
-    }
-
+    $app['downloads'] = $downloadsByApp[$appId] ?? [];
+    $app['images'] = $imagesByApp[$appId] ?? [];
+    $app['features'] = $categoryId > 0 ? ($featuresByCategory[$categoryId] ?? []) : [];
     $app['id'] = $app['slug'];
     unset($app['slug'], $app['feature_category_id']);
 }
@@ -93,20 +111,19 @@ unset($feature);
 $links = $pdo->query('SELECT name, url, icon, icon_url, show_icon FROM friend_links WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 foreach ($links as &$link) {
     $link['url'] = tenant_public_href($link['url'] ?? '#', $slug);
-    // 现有首页渲染友情链接图标时会自行补一个“/”，这里保留无前导斜杠。
-    $iconUrl = tenant_public_asset($link['icon_url'] ?? '', $slug);
-    $link['icon_url'] = ltrim($iconUrl, '/');
+    // 现有首页会自行补前导斜线，继续保持兼容。
+    $link['icon_url'] = ltrim(tenant_public_asset($link['icon_url'] ?? '', $slug), '/');
 }
 unset($link);
 
 $custom = [];
-$cRows = $pdo->query('SELECT position, code FROM custom_code')->fetchAll();
-foreach ($cRows as $row) $custom[$row['position']] = $row['code'];
+foreach ($pdo->query('SELECT position, code FROM custom_code')->fetchAll() as $row) {
+    $custom[$row['position']] = $row['code'];
+}
 
 $landingTemplate = normalize_landing_template($settings['landing_template'] ?? 'classic');
 $templateCss = landing_template_css($landingTemplate);
 if ($templateCss !== '') {
-    // 用户 CSS 保持后置，拥有最终覆盖权。
     $custom['head_css'] = $templateCss . "\n" . ($custom['head_css'] ?? '');
 }
 
@@ -126,6 +143,7 @@ $config = [
         'copyright'         => $settings['copyright'] ?? '',
         'carousel_interval' => (int)($settings['carousel_interval'] ?? 4000),
         'landing_template'  => $landingTemplate,
+        'landing_layout'    => landing_template_layout($landingTemplate),
         'stats' => [
             'downloads'    => (int)($settings['stats_downloads'] ?? 0),
             'rating'       => (float)($settings['stats_rating'] ?? 0),
@@ -148,7 +166,6 @@ $config = [
 
 $json = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 if ($json === false) json_response(['error' => 'config_encode_failed'], 500);
-
 if (!is_dir(dirname($cachePath))) @mkdir(dirname($cachePath), 0750, true);
 file_put_contents($cachePath, $json, LOCK_EX);
 
