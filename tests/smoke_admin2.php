@@ -32,10 +32,14 @@ $required = [
     'admin-ui/src/router.ts',
     'admin-ui/src/api.ts',
     'admin-ui/src/views/AppsView.vue',
+    'admin-ui/src/views/AttachmentsView.vue',
+    'admin-ui/src/views/BackupView.vue',
     'admin-ui/src/views/ContentView.vue',
+    'admin-ui/src/views/FontsView.vue',
     'admin-ui/src/views/MediaView.vue',
     'admin-ui/src/views/MobileconfigView.vue',
     'admin-ui/src/views/SystemView.vue',
+    'admin-ui/src/views/AccountView.vue',
 ];
 foreach ($required as $path) {
     admin2_assert(is_file($root . '/' . $path), "missing Admin 2.0 file: {$path}");
@@ -58,16 +62,29 @@ admin2_markers($apps, [
     '/admin/api/reorder.php', "table==='apps'", "table==='app_downloads'", "'app_images'",
 ], 'AppsView');
 
+$attachments = admin2_source($root, 'admin-ui/src/views/AttachmentsView.vue');
+admin2_markers($attachments, [
+    '/admin/api/package-info.php?file=', 'inspectPackage', 'dropFile', '.apk,.ipa,.exe,.dmg,.zip',
+], 'AttachmentsView');
+
+$backup = admin2_source($root, 'admin-ui/src/views/BackupView.vue');
+admin2_markers($backup, [
+    'passwordConfirm', '加密密码至少 8 位', "filter(t=>t!=='admin_users')", 'signing_materials_included',
+], 'BackupView');
+
 $content = admin2_source($root, 'admin-ui/src/views/ContentView.vue');
 admin2_markers($content, [
     '/admin/api/features.php?action=categories', 'feature_categories', 'feature_cards',
     'friend_links', 'show_icon', 'icon_url', '/admin/api/reorder.php',
 ], 'ContentView');
 
+$fonts = admin2_source($root, 'admin-ui/src/views/FontsView.vue');
+admin2_markers($fonts, ['readFontName', '0x4f54544f', '用户上传字体'], 'FontsView');
+
 $media = admin2_source($root, 'admin-ui/src/views/MediaView.vue');
 admin2_markers($media, [
     '/admin/api/image-library.php?action=categories', '/admin/api/image-library.php?action=images',
-    'image_categories', 'image_library', 'quality', "format: 'webp'",
+    'image_categories', 'image_library', 'quality', "format: 'webp'", '<option value="gif">GIF</option>', 'dropImage',
 ], 'MediaView');
 
 $mobileconfig = admin2_source($root, 'admin-ui/src/views/MobileconfigView.vue');
@@ -81,6 +98,9 @@ admin2_markers($system, [
     '/admin/api/system-overview.php', 'save_env_paths', 'install_ios_xcode', 'submit_ios_2fa',
     'custom_android_home', 'custom_docker_data_root', 'custom_docker_osx_image',
 ], 'SystemView');
+
+$account = admin2_source($root, 'admin-ui/src/views/AccountView.vue');
+admin2_markers($account, ['新密码长度不能少于 8 位', '两次输入的新密码不一致', 'current_password'], 'AccountView');
 
 $srcFiles = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/admin-ui/src', FilesystemIterator::SKIP_DOTS));
 foreach ($srcFiles as $file) {
