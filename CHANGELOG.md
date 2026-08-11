@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased - Admin 2.0 / Landing Templates 2.0
+## v1.3.0 - 2026-08-11
+
+AppDown Admin 2.0 与分发首页模板 2.0 正式发布。
 
 - 管理后台直接升级为 Vue 3 + TypeScript + Vite SPA；`/admin/` 与登录成功后的默认入口进入 Admin 2.0。
 - Admin 2.0 接入真实 PHP API，覆盖应用、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、模板、内容组件、字体、设置、自定义代码、备份、系统、账户与在线升级。
