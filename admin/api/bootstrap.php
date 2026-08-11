@@ -35,5 +35,10 @@ json_response([
         'templates' => true,
         'backup' => true,
         'system_tools' => true,
+        'keystores' => true,
+        'mobileconfig' => true,
+        'fonts' => true,
+        // 租户永远不能通过 /admin 升级整个 SaaS 平台；平台升级仍只在 /super。
+        'platform_update' => false,
     ],
 ]);
