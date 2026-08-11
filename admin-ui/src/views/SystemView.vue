@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { RefreshCw, Play, Trash2, TerminalSquare } from 'lucide-vue-next'
+import { RefreshCw, Play, Trash2, TerminalSquare } from '@lucide/vue'
 import { get, post } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const android=ref<any>(null);const ios=ref<any>(null);const androidLog=ref<any>(null);const iosLog=ref<any>(null);const busy=ref('');let timer:number|undefined

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Check, ExternalLink, RefreshCw } from 'lucide-vue-next'
+import { Check, ExternalLink, RefreshCw } from '@lucide/vue'
 import { get, post } from '../api'
 import { useAppStore } from '../stores/app'
 

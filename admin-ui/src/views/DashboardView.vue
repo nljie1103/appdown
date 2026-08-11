@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Activity, ArrowDownToLine, Eye, Smartphone, RefreshCw } from 'lucide-vue-next'
+import { Activity, ArrowDownToLine, Eye, Smartphone, RefreshCw } from '@lucide/vue'
 import { get } from '../api'
 import { useAppStore } from '../stores/app'
 

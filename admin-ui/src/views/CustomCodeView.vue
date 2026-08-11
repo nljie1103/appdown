@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Code2, RefreshCw, Save } from 'lucide-vue-next'
+import { Code2, RefreshCw, Save } from '@lucide/vue'
 import { get, post } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const loading=ref(true);const saving=ref('');const codes=reactive<Record<string,string>>({head_css:'',head_js:'',footer_css:'',footer_js:''});const labels:any={head_css:['Head CSS','在 </head> 前注入，内置模板 CSS 之后，拥有最终覆盖权。'],head_js:['Head JavaScript','在页面头部执行，请避免阻塞加载。'],footer_css:['Footer CSS','页面底部附加样式。'],footer_js:['Footer JavaScript','页面主体渲染完成后的自定义脚本。']}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { FileKey2, Plus, RefreshCw, Trash2, ExternalLink, Save } from 'lucide-vue-next'
+import { FileKey2, Plus, RefreshCw, Trash2, ExternalLink, Save } from '@lucide/vue'
 import { del, get, post, put } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const tab=ref<'profiles'|'certs'>('profiles');const profiles=ref<any[]>([]);const certs=ref<any[]>([]);const apps=ref<any[]>([]);const generating=ref(false)

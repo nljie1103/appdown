@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { RefreshCw, Rocket, ShieldCheck } from 'lucide-vue-next'
+import { RefreshCw, Rocket, ShieldCheck } from '@lucide/vue'
 import { get, post } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const data=ref<any>(null);const loading=ref(false);const updating=ref(false)

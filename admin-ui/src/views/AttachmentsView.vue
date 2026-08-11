@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { FileUp, Plus, RefreshCw, Trash2, Save, Download } from 'lucide-vue-next'
+import { FileUp, Plus, RefreshCw, Trash2, Save, Download } from '@lucide/vue'
 import { del, get, post, put } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const apps=ref<any[]>([]);const appId=ref<number>(0);const platforms=ref<any[]>([]);const loading=ref(false);const upload=reactive<any>({platform_id:0,version:'1.0.0',changelog:'',file:null});const newPlatform=ref('')

@@ -6,7 +6,7 @@ import {
   Palette, PanelsTopLeft, Type, Settings, Code2, ArchiveRestore, ServerCog,
   RefreshCcw, UserRoundCog, ExternalLink, Bell, Menu, Sun, Moon, Monitor,
   ChevronRight, LogOut, CircleHelp, X
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import { useAppStore } from './stores/app'
 
 const store = useAppStore()

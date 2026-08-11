@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { Hammer, RefreshCw, Square, Smartphone, Apple } from 'lucide-vue-next'
+import { Hammer, RefreshCw, Square, Smartphone, Apple } from '@lucide/vue'
 import { get, post } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const mode=ref<'apk'|'ipa'>('apk');const keystores=ref<any[]>([]);const tasks=ref<any[]>([]);const active=ref<any>(null);let timer:number|undefined

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Plus, RefreshCw, Save, Trash2 } from 'lucide-vue-next'
+import { Plus, RefreshCw, Save, Trash2 } from '@lucide/vue'
 import { del, get, post, put } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const tab=ref<'features'|'links'>('features');const loading=ref(false);const features=ref<any[]>([]);const categories=ref<any[]>([]);const links=ref<any[]>([])

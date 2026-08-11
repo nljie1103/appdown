@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { KeyRound, Save, UserRound } from 'lucide-vue-next'
+import { KeyRound, Save, UserRound } from '@lucide/vue'
 import { get, put } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const user=ref<any>(null);const username=reactive({current_password:'',new_username:''});const password=reactive({current_password:'',new_password:'',confirm_password:''});const saving=ref('')
