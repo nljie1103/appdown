@@ -1,0 +1,84 @@
+name: Publish Online Updater Releases
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-online-updater-releases.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      MAIN_SHA: aed81d0f7ed5315a1068bc0e16a52f9d88ad5e04
+      SAAS_SHA: fd665e0e2891038fad8d933698b4c686354da73b
+      MAIN_TAG: v1.2.0
+      SAAS_TAG: saas-v1.1.0
+    steps:
+      - name: Install PHP runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y php-cli php-curl php-zip >/dev/null
+          php -m | grep -qi '^curl$'
+          php -m | grep -qi '^zip$'
+
+      - name: Clone exact release sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" main-src
+          git -C main-src checkout "$MAIN_SHA"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" saas-src
+          git -C saas-src checkout "$SAAS_SHA"
+
+      - name: Create exact lightweight tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ensure_tag() {
+            local tag="$1" sha="$2" existing
+            existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha' 2>/dev/null || true)"
+            if [ -n "$existing" ]; then
+              test "$existing" = "$sha" || { echo "Tag $tag points to unexpected $existing" >&2; exit 1; }
+              echo "$tag already points to $sha"
+            else
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${tag}" -f sha="$sha" >/dev/null
+              echo "Created $tag -> $sha"
+            fi
+          }
+          ensure_tag "$MAIN_TAG" "$MAIN_SHA"
+          ensure_tag "$SAAS_TAG" "$SAAS_SHA"
+
+      - name: Validate real GitHub tag archives with AppDown updater
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/main-src"
+          php -r '$z=updater_download_release(APPDOWN_RELEASE_TAG); try { updater_archive_map($z, APPDOWN_EDITION, APPDOWN_VERSION); echo "main live archive validation passed\n"; } finally { @unlink($z); }' -d auto_prepend_file=includes/updater.php
+          cd "$GITHUB_WORKSPACE/saas-src"
+          php -r '$z=updater_download_release(APPDOWN_RELEASE_TAG); try { updater_archive_map($z, APPDOWN_EDITION, APPDOWN_VERSION); echo "saas live archive validation passed\n"; } finally { @unlink($z); }' -d auto_prepend_file=includes/updater.php
+
+      - name: Publish releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$MAIN_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$MAIN_TAG" --repo "$GITHUB_REPOSITORY" --target "$MAIN_SHA" --title "AppDown v1.2.0" --notes $'AppDown v1.2.0 — Online Update\n\n新增安全的 GitHub Release 在线升级能力。\n\n- 单用户后台新增 /admin/update.php。\n- 自动检查官方 nljie1103/appdown 最新 vX.Y.Z 正式 Release。\n- 下载源码 ZIP 后验证 edition/version、路径穿越、符号链接、数量、大小与异常压缩比。\n- 升级前自动把程序文件备份到 data/update-backups/。\n- data/ 运行数据、uploads/ 用户文件、主密钥、安装锁和服务器本地配置不会被覆盖。\n- 使用同目录临时写入 + rename，失败时尝试自动回滚。\n- 新增安装文件清单，后续升级可以清理 Release 已删除的旧程序文件。\n- 新增 smoke_updater.php；PHP 8.0 CI、SQLite/Zip 运行测试和真实 GitHub tag ZIP 校验均通过。\n\n注意：v1.1.0 本身尚无在线升级器，因此已有 v1.1.0 站点需要手工更新到 v1.2.0 一次；从 v1.2.0 开始，后续版本可直接在后台在线升级。'
+          fi
+          if ! gh release view "$SAAS_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$SAAS_TAG" --repo "$GITHUB_REPOSITORY" --target "$SAAS_SHA" --title "AppDown SaaS v1.1.0" --notes $'AppDown SaaS v1.1.0 — Super Online Update\n\n新增由超级管理员控制的平台在线升级。\n\n- /super 新增“在线升级”，入口 /super/update.php。\n- 普通租户 /admin 无权升级整个平台。\n- SaaS 只识别 saas-vX.Y.Z，不会误装单用户 Release。\n- 升级前备份程序代码；data/saas.db、data/tenants/、租户 .secret.key、uploads/tenants/ 和安装锁全部保留。\n- Release ZIP 进行 edition/version 与路径/符号链接/大小安全校验。\n- 失败时尝试自动回滚，并维护安装文件清单。\n- README、CHANGELOG 与永久 CI 已同步更新。\n- 双租户 SQLite/密钥隔离、ZipArchive、模板和在线升级 smoke test，以及真实 GitHub tag ZIP 校验均通过。\n\n注意：saas-v1.0.1 本身尚无在线升级器，因此已有 SaaS 站点需要手工更新到 saas-v1.1.0 一次；以后可在 /super/update.php 直接升级。'
+          fi
+
+      - name: Verify live release discovery through product code
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/main-src"
+          php -r '$r=updater_check_release(true); if (($r["tag"]??"")!==APPDOWN_RELEASE_TAG) { fwrite(STDERR, json_encode($r)); exit(1); } echo "main live release discovery passed\n";' -d auto_prepend_file=includes/updater.php
+          cd "$GITHUB_WORKSPACE/saas-src"
+          php -r '$r=updater_check_release(true); if (($r["tag"]??"")!==APPDOWN_RELEASE_TAG) { fwrite(STDERR, json_encode($r)); exit(1); } echo "saas live release discovery passed\n";' -d auto_prepend_file=includes/updater.php
