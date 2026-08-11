@@ -99,6 +99,26 @@ admin2_markers($system, [
     'custom_android_home', 'custom_docker_data_root', 'custom_docker_osx_image',
 ], 'SystemView');
 
+
+$customCode = admin2_source($root, 'admin-ui/src/views/CustomCodeView.vue');
+admin2_markers($customCode, [
+    '全屏樱花', '全屏雪花', '节日灯笼', '粒子背景', '鼠标跟随', '彩带背景',
+    '全站灰色', '右键美化', '禁止查看源码', '背景音乐', '节日欢迎弹窗',
+    'FESTIVALS', 'effects_config', '/admin/api/settings.php',
+], 'CustomCodeView');
+
+$androidDefaultIcon = admin2_source($root, 'android-template/app/src/main/res/mipmap/ic_launcher.xml');
+admin2_markers($androidDefaultIcon, ['<vector', '#2563EB'], 'Android default launcher icon');
+
+$iosWorker = admin2_source($root, 'tools/ios-build-worker.php');
+admin2_markers($iosWorker, ['scp_to_remote', 'scp_from_remote', '/tmp/appdown-build-', 'ios_builder_ed25519'], 'iOS build worker');
+
+$xcodeWorker = admin2_source($root, 'tools/xcode-install-worker.php');
+admin2_markers($xcodeWorker, ['custom_ios_ssh_port', 'custom_xcode_version', 'ios_builder_ed25519', 'StrictHostKeyChecking=accept-new'], 'Xcode install worker');
+
+$iosSetup = admin2_source($root, 'tools/setup-ios-env.sh');
+admin2_markers($iosSetup, ['x86_64', '127.0.0.1:${SSH_PORT}:10022', 'Phase 1 判定失败', 'sickcodes/docker-osx:auto'], 'iOS environment setup');
+
 $account = admin2_source($root, 'admin-ui/src/views/AccountView.vue');
 admin2_markers($account, ['新密码长度不能少于 8 位', '两次输入的新密码不一致', 'current_password'], 'AccountView');
 

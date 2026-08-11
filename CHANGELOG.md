@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.3.1 - 2026-08-12
+
+已知问题修复与真实构建链验证版本。
+
+- 恢复 Admin 2.0 “自定义代码”中遗漏的完整可视化内置特效：樱花、雪花、灯笼、粒子、鼠标跟随、彩带、灰色模式、右键美化、源码限制、背景音乐、节日欢迎及节日祝福编辑。
+- Android 模板新增默认 launcher icon，未填写自定义图标也可构建；永久 CI 真实执行环境安装、Gradle Release、JKS 签名、apksigner 与 aapt 验证。
+- iOS Builder 改为 SSH/SCP 传输工程与 IPA，不再依赖 macOS 实际无法保证存在的 `/mnt/build` 共享目录。
+- iOS Phase 1 增加 x86_64/KVM 检测、loopback SSH、专用 SSH identity；SSH 未就绪时安装任务明确失败，不再出现假阳性 done。
+- Xcode Worker 使用后台配置的 SSH 端口、known_hosts 与 identity，并新增可选 Xcode 版本；Xcode 是否就绪最终以 `xcodebuild` 实测为准。
+- Builder 明确标注当前 IPA 为 unsigned；永久 CI 在真实 macOS Runner 上执行 iOS 模板 `xcodebuild archive`。
+- iOS 卸载脚本尊重自定义容器/镜像参数，默认不删除 Docker 镜像，避免误伤共享资源。
+- 从本版本开始 `main` 与 `saas` Release 数字版本统一：`v1.3.1` / `saas-v1.3.1`，后续同批发布继续保持相同 X.Y.Z。
+
 ## v1.3.0 - 2026-08-11
 
 AppDown Admin 2.0 与分发首页模板 2.0 正式发布。

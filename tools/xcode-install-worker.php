@@ -46,14 +46,19 @@ unset($creds); // 尽早清除内存中的密码
 
 $pdo = get_db();
 
-// SSH 配置
-$SSH_PORT = 50922;
+// SSH 配置：与后台自定义端口一致，并复用 AppDown 专用 identity/known_hosts。
+$SSH_PORT = (int)(get_setting($pdo, 'custom_ios_ssh_port') ?: '50922');
+if ($SSH_PORT < 1 || $SSH_PORT > 65535) $SSH_PORT = 50922;
 $SSH_HOST = 'localhost';
 $SSH_USER = 'user';
-$SSH_OPTS = "-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p $SSH_PORT";
+$dataDir = realpath(__DIR__ . '/../data');
+$knownHosts = $dataDir . '/ios_known_hosts';
+if (!file_exists($knownHosts)) { @touch($knownHosts); @chmod($knownHosts, 0600); }
+$identity = $dataDir . '/ios_builder_ed25519';
+$SSH_OPTS = '-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=' . escapeshellarg($knownHosts) . ' -o ConnectTimeout=10 -o BatchMode=yes -p ' . $SSH_PORT;
+if (is_file($identity) && is_readable($identity)) $SSH_OPTS .= ' -i ' . escapeshellarg($identity) . ' -o IdentitiesOnly=yes';
 
 // 2FA IPC 文件路径
-$dataDir = realpath(__DIR__ . '/../data');
 $twofaFile = $dataDir . '/ios_2fa_code.txt';
 
 function log_msg(string $msg): void {
@@ -116,11 +121,25 @@ try {
     log_msg("提示: Xcode 约 12GB，下载可能需要较长时间");
     log_msg("");
 
+    // 留空时自动选择：预制 Catalina 使用 Apple 官方仍支持的 Xcode 12.4；较新 macOS 使用 latest。
+    $requestedVersion = trim((string)get_setting($pdo, 'custom_xcode_version'));
+    if ($requestedVersion === '') {
+        $macResult = ssh_exec_simple('sw_vers -productVersion 2>/dev/null');
+        $macVersion = trim($macResult['output'][0] ?? '');
+        if ($macVersion !== '' && version_compare($macVersion, '11.0', '<')) {
+            $requestedVersion = '12.4';
+            log_msg('检测到 macOS ' . $macVersion . '，自动选择 Xcode 12.4。');
+        }
+    }
+    $installTarget = $requestedVersion !== '' ? escapeshellarg($requestedVersion) : '--latest';
+    log_msg('目标 Xcode: ' . ($requestedVersion !== '' ? $requestedVersion : 'latest'));
+
     // 构建远程命令：通过环境变量传入凭据
     $remoteCmd = sprintf(
-        'export XCODES_USERNAME=%s XCODES_PASSWORD=%s; xcodes install --latest --no-superuser 2>&1',
+        'export XCODES_USERNAME=%s XCODES_PASSWORD=%s; xcodes install %s --no-superuser 2>&1',
         escapeshellarg($appleId),
-        escapeshellarg($password)
+        escapeshellarg($password),
+        $installTarget
     );
     // 清除密码变量
     $appleId = '';
@@ -242,7 +261,7 @@ try {
     $result = ssh_exec_simple('sudo xcodebuild -license accept 2>&1');
     log_msg(implode("\n", $result['output']));
     if ($result['code'] !== 0) {
-        log_msg("警告: 许可协议接受可能失败，但不影响后续使用");
+        log_msg("警告: 自动接受许可失败；Xcode 只有在后续 xcodebuild -version 与真实构建通过后才会被视为就绪。");
     }
     log_msg("");
 
