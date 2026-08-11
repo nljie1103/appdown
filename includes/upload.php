@@ -1,6 +1,6 @@
 <?php
 /**
- * 文件上传处理
+ * 文件上传处理（SaaS：每个租户独立 uploads/tenants/<slug>/）
  */
 
 function resolve_filename_collision(string $dir, string $base, string $ext): string {
@@ -15,6 +15,7 @@ function resolve_filename_collision(string $dir, string $base, string $ext): str
 }
 
 function handle_upload(string $field, string $category, string $custom_name = ''): array {
+    require_tenant_context();
     if (empty($_FILES[$field]) || $_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
         $code = $_FILES[$field]['error'] ?? -1;
         return ['ok' => false, 'error' => "上传失败 (code: $code)"];
@@ -40,15 +41,10 @@ function handle_upload(string $field, string $category, string $custom_name = ''
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
         $allowedMimes = ['image/webp', 'image/png', 'image/jpeg', 'image/gif', 'image/x-icon', 'image/vnd.microsoft.icon'];
-        if (!in_array($mime, $allowedMimes, true)) {
-            return ['ok' => false, 'error' => "文件MIME类型不合法: $mime"];
-        }
-        if ($ext !== 'ico' && @getimagesize($file['tmp_name']) === false) {
-            return ['ok' => false, 'error' => '图片文件无法解析'];
-        }
+        if (!in_array($mime, $allowedMimes, true)) return ['ok' => false, 'error' => "文件MIME类型不合法: $mime"];
+        if ($ext !== 'ico' && @getimagesize($file['tmp_name']) === false) return ['ok' => false, 'error' => '图片文件无法解析'];
     }
 
-    // APK/IPA 不再只看扩展名，必须满足实际容器结构。
     if ($category === 'app' && in_array($ext, ['apk', 'ipa'], true)) {
         $check = validate_app_archive($file['tmp_name'], $ext);
         if (!$check['ok']) return $check;
@@ -64,9 +60,10 @@ function handle_upload(string $field, string $category, string $custom_name = ''
         $safe_name = $clean . '.' . $ext;
     }
 
-    $dest_dir = __DIR__ . '/../uploads/' . $category . 's';
-    if (!is_dir($dest_dir) && !mkdir($dest_dir, 0755, true) && !is_dir($dest_dir)) {
-        return ['ok' => false, 'error' => '无法创建上传目录'];
+    $baseDir = appdown_upload_dir();
+    $dest_dir = $baseDir . '/' . $category . 's';
+    if (!is_dir($dest_dir) && !mkdir($dest_dir, in_array($category, ['cert','keystore'], true) ? 0700 : 0755, true) && !is_dir($dest_dir)) {
+        return ['ok' => false, 'error' => '无法创建租户上传目录'];
     }
 
     $dest_path = $dest_dir . '/' . $safe_name;
@@ -78,7 +75,7 @@ function handle_upload(string $field, string $category, string $custom_name = ''
     if (!move_uploaded_file($file['tmp_name'], $dest_path)) return ['ok' => false, 'error' => '文件保存失败'];
     @chmod($dest_path, in_array($category, ['cert', 'keystore'], true) ? 0600 : 0644);
 
-    $url = 'uploads/' . $category . 's/' . $safe_name;
+    $url = appdown_upload_url_prefix() . '/' . $category . 's/' . $safe_name;
     return ['ok' => true, 'url' => $url, 'filename' => $safe_name];
 }
 
@@ -112,9 +109,15 @@ function parse_size(string $val): int {
 }
 
 function delete_upload(string $url): void {
-    if (substr($url, 0, 8) !== 'uploads/' || strpos($url, '..') !== false) return;
-    $uploadsDir = realpath(__DIR__ . '/../uploads');
-    if (!$uploadsDir) return;
-    $path = realpath(__DIR__ . '/../' . $url);
-    if ($path && str_starts_with($path, $uploadsDir . DIRECTORY_SEPARATOR) && is_file($path)) unlink($path);
+    $tenant = current_tenant(true);
+    if (!$tenant || strpos($url, '..') !== false) return;
+    $prefix = appdown_upload_url_prefix() . '/';
+    $normalized = ltrim($url, '/');
+    if (!str_starts_with($normalized, $prefix)) return;
+
+    $base = realpath(appdown_upload_dir());
+    if (!$base) return;
+    $relative = substr($normalized, strlen($prefix));
+    $path = realpath(appdown_upload_dir() . '/' . $relative);
+    if ($path && str_starts_with($path, $base . DIRECTORY_SEPARATOR) && is_file($path)) unlink($path);
 }
