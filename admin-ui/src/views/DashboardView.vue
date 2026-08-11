@@ -19,6 +19,14 @@ onMounted(load)
 
 const change = computed(() => (data.value?.today_visits || 0) - (data.value?.yesterday_visits || 0))
 const maxTrend = computed(() => Math.max(1, ...(data.value?.trend_7day?.visits || [1]), ...(data.value?.trend_7day?.downloads || [1])))
+const downloadRows = computed(() => {
+  const rows: Array<{ app: string; type: string; count: number }> = []
+  const groups = data.value?.today_downloads || {}
+  Object.entries(groups).forEach(([app, types]) => {
+    Object.entries((types || {}) as Record<string, number>).forEach(([type, count]) => rows.push({ app, type, count: Number(count) }))
+  })
+  return rows
+})
 function points(values: number[] = []) {
   if (!values.length) return ''
   const w = 680, h = 220, pad = 18
@@ -36,10 +44,10 @@ function points(values: number[] = []) {
     <div v-if="error" class="empty-state"><b>数据加载失败</b>{{ error }}<div style="margin-top:12px"><button class="button" @click="load">重试</button></div></div>
     <template v-else>
       <div class="stats-grid">
-        <div class="metric"><div class="metric-top"><span class="metric-label">今日访问</span><span class="metric-icon"><Eye :size="14"/></span></div><div class="metric-value">{{ loading ? '—' : Number(data?.today_visits||0).toLocaleString() }}</div><div class="metric-sub"><span :class="change>=0?'positive':'negative'">{{ change>0?'↑':change<0?'↓':'•' }} {{ Math.abs(change) }}</span> 较昨日</div></div>
-        <div class="metric"><div class="metric-top"><span class="metric-label">今日下载</span><span class="metric-icon"><ArrowDownToLine :size="14"/></span></div><div class="metric-value">{{ loading ? '—' : Number(data?.today_downloads_total||0).toLocaleString() }}</div><div class="metric-sub">下载按钮真实点击</div></div>
-        <div class="metric"><div class="metric-top"><span class="metric-label">累计访问</span><span class="metric-icon"><Activity :size="14"/></span></div><div class="metric-value">{{ loading ? '—' : Number(data?.total_visits||0).toLocaleString() }}</div><div class="metric-sub">站点历史访问</div></div>
-        <div class="metric"><div class="metric-top"><span class="metric-label">累计下载</span><span class="metric-icon"><Smartphone :size="14"/></span></div><div class="metric-value">{{ loading ? '—' : Number(data?.total_downloads||0).toLocaleString() }}</div><div class="metric-sub">全部应用累计下载</div></div>
+        <div class="metric"><div class="metric-top"><div class="metric-label">今日访问</div><div class="metric-icon"><Eye :size="14"/></div></div><div class="metric-value">{{ loading ? '—' : Number(data?.today_visits||0).toLocaleString() }}</div><div class="metric-sub"><span :class="change>=0?'positive':'negative'">{{ change>0?'↑':change<0?'↓':'•' }} {{ Math.abs(change) }}</span> 较昨日</div></div>
+        <div class="metric"><div class="metric-top"><div class="metric-label">今日下载</div><div class="metric-icon"><ArrowDownToLine :size="14"/></div></div><div class="metric-value">{{ loading ? '—' : Number(data?.today_downloads_total||0).toLocaleString() }}</div><div class="metric-sub">下载按钮真实点击</div></div>
+        <div class="metric"><div class="metric-top"><div class="metric-label">累计访问</div><div class="metric-icon"><Activity :size="14"/></div></div><div class="metric-value">{{ loading ? '—' : Number(data?.total_visits||0).toLocaleString() }}</div><div class="metric-sub">站点历史访问</div></div>
+        <div class="metric"><div class="metric-top"><div class="metric-label">累计下载</div><div class="metric-icon"><Smartphone :size="14"/></div></div><div class="metric-value">{{ loading ? '—' : Number(data?.total_downloads||0).toLocaleString() }}</div><div class="metric-sub">全部应用累计下载</div></div>
       </div>
 
       <div class="two-col">
@@ -57,7 +65,7 @@ function points(values: number[] = []) {
         <section class="panel">
           <div class="panel-head"><div><h3>今日来源</h3><span>TOP 10</span></div><span>{{ data?.top_referers?.length || 0 }} 项</span></div>
           <div class="activity-list" v-if="data?.top_referers?.length">
-            <div class="activity-row" v-for="(r,i) in data.top_referers" :key="r.referer+i"><div class="activity-icon">{{ i+1 }}</div><div style="min-width:0;flex:1"><b>{{ r.source_name }}</b><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.referer }}</span></div><b>{{ r.count }}</b></div>
+            <div class="activity-row" v-for="(r,i) in data.top_referers" :key="`${r.referer}-${i}`"><div class="activity-icon">{{ Number(i)+1 }}</div><div style="min-width:0;flex:1"><b>{{ r.source_name }}</b><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.referer }}</span></div><b>{{ r.count }}</b></div>
           </div>
           <div v-else class="empty-state" style="margin:12px">今日暂无来源数据</div>
         </section>
@@ -66,8 +74,8 @@ function points(values: number[] = []) {
       <section class="panel" style="margin-top:13px">
         <div class="panel-head"><div><h3>今日下载明细</h3><span>按应用与下载类型聚合</span></div></div>
         <div class="table-wrap"><table class="data-table"><thead><tr><th>应用</th><th>类型</th><th>次数</th></tr></thead><tbody>
-          <template v-for="(types, app) in (data?.today_downloads||{})" :key="String(app)"><tr v-for="(count,type) in types as any" :key="String(type)"><td>{{ app }}</td><td>{{ type }}</td><td>{{ count }}</td></tr></template>
-          <tr v-if="!Object.keys(data?.today_downloads||{}).length"><td colspan="3" class="subtle">今日暂无下载</td></tr>
+          <tr v-for="row in downloadRows" :key="`${row.app}-${row.type}`"><td>{{ row.app }}</td><td>{{ row.type }}</td><td>{{ row.count }}</td></tr>
+          <tr v-if="!downloadRows.length"><td colspan="3" class="subtle">今日暂无下载</td></tr>
         </tbody></table></div>
       </section>
     </template>
