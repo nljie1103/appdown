@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Edition-SaaS-6D5DFB?style=flat-square" alt="SaaS Edition">
   <img src="https://img.shields.io/badge/PHP-8.0+-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.0+">
-  <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">
+  <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite" alt="SQLite">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT">
 </p>
 
@@ -287,18 +287,32 @@ nginx-security.conf.example
 
 已经包含多租户 rewrite 与嵌套 Secrets 防护。
 
-宝塔：
+### 宝塔直接这样配置
 
 ```text
 网站 → 设置 → 伪静态
 ```
 
-把该文件内容合并到当前站点 `server {}`，然后：
+如果这个站点没有你自己额外写的伪静态规则，可以直接把 `nginx-security.conf.example` **文件里面的全部内容**复制到宝塔“伪静态”文本框中；不要再额外套一层 `server {}`。宝塔会把该文件作为当前站点 `server {}` 内的一段配置 include 进去。
+
+如果已经有自己的 rewrite / location，请把 AppDown 规则合并进去，避免覆盖现有业务规则。
+
+保存时宝塔会自动执行 Nginx 配置检查；也建议在 SSH 再执行：
 
 ```bash
-nginx -t
-nginx -s reload
+/www/server/nginx/sbin/nginx -t
 ```
+
+成功时应看到：
+
+```text
+syntax is ok
+test is successful
+```
+
+然后重载 Nginx。
+
+> **saas-v1.1.1 已知问题：** 旧版示例中四条含 `{2,31}` 的 `rewrite` 正则没有加引号，在常见 Nginx 版本会报 `directive "rewrite" is not terminated by ";"`（通常指向第 63 行）。该问题已在 **saas-v1.1.2** 修复；新示例把整段 rewrite 正则用双引号包裹，并且 CI 会真实运行 `nginx -t`。
 
 主要路由包括：
 
@@ -375,7 +389,7 @@ php tests/smoke_saas.php
 - 使用真实 `ZipArchive` 创建并检查 IPA fixture
 - 带 `../` 路径遍历的恶意 ZIP 被拒绝
 
-GitHub CI 另外使用 PHP 8.0 Docker 对全仓 PHP 做最低版本语法检查。
+GitHub CI 使用 PHP 8.0 Docker 对全仓 PHP 做最低版本语法检查，并在 Ubuntu Runner 安装 Nginx，对 `nginx-security.conf.example` 真实执行 `nginx -t` 配置语法检查。
 
 > SaaS 分支中的 `tests/smoke_templates.php` 会自动委托给 `tests/smoke_saas.php`，避免在没有租户上下文时公共配置 API 提前退出却返回状态码 0 的假阳性。
 >
