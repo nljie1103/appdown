@@ -8,7 +8,7 @@ if (defined('APPDOWN_EDITION') && APPDOWN_EDITION !== 'main') {
     json_response(['error' => '当前版本不允许租户后台升级整个平台'], 403);
 }
 
-$method = get_request_method();
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method === 'GET') {
     try {
         $force = isset($_GET['refresh']) && $_GET['refresh'] === '1';
