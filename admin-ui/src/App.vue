@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   LayoutDashboard, Smartphone, Paperclip, WandSparkles, KeyRound, FileKey2,
-  Palette, PanelsTopLeft, Type, Settings, Code2, ArchiveRestore, ServerCog,
+  Palette, PanelsTopLeft, Images, Type, Settings, Code2, ArchiveRestore, ServerCog,
   RefreshCcw, UserRoundCog, ExternalLink, Bell, Menu, Sun, Moon, Monitor,
   ChevronRight, LogOut, CircleHelp, X
 } from '@lucide/vue'
@@ -31,6 +31,7 @@ const groups: Array<{ title: string; items: MenuItem[] }> = [
   { title: '外观', items: [
     { to: '/templates', label: '页面模板', icon: Palette },
     { to: '/content', label: '内容组件', icon: PanelsTopLeft },
+    { to: '/media', label: '媒体库', icon: Images },
     { to: '/fonts', label: '字体管理', icon: Type, capability: 'fonts' },
   ]},
   { title: '设置', items: [

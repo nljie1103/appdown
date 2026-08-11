@@ -8,6 +8,7 @@ const SigningView = () => import('./views/SigningView.vue')
 const MobileconfigView = () => import('./views/MobileconfigView.vue')
 const TemplatesView = () => import('./views/TemplatesView.vue')
 const ContentView = () => import('./views/ContentView.vue')
+const MediaView = () => import('./views/MediaView.vue')
 const FontsView = () => import('./views/FontsView.vue')
 const SettingsView = () => import('./views/SettingsView.vue')
 const CustomCodeView = () => import('./views/CustomCodeView.vue')
@@ -28,6 +29,7 @@ export const router = createRouter({
     { path: '/mobileconfig', name: 'mobileconfig', component: MobileconfigView, meta: { title: 'Mobileconfig' } },
     { path: '/templates', name: 'templates', component: TemplatesView, meta: { title: '页面模板' } },
     { path: '/content', name: 'content', component: ContentView, meta: { title: '内容组件' } },
+    { path: '/media', name: 'media', component: MediaView, meta: { title: '媒体库' } },
     { path: '/fonts', name: 'fonts', component: FontsView, meta: { title: '字体管理' } },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { title: '站点设置' } },
     { path: '/custom-code', name: 'custom-code', component: CustomCodeView, meta: { title: '自定义代码' } },
