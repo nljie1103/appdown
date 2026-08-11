@@ -20,9 +20,36 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch saas "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
 
+      - name: Normalize legacy backup label for asserted patch
+        working-directory: repo
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('admin/backup.php')
+          s=p.read_text()
+          old="admin_users:'管理员账户'"
+          if s.count(old)!=1: raise SystemExit(f'expected one backup label, got {s.count(old)}')
+          p.write_text(s.replace(old,"'admin_users':'管理员账户'"))
+          PY
+
       - name: Apply asserted patch
         working-directory: repo
         run: python3 tools/saas-postfix.py
+
+      - name: Remove obsolete tenant-account backup control
+        working-directory: repo
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('admin/backup.php')
+          s=p.read_text()
+          checkbox='<label class="check-item"><input type="checkbox" value="admin_users">管理员账户</label>'
+          label="'admin_users':'管理员账户（SaaS中央账户，不导出）',"
+          if s.count(checkbox)!=1: raise SystemExit('admin backup checkbox not found exactly once')
+          if s.count(label)!=1: raise SystemExit('admin backup label not found exactly once')
+          s=s.replace(checkbox,'').replace(label,'')
+          p.write_text(s)
+          PY
 
       - name: PHP syntax check
         working-directory: repo
