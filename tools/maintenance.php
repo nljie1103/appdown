@@ -35,12 +35,13 @@ if ($requestedDelete && !empty($report['orphans']) && isset($pdo, $projectRoot, 
         } catch (Throwable $e) {}
     }
 
-    $uploadsRoot = realpath($projectRoot . '/uploads');
+    $uploadsRoot = realpath(appdown_upload_dir());
+    $tenantUploadPrefix = appdown_upload_url_prefix();
     foreach ($report['orphans'] as $orphan) {
         $rel = (string)($orphan['path'] ?? '');
         if ($rel === '' || !$uploadsRoot) continue;
         // 签名材料只报告、永不自动删除。
-        if (str_starts_with($rel, 'uploads/keystores/') || str_starts_with($rel, 'uploads/certs/')) continue;
+        if (str_starts_with($rel, $tenantUploadPrefix . '/keystores/') || str_starts_with($rel, $tenantUploadPrefix . '/certs/')) continue;
         // 文本字段里仍出现该路径，则视为有效引用。
         if ($referenceHaystack !== '' && strpos($referenceHaystack, $rel) !== false) continue;
 

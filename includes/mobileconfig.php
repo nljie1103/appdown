@@ -98,22 +98,20 @@ function resolve_cert_content(string $mode, string $value): string {
         case 'text':
             return $value;
         case 'path':
-            $realPath = realpath($value);
-            $projectRoot = realpath(__DIR__ . '/..');
-            if ($realPath && is_readable($realPath) && (
-                substr($realPath, 0, strlen($projectRoot)) === $projectRoot ||
-                substr($realPath, 0, 8) === '/etc/ssl' ||
-                substr($realPath, 0, 8) === '/etc/pki'
-            )) {
-                return file_get_contents($realPath);
-            }
-            return '';
         case 'upload':
-            $path = __DIR__ . '/../' . ltrim($value, '/');
-            if (file_exists($path) && is_readable($path)) {
-                return file_get_contents($path);
+            // SaaS 租户只能读取自己 uploads 目录中的证书文件。
+            if (!function_exists('appdown_upload_dir') || !current_tenant(true)) return '';
+            if ($mode === 'upload') {
+                $clean = ltrim(str_replace('\\', '/', $value), '/');
+                if (!str_starts_with($clean, appdown_upload_url_prefix() . '/') || strpos($clean, '..') !== false) return '';
+                $realPath = realpath(__DIR__ . '/../' . $clean);
+            } else {
+                if (!preg_match('#^[a-zA-Z0-9_./\\-]+$#', $value)) return '';
+                $realPath = realpath($value);
             }
-            return '';
+            $tenantUploadRoot = realpath(appdown_upload_dir());
+            if (!$realPath || !$tenantUploadRoot || !str_starts_with($realPath, $tenantUploadRoot . DIRECTORY_SEPARATOR)) return '';
+            return is_file($realPath) && is_readable($realPath) ? (string)file_get_contents($realPath) : '';
         default:
             return '';
     }

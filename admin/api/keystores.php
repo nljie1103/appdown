@@ -125,7 +125,7 @@ if ($method === 'POST') {
         if ($c !== '' && !preg_match('/^[A-Z]{2}$/', $c)) json_response(['error' => '国家代码必须是2位字母'], 400);
         if (!preg_match('/^[A-Za-z0-9._-]{1,64}$/', $alias)) json_response(['error' => '别名只能包含字母、数字、点、下划线和横线'], 400);
 
-        $dir = __DIR__ . '/../../uploads/keystores';
+        $dir = appdown_upload_dir() . '/keystores';
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) json_response(['error' => '无法创建密钥目录'], 500);
         $safeName = preg_replace('/[^\w\-]/', '_', $name);
         $filename = resolve_filename_collision($dir, $safeName . '_' . time(), 'jks');
@@ -161,7 +161,7 @@ if ($method === 'POST') {
         }
         @chmod($filepath, 0600);
 
-        $fileUrl = 'uploads/keystores/' . $filename;
+        $fileUrl = appdown_upload_url_prefix() . '/keystores/' . $filename;
         $stmt = $pdo->prepare('INSERT INTO keystores (name, file_url, alias, store_password, key_password, validity_years, org_name, org_unit, country, state_name, locality, common_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([$name, $fileUrl, $alias, encrypt_secret($storePwd), encrypt_secret($keyPwd), $validity, $org, $ou, $c, $st, $loc, $cn]);
         json_response(['ok' => true, 'id' => $pdo->lastInsertId()]);

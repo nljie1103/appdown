@@ -95,7 +95,7 @@ if ($method === 'PUT') {
                 if (!rename($oldPath, $newPath)) {
                     json_response(['error' => '文件重命名失败'], 500);
                 }
-                $newUrl = 'uploads/apps/' . $safeName;
+                $newUrl = appdown_upload_url_prefix() . '/apps/' . $safeName;
             }
         }
     }

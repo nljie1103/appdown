@@ -13,6 +13,7 @@ if (php_sapi_name() !== 'cli') {
 set_time_limit(0);
 error_reporting(E_ALL);
 
+require_once __DIR__ . '/../includes/saas.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/security.php';
@@ -149,7 +150,7 @@ try {
     }
     $activeSecrets = [$keystore['store_password'], $keystore['key_password']];
 
-    $keystoreRoot = realpath(__DIR__ . '/../uploads/keystores');
+    $keystoreRoot = realpath(appdown_upload_dir() . '/keystores');
     $ksFilePath = realpath(__DIR__ . '/../' . $keystore['file_url']);
     if (!$ksFilePath || !$keystoreRoot || !str_starts_with($ksFilePath, $keystoreRoot . DIRECTORY_SEPARATOR) || !is_file($ksFilePath)) {
         fail_task($pdo, $taskId, '签名密钥文件不存在或路径不合法');
@@ -244,7 +245,7 @@ try {
     }
 
     update_task($pdo, $taskId, ['progress' => 90, 'progress_msg' => '复制到目标目录...']);
-    $apkDir = __DIR__ . '/../uploads/apks';
+    $apkDir = appdown_upload_dir() . '/apks';
     if (!is_dir($apkDir)) mkdir($apkDir, 0755, true);
     $safeName = preg_replace('/[^\w\x{4e00}-\x{9fff}\-]/u', '_', $params['app_name']);
     $safeName = trim(preg_replace('/_+/', '_', $safeName), '_') ?: 'app';
@@ -255,7 +256,7 @@ try {
         fail_task($pdo, $taskId, 'APK复制到目标目录失败');
         exit(1);
     }
-    $apkUrl = 'uploads/apks/' . $apkFilename;
+    $apkUrl = appdown_upload_url_prefix() . '/apks/' . $apkFilename;
     $apkSize = format_size(filesize($destPath));
 
     update_task($pdo, $taskId, ['progress' => 95, 'progress_msg' => '保存记录...']);

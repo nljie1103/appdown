@@ -13,6 +13,7 @@ if (php_sapi_name() !== 'cli') {
 set_time_limit(0);
 error_reporting(E_ALL);
 
+require_once __DIR__ . '/../includes/saas.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/security.php';
@@ -25,7 +26,10 @@ if (!$taskId) {
 }
 
 $pdo = get_db();
+$tenant = require_tenant_context();
+$tenantSlug = $tenant['slug'];
 $localBuildDir = '';
+$remoteBuildDir = '';
 $projectRoot = realpath(__DIR__ . '/..');
 
 $SSH_PORT = (string)(int)(get_setting($pdo, 'custom_ios_ssh_port') ?: '50922');
@@ -85,10 +89,10 @@ try {
         exit(1);
     }
 
-    $localBuildDir = $projectRoot . '/data/ios-build/task_' . $taskId;
+    $localBuildDir = $projectRoot . '/data/ios-build/' . $tenantSlug . '_task_' . $taskId;
     if (is_dir($localBuildDir)) recursive_delete($localBuildDir);
     recursive_copy($templateDir, $localBuildDir);
-    $remoteBuildDir = '/mnt/build/task_' . $taskId;
+    $remoteBuildDir = '/mnt/build/' . $tenantSlug . '_task_' . $taskId;
 
     update_task($pdo, $taskId, ['progress' => 15, 'progress_msg' => '写入应用配置...']);
     $config = [
@@ -205,7 +209,7 @@ try {
     }
 
     update_task($pdo, $taskId, ['progress' => 90, 'progress_msg' => '复制到目标目录...']);
-    $ipaDir = $projectRoot . '/uploads/ipas';
+    $ipaDir = appdown_upload_dir() . '/ipas';
     if (!is_dir($ipaDir)) mkdir($ipaDir, 0755, true);
     $safeName = preg_replace('/[^\w\x{4e00}-\x{9fff}\-]/u', '_', $params['app_name']);
     $safeName = trim(preg_replace('/_+/', '_', $safeName), '_') ?: 'app';
@@ -222,7 +226,7 @@ try {
         exit(1);
     }
 
-    $ipaUrl = 'uploads/ipas/' . $ipaFilename;
+    $ipaUrl = appdown_upload_url_prefix() . '/ipas/' . $ipaFilename;
     $ipaSize = format_size(filesize($destPath));
     update_task($pdo, $taskId, ['progress' => 95, 'progress_msg' => '保存记录...']);
     $stmt = $pdo->prepare('INSERT INTO generated_ipas (task_id, app_name, bundle_id, version_name, version_code, url, icon_url, ipa_url, ipa_size, signing_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -233,7 +237,7 @@ try {
     fail_task($pdo, $taskId, '构建异常: ' . redact_sensitive_text($e->getMessage()));
     exit(1);
 } finally {
-    if ($taskId) ssh_exec('rm -rf /mnt/build/task_' . (int)$taskId);
+    if ($remoteBuildDir !== '') ssh_exec('rm -rf ' . escapeshellarg($remoteBuildDir));
     if ($localBuildDir && is_dir($localBuildDir)) recursive_delete($localBuildDir);
 }
 

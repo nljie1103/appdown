@@ -9,6 +9,8 @@ require_auth();
 csrf_validate();
 require_method('POST');
 
+$tenant = require_tenant_context();
+$tenantSlug = $tenant['slug'];
 $pdo = get_db();
 $isMultipart = !empty($_FILES['file']);
 if ($isMultipart) $action = $_POST['action'] ?? '';
@@ -53,7 +55,8 @@ if ($action === 'export') {
     $export = ['meta' => [
         'version' => '3.0',
         'exported_at' => date('Y-m-d H:i:s'),
-        'app_name' => 'AppDown',
+        'app_name' => 'AppDown SaaS',
+        'tenant_slug' => $tenantSlug,
         'auto_included_app_history' => $appsSelected,
         'signing_materials_included' => $appsSelected && $password !== '',
         'kdf' => $password === '' ? 'none' : (function_exists('sodium_crypto_pwhash') ? 'argon2id' : 'pbkdf2-sha256'),
@@ -105,13 +108,13 @@ if ($action === 'export') {
     }
 
     if ($includeUploads) {
-        $uploadsBase = realpath(__DIR__ . '/../../uploads');
+        $uploadsBase = realpath(appdown_upload_dir());
         if ($uploadsBase && is_dir($uploadsBase)) addDirToZip($zip, $uploadsBase, 'uploads', $password !== '');
     }
     $zip->close();
 
     if ($password === '') {
-        stream_download_file($tmpZip, 'appdown_backup_' . date('Ymd_His') . '.zip');
+        stream_download_file($tmpZip, 'appdown_' . $tenantSlug . '_backup_' . date('Ymd_His') . '.zip');
     }
 
     $zipData = file_get_contents($tmpZip);
@@ -119,7 +122,7 @@ if ($action === 'export') {
     if ($zipData === false) json_response(['error' => '读取临时备份失败'], 500);
     $packed = encryptBackupV3($zipData, $password);
     unset($zipData);
-    $filename = 'appdown_backup_' . date('Ymd_His') . '.enc';
+    $filename = 'appdown_' . $tenantSlug . '_backup_' . date('Ymd_His') . '.enc';
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Content-Length: ' . strlen($packed));
@@ -190,6 +193,9 @@ if ($action === 'import') {
         'keystores', 'mc_certificates', 'generated_mobileconfigs', 'generated_apks', 'generated_ipas'
     ];
 
+    $sourceTenantSlug = normalize_tenant_slug((string)($import['meta']['tenant_slug'] ?? ''));
+    $currentUploadPrefix = appdown_upload_url_prefix();
+
     $pdo->beginTransaction();
     try {
         foreach ($clearOrder as $table) if (in_array($table, $selectedTables, true)) $pdo->exec("DELETE FROM \"$table\"");
@@ -204,6 +210,21 @@ if ($action === 'import') {
                 if (!is_array($row)) continue;
                 $row = array_intersect_key($row, array_flip($validCols));
                 if (!$row) continue;
+                // SaaS 备份恢复到不同用户名时，所有租户本地文件路径改写为当前租户前缀。
+                foreach ($row as $field => $value) {
+                    if (!is_string($value) || $value === '') continue;
+                    if ($sourceTenantSlug !== '') {
+                        $value = str_replace(
+                            ['uploads/tenants/' . $sourceTenantSlug . '/', '/uploads/tenants/' . $sourceTenantSlug . '/'],
+                            [$currentUploadPrefix . '/', '/' . $currentUploadPrefix . '/'],
+                            $value
+                        );
+                    }
+                    if (preg_match('#^(/?)uploads/(?!tenants/)(.+)$#', $value, $m)) {
+                        $value = $m[1] . $currentUploadPrefix . '/' . $m[2];
+                    }
+                    $row[$field] = $value;
+                }
                 // v3 备份中的 keystore 密码使用目标服务器主密钥重新加密。
                 if ($table === 'keystores') {
                     foreach (['store_password', 'key_password'] as $secretField) {
@@ -339,9 +360,10 @@ function restoreUploadsFromZip(string $zipPath): int {
     if ($zip->open($zipPath) !== true) return 0;
     $safe = validate_zip_safety($zip);
     if (!$safe['ok']) { $zip->close(); json_response(['error' => $safe['error']], 400); }
-    $uploadsRoot = realpath(__DIR__ . '/../../uploads');
-    if (!$uploadsRoot) { @mkdir(__DIR__ . '/../../uploads', 0755, true); $uploadsRoot = realpath(__DIR__ . '/../../uploads'); }
-    if (!$uploadsRoot) { $zip->close(); json_response(['error' => '无法创建 uploads 目录'], 500); }
+    $tenantUploadDir = appdown_upload_dir();
+    $uploadsRoot = realpath($tenantUploadDir);
+    if (!$uploadsRoot) { @mkdir($tenantUploadDir, 0755, true); $uploadsRoot = realpath($tenantUploadDir); }
+    if (!$uploadsRoot) { $zip->close(); json_response(['error' => '无法创建租户 uploads 目录'], 500); }
 
     $restored = 0;
     for ($i = 0; $i < $zip->numFiles; $i++) {

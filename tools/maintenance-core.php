@@ -17,6 +17,7 @@
 if (php_sapi_name() !== 'cli') { http_response_code(403); exit('CLI only'); }
 
 date_default_timezone_set('Asia/Shanghai');
+require_once __DIR__ . '/../includes/saas.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/security.php';
@@ -25,8 +26,9 @@ $pdo = get_db();
 $quiet = in_array('--quiet', $argv, true);
 $deleteOrphans = in_array('--delete-orphans', $argv, true);
 $projectRoot = realpath(__DIR__ . '/..');
-$dataDir = $projectRoot . '/data';
-$uploadsRoot = realpath($projectRoot . '/uploads') ?: ($projectRoot . '/uploads');
+$tenant = require_tenant_context();
+$dataDir = appdown_data_dir();
+$uploadsRoot = realpath(appdown_upload_dir()) ?: appdown_upload_dir();
 
 $report = [
     'generated_at' => date('c'),
@@ -42,7 +44,7 @@ $report = [
 try {
     $backupDir = $dataDir . '/backups';
     if (!is_dir($backupDir)) mkdir($backupDir, 0750, true);
-    $dbPath = $dataDir . '/app.db';
+    $dbPath = appdown_db_path();
     if (is_file($dbPath)) {
         $backupPath = $backupDir . '/app-' . date('Ymd-His') . '.db';
         $backedUp = false;
@@ -118,7 +120,7 @@ if (is_dir($uploadsRoot)) {
     foreach ($it as $file) {
         if (!$file->isFile()) continue;
         $real = $file->getRealPath();
-        $rel = 'uploads/' . ltrim(str_replace('\\', '/', substr($real, strlen($uploadsRoot))), '/');
+        $rel = appdown_upload_url_prefix() . '/' . ltrim(str_replace('\\', '/', substr($real, strlen($uploadsRoot))), '/');
         if (!isset($referenced[$rel])) {
             $report['orphans'][] = ['path' => $rel, 'size' => $file->getSize(), 'mtime' => date('c', $file->getMTime())];
             // 自动删除必须显式传参，且至少 7 天未修改，防止误删刚上传尚未关联的文件。

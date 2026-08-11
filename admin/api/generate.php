@@ -6,6 +6,8 @@
 require_once __DIR__ . '/../../includes/init.php';
 require_auth();
 
+$tenant = require_tenant_context();
+$tenantSlug = $tenant['slug'];
 $pdo = get_db();
 $method = get_request_method();
 
@@ -172,9 +174,10 @@ if ($method === 'POST') {
         if (!@file_exists($phpBin)) $phpBin = 'php';
         $workerScript = realpath(__DIR__ . '/../../tools/build-worker.php');
         if (!$workerScript) json_response(['error' => 'build-worker.php 不存在'], 500);
-        $dataDir = realpath(__DIR__ . '/../../data') ?: (__DIR__ . '/../../data');
+        $dataDir = appdown_data_dir();
+        if (!is_dir($dataDir)) @mkdir($dataDir, 0750, true);
         $debugLog = $dataDir . '/build_worker_' . $taskId . '.log';
-        $cmd = sprintf('nohup %s %s %d > %s 2>&1 & echo $!', escapeshellarg($phpBin), escapeshellarg($workerScript), $taskId, escapeshellarg($debugLog));
+        $cmd = sprintf('nohup env APPDOWN_TENANT=%s %s %s %d > %s 2>&1 & echo $!', escapeshellarg($tenantSlug), escapeshellarg($phpBin), escapeshellarg($workerScript), $taskId, escapeshellarg($debugLog));
         $pidOutput = [];
         exec($cmd, $pidOutput);
         $workerPid = (int)($pidOutput[0] ?? 0);
@@ -233,9 +236,10 @@ if ($method === 'POST') {
         if (!@file_exists($phpBin)) $phpBin = 'php';
         $workerScript = realpath(__DIR__ . '/../../tools/ios-build-worker.php');
         if (!$workerScript) json_response(['error' => 'ios-build-worker.php 不存在'], 500);
-        $dataDir = realpath(__DIR__ . '/../../data') ?: (__DIR__ . '/../../data');
+        $dataDir = appdown_data_dir();
+        if (!is_dir($dataDir)) @mkdir($dataDir, 0750, true);
         $debugLog = $dataDir . '/ipa_build_worker_' . $taskId . '.log';
-        $cmd = sprintf('nohup %s %s %d > %s 2>&1 & echo $!', escapeshellarg($phpBin), escapeshellarg($workerScript), $taskId, escapeshellarg($debugLog));
+        $cmd = sprintf('nohup env APPDOWN_TENANT=%s %s %s %d > %s 2>&1 & echo $!', escapeshellarg($tenantSlug), escapeshellarg($phpBin), escapeshellarg($workerScript), $taskId, escapeshellarg($debugLog));
         $pidOutput = [];
         exec($cmd, $pidOutput);
         $workerPid = (int)($pidOutput[0] ?? 0);

@@ -113,7 +113,7 @@ if ($method === 'POST') {
         }
         if (empty($params['payload_org']) && $cert) $params['payload_org'] = $cert['payload_org'] ?? '';
 
-        $destDir = __DIR__ . '/../../uploads/mobileconfigs';
+        $destDir = appdown_upload_dir() . '/mobileconfigs';
         $result = generate_and_save_mobileconfig($params, $cert, $destDir);
         if (!$result['ok']) json_response(['error' => $result['error']], 500);
 
@@ -132,7 +132,7 @@ if ($method === 'POST') {
         $name = trim($data['name'] ?? '');
         $mode = trim($data['mode'] ?? 'text');
         if (!$name) json_response(['error' => '请输入证书名称'], 400);
-        if (!in_array($mode, ['text', 'path', 'upload'], true)) json_response(['error' => '无效模式'], 400);
+        if (!in_array($mode, ['text', 'upload'], true)) json_response(['error' => '无效模式'], 400);
 
         $certRaw = trim($data['cert'] ?? '');
         $keyRaw = trim($data['key'] ?? '');
@@ -199,7 +199,7 @@ if ($method === 'PUT') {
         if (!$cert) $cert = mc_get_cert($pdo, null);
         if (empty($params['payload_org']) && $cert) $params['payload_org'] = $cert['payload_org'] ?? '';
 
-        $destDir = __DIR__ . '/../../uploads/mobileconfigs';
+        $destDir = appdown_upload_dir() . '/mobileconfigs';
         $result = generate_and_save_mobileconfig($params, $cert, $destDir);
         if (!$result['ok']) json_response(['error' => $result['error']], 500);
 
@@ -227,7 +227,7 @@ if ($method === 'PUT') {
         $old = $stmt->fetch();
         if (!$old) json_response(['error' => '记录不存在'], 404);
         $oldFullPath = realpath(__DIR__ . '/../../' . $old['file_path']);
-        $mcRoot = realpath(__DIR__ . '/../../uploads/mobileconfigs');
+        $mcRoot = realpath(appdown_upload_dir() . '/mobileconfigs');
         if (!$oldFullPath || !$mcRoot || !str_starts_with($oldFullPath, $mcRoot . DIRECTORY_SEPARATOR)) json_response(['error' => '原文件路径不合法'], 400);
 
         $safeName = preg_replace('/[^a-zA-Z0-9\x{4e00}-\x{9fff}_.-]/u', '_', $newName);
@@ -278,7 +278,7 @@ if ($method === 'PUT') {
 
         $name = trim($data['name'] ?? $old['name']);
         $mode = trim($data['mode'] ?? $old['mode']);
-        if (!in_array($mode, ['text', 'path', 'upload'], true)) json_response(['error' => '无效模式'], 400);
+        if (!in_array($mode, ['text', 'upload'], true)) json_response(['error' => '无效模式'], 400);
         $isGlobal = isset($data['is_global']) ? (!empty($data['is_global']) ? 1 : 0) : (int)$old['is_global'];
 
         // 浏览器永远拿不到旧私钥，因此空值代表“保留原值”，而不是清空。
@@ -330,7 +330,7 @@ if ($method === 'DELETE') {
     if (!$row) json_response(['error' => '记录不存在'], 404);
     if (!empty($row['file_path'])) {
         $fullPath = realpath(__DIR__ . '/../../' . $row['file_path']);
-        $mcRoot = realpath(__DIR__ . '/../../uploads/mobileconfigs');
+        $mcRoot = realpath(appdown_upload_dir() . '/mobileconfigs');
         if ($fullPath && $mcRoot && str_starts_with($fullPath, $mcRoot . DIRECTORY_SEPARATOR) && is_file($fullPath)) @unlink($fullPath);
     }
     $pdo->prepare('UPDATE apps SET mc_file_id = NULL WHERE mc_file_id = ?')->execute([$id]);

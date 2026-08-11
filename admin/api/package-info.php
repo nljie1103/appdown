@@ -13,13 +13,14 @@ if (!$fileUrl) {
     json_response(['error' => '缺少 file 参数'], 400);
 }
 
-// 安全检查：只允许读取 uploads/ 下的文件
-if (substr($fileUrl, 0, strlen('uploads/')) !== 'uploads/') {
+// 安全检查：只允许读取当前租户 uploads/tenants/<slug>/ 下的文件。
+$tenantPrefix = appdown_upload_url_prefix() . '/';
+if (!str_starts_with(ltrim($fileUrl, '/'), $tenantPrefix)) {
     json_response(['error' => '非法文件路径'], 403);
 }
 
-$filePath = realpath(__DIR__ . '/../../' . $fileUrl);
-$basePath = realpath(__DIR__ . '/../../uploads');
+$filePath = realpath(__DIR__ . '/../../' . ltrim($fileUrl, '/'));
+$basePath = realpath(appdown_upload_dir());
 
 if (!$filePath || !$basePath || substr($filePath, 0, strlen($basePath)) !== $basePath) {
     json_response(['error' => '非法文件路径'], 403);

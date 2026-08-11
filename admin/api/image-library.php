@@ -186,7 +186,7 @@ if ($action === 'images') {
                         @unlink($fullPath);
                     }
                     $fullPath = $newPath;
-                    $result['url'] = 'uploads/images/' . basename($newPath);
+                    $result['url'] = appdown_upload_url_prefix() . '/images/' . basename($newPath);
                 }
             }
         }
@@ -278,7 +278,7 @@ if ($action === 'images') {
                 if (!rename($oldPath, $newPath)) {
                     json_response(['error' => '文件重命名失败'], 500);
                 }
-                $newUrl = 'uploads/images/' . $safeName;
+                $newUrl = appdown_upload_url_prefix() . '/images/' . $safeName;
             }
 
             $dbFilename = $cleanBase . '.' . $ext;
