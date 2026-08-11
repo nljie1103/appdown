@@ -7,7 +7,7 @@
 
 <h1 align="center">AppDown SaaS</h1>
 <p align="center"><strong>一个安装实例 · 多个独立 IPA / APK 分发站 · 超级后台统一管理</strong></p>
-<p align="center">仍然保持 PHP + SQLite + 原生 JavaScript/CSS，不引入 MySQL、Redis、Node.js 或 Composer</p>
+<p align="center">PHP + SQLite 多租户后端 · Vue 3 + TypeScript 租户后台 · 生产环境无需 Node.js</p>
 
 ---
 
@@ -149,29 +149,23 @@ android
 - 账户密码
 - 分发首页模板
 
-租户自己的密码在 `/admin/account.php` 修改；修改后其他旧 Session 自动失效。
+租户自己的密码现在可在 Admin 2.0 的“账户管理”中修改；修改后其他旧 Session 自动失效。
 
-## 🎨 每个租户独立选择分发首页模板
+## 🧭 租户后台 Admin 2.0
 
-这里的“页面模板”是公开下载页面的视觉风格，不是 Android/iOS 安装页模板。
+`/admin/` 与 `/<slug>/admin` 登录后现在默认进入 **Vue 3 + TypeScript** 的 AppDown Admin 2.0。单用户版与 SaaS 租户后台共享同一套 Vue Design System 和生产构建产物，但租户身份仍完全由 PHP Session 在服务端解析，不接受浏览器传入任意 tenant 参数切换上下文。
 
-后台：
+租户 Admin 2.0 已覆盖真实业务能力：应用、下载方式、截图、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、页面模板、内容组件、字体、站点设置、自定义代码、备份恢复、环境检测和账户安全。
 
-```text
-/admin/templates.php
-```
+源码位于 `admin-ui/`，生产构建产物位于 `admin/vue/`；正式部署不需要 Node.js。**租户后台没有整个平台的在线升级权限**，SaaS 平台更新继续只允许超级管理员通过 `/super/update.php` 执行。
 
-内置 5 套：
+## 🎨 每个租户独立选择分发首页模板 2.0
 
-| 模板 | 风格 |
-|---|---|
-| 经典 | AppDown 原始浅色渐变、圆角卡片 |
-| 玻璃拟态 | 透明玻璃、柔光、悬浮层次 |
-| 极简白 | 留白、细边框、内容优先 |
-| 午夜深色 | 深色开发者风格 |
-| 极光渐变 | 高饱和渐变与品牌感玻璃卡片 |
+这里的模板是用户打开 `/<slug>/` 后真正看到的 App 分发页面。2.0 不再只是换背景或颜色，而会改变 Hero、应用选择器、下载区、截图、统计和特色组件的真实结构。
 
-模板只覆盖视觉层，所有模板共用同一套下载、轮播、统计和浏览器检测逻辑。用户自己的 Head CSS 排在模板 CSS 后面，仍可覆盖内置样式。
+每个租户可以独立选择 9 套布局：经典、玻璃工作台、编辑部、开发者终端、品牌发布、App Store、Bento 展示、Split 产品页、Mobile First。
+
+所有模板继续共用同一份租户应用数据、下载追踪、轮播与浏览器检测逻辑；模板切换不会改变数据库中的应用、下载地址或附件。SaaS 租户页会把新布局脚本与静态资源固定从根 `/static/` 加载，避免 `/<slug>/static/...` 路径错误。用户自己的 Head CSS 仍位于内置模板样式之后。
 
 ## 📱 IPA / APK 分发与封装
 

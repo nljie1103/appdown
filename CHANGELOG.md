@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased - SaaS Admin 2.0 / Landing Templates 2.0
+
+- 租户 `/admin/` 直接升级为 Vue 3 + TypeScript + Vite SPA，并与单用户版共用同一套 Admin 2.0 Design System。
+- 租户身份继续由服务端 Session 固定解析；Vue 不获得任意切换 tenant 的能力。
+- 租户 Admin 2.0 覆盖应用、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、9 套页面模板、内容组件、字体、设置、备份、系统与账户能力。
+- SaaS 租户 capability 明确关闭整个平台在线升级；平台更新仍只允许 `/super/update.php` 的超级管理员。
+- 每个租户可独立选择 9 套真实结构分发模板；租户页面同时修正新布局 JS/CSS 的 `/static/` 根路径加载。
+- 租户 `api/config.php` 将应用下载、截图、特色卡片从 N+1 查询改为批量查询并保持租户路径重写。
+- CI 新增 Vue TypeScript/Vite 可重复构建、Admin 2.0 smoke、结构模板 smoke 与真实 Nginx 配置语法检查。
+
 ## saas-v1.1.2 - 2026-08-11
 
 Nginx / 宝塔 SaaS 路由兼容性修复。
