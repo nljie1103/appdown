@@ -1,34 +1,53 @@
 # ============================================
-# AppDown Apache 安全规则
+# AppDown SaaS - Apache 路由 + 安全规则
 # 与 nginx-security.conf.example 保持一致
 # ============================================
+
+DirectoryIndex index.php index.html
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # 数据、公共库、构建工具与模板
+    # ---------- 安全边界 ----------
     RewriteRule ^data/ - [F,L]
     RewriteRule ^includes/ - [F,L]
     RewriteRule ^tools/ - [F,L]
     RewriteRule ^android-template/ - [F,L]
     RewriteRule ^ios-template/ - [F,L]
 
-    # 安装后的锁文件和访问日志
     RewriteRule ^install/install\.lock$ - [F,L]
     RewriteRule ^install/access\.log$ - [F,L]
 
     # 上传目录绝不执行 PHP
     RewriteRule ^uploads/.*\.php(?:[0-9]*)?$ - [F,L,NC]
 
-    # 签名材料禁止通过 HTTP 直接读取
+    # 单站旧目录 + SaaS 租户嵌套签名材料均禁止公网读取
     RewriteRule ^uploads/keystores/ - [F,L,NC]
     RewriteRule ^uploads/certs/ - [F,L,NC]
+    RewriteRule ^uploads/tenants/[^/]+/(?:keystores|certs)/ - [F,L,NC]
 
     # 隐藏文件（保留 ACME /.well-known/）
     RewriteRule (^|/)\.(?!well-known/) - [F,L]
+
+    # ---------- SaaS 路由 ----------
+    # 根目录永远使用 index.php 欢迎页；直接访问旧 index.html 也回根首页。
+    RewriteCond %{THE_REQUEST} \s/+index\.html(?:[?\s]) [NC]
+    RewriteRule ^index\.html$ / [R=302,L]
+
+    # 租户公共 API。
+    RewriteRule ^([a-z0-9][a-z0-9_-]{2,31})/api/(config|track|plist|mobileconfig)\.php$ api/$2.php?tenant=$1 [QSA,L,NC]
+
+    # 租户协议页与后台便捷入口。
+    RewriteRule ^([a-z0-9][a-z0-9_-]{2,31})/(privacy|terms)\.php$ $2.php?tenant=$1 [QSA,L,NC]
+    RewriteRule ^([a-z0-9][a-z0-9_-]{2,31})/admin/?$ admin/login.php?tenant=$1 [QSA,L,NC]
+
+    # 系统保留路径不能被识别为租户 slug。
+    RewriteRule ^(?:admin|super|api|install|static|uploads|data|includes|tools|tests|android|ios|android-template|ios-template)(?:/|$) - [L,NC]
+
+    # /用户名 或 /用户名/ -> 租户分发页。
+    RewriteRule ^([a-z0-9][a-z0-9_-]{2,31})/?$ tenant.php?tenant=$1 [QSA,L,NC]
 </IfModule>
 
-# 即使敏感文件被误放到其他目录，也禁止直接下载
 <FilesMatch "\.(?:key|pem|p12|pfx|jks|keystore|bks)$">
     Require all denied
 </FilesMatch>
