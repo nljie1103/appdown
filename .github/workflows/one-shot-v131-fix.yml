@@ -43,12 +43,13 @@ jobs:
           php tests/smoke_landing_showcase.php
           php tests/smoke_updater.php
           php tests/smoke_admin2.php
-      - name: Remove one-shot machinery and commit built patch
+      - name: Commit built patch without workflow files
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          rm -f tools/one-shot-v131-fix.py .github/workflows/one-shot-v131-fix.yml
+          rm -f tools/one-shot-v131-fix.py
+          git checkout -- .github/workflows/ci.yml .github/workflows/one-shot-v131-fix.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
