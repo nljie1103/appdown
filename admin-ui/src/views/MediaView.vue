@@ -21,6 +21,7 @@ function src(url: string) {
   if (!url) return ''
   return /^(https?:)?\/\//i.test(url) || url.startsWith('/') ? url : `/${url}`
 }
+function dropImage(e:DragEvent){const f=e.dataTransfer?.files?.[0];if(f&&f.type.startsWith('image/'))uploadFile.value=f}
 
 async function loadCategories() {
   categories.value = await get('/admin/api/image-library.php?action=categories')
@@ -164,10 +165,10 @@ onMounted(load)
           <h3>上传图片{{ activeCategory ? ` · ${activeCategory.name}` : '' }}</h3>
           <p v-if="!activeCategory">先在左侧选择一个分类，图片库不会把新文件放进“未分类”。</p>
           <div class="form-grid">
-            <div class="field full"><label>文件</label><label class="drop-zone" style="display:block"><Upload :size="22" style="margin:auto"/><b>{{uploadFile?.name||'选择图片文件'}}</b><span>支持项目上传策略允许的图片格式。</span><input type="file" accept="image/*" hidden @change="uploadFile=($event.target as HTMLInputElement).files?.[0]||null"></label></div>
+            <div class="field full"><label>文件</label><label class="drop-zone" style="display:block" @dragover.prevent @drop.prevent="dropImage"><Upload :size="22" style="margin:auto"/><b>{{uploadFile?.name||'点击选择或拖拽图片到这里'}}</b><span>支持项目上传策略允许的图片格式。</span><input type="file" accept="image/*" hidden @change="uploadFile=($event.target as HTMLInputElement).files?.[0]||null"></label></div>
             <div class="field"><label>自定义文件名</label><input v-model="upload.rename" class="input" placeholder="可留空"></div>
-            <div class="field"><label>输出格式</label><select v-model="upload.format" class="select"><option value="webp">WebP</option><option value="jpg">JPG</option><option value="png">PNG</option><option value="original">保持原格式</option></select></div>
-            <div class="field"><label>质量 {{upload.quality}}</label><input v-model.number="upload.quality" type="range" min="1" max="100" class="input"></div>
+            <div class="field"><label>输出格式</label><select v-model="upload.format" class="select"><option value="webp">WebP</option><option value="jpg">JPG</option><option value="png">PNG</option><option value="gif">GIF</option><option value="original">保持原格式</option></select></div>
+            <div class="field"><label>质量 {{upload.quality}}</label><input v-model.number="upload.quality" type="range" min="1" max="100" class="input"><small v-if="upload.format==='gif'">GIF 输出由 GD 处理，不使用有损质量参数。</small></div>
             <div class="field"><label>备注</label><input v-model="upload.remark" class="input"></div>
           </div>
           <button class="button primary" style="margin-top:10px" :disabled="!canUpload||uploading" @click="uploadImage"><Upload :size="13"/>{{uploading?'上传处理中…':'上传到媒体库'}}</button>
