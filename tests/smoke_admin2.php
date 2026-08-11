@@ -55,7 +55,7 @@ $apps = admin2_source($root, 'admin-ui/src/views/AppsView.vue');
 admin2_markers($apps, [
     'feature_category_id', 'ios_cert_name', 'mc_file_id', 'mc_file_url',
     'android-install', 'ios-ipa-install', 'ios-mobileconfig-install',
-    '/admin/api/reorder.php', "table==='apps'", "table==='app_downloads'", "table==='app_images'",
+    '/admin/api/reorder.php', "table==='apps'", "table==='app_downloads'", "'app_images'",
 ], 'AppsView');
 
 $content = admin2_source($root, 'admin-ui/src/views/ContentView.vue');
@@ -73,7 +73,7 @@ admin2_markers($media, [
 $mobileconfig = admin2_source($root, 'admin-ui/src/views/MobileconfigView.vue');
 admin2_markers($mobileconfig, [
     "action:'update'", "action:'rename'", "action:'associate'", "action:'update_cert'",
-    "action:'import_global_cert'", 'submit', 'profilePlatforms',
+    "action:'import_global_cert'", 'profilePlatforms', 'icon_data',
 ], 'MobileconfigView');
 
 $system = admin2_source($root, 'admin-ui/src/views/SystemView.vue');
