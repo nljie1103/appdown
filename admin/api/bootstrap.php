@@ -35,5 +35,9 @@ json_response([
         'templates' => true,
         'backup' => true,
         'system_tools' => true,
+        'keystores' => true,
+        'mobileconfig' => true,
+        'fonts' => true,
+        'platform_update' => true,
     ],
 ]);
