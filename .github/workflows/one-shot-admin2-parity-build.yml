@@ -1,4 +1,5 @@
 name: One-shot Admin 2.0 Parity Build
+# retry 2: corrected feature-parity marker
 on:
   push:
     branches: [main]
