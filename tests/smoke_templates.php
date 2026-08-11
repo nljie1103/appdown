@@ -9,7 +9,7 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 require_once $root . '/includes/landing_templates.php';
 
-function fail_test(string $message): never {
+function fail_test(string $message): void {
     fwrite(STDERR, "FAIL: {$message}\n");
     exit(1);
 }
