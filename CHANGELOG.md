@@ -1,5 +1,14 @@
 # Changelog
 
+## saas-v1.1.2 - 2026-08-11
+
+Nginx / 宝塔 SaaS 路由兼容性修复。
+
+- 修复 `nginx-security.conf.example` 中含 `{2,31}` 量词的 `rewrite` 正则未加引号，导致部分/常见 Nginx 版本报 `directive "rewrite" is not terminated by ";"` 的问题。
+- 四条 SaaS rewrite 正则统一使用双引号包裹；已在 Nginx 1.26.3 中实际执行 `nginx -t` 验证通过。
+- GitHub CI 新增真实 Nginx 配置语法检查，今后 `main` / `saas` 的 Nginx 示例文件必须通过 `nginx -t` 才能绿灯。
+- README 补充宝塔伪静态的逐步粘贴方式与 saas-v1.1.1 的第 63 行报错处理说明。
+
 ## saas-v1.1.1 - 2026-08-11
 
 在线升级维护补丁。
