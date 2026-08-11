@@ -1,0 +1,95 @@
+name: Publish Updater Patch And E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-updater-patch-and-e2e.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      MAIN_SHA: 9aea3e4b8c80dcb01dc769cf923dbf9649f17d9a
+      SAAS_SHA: 0743e0a45f108e4e4e5a1004446575247067eb9a
+      MAIN_TAG: v1.2.1
+      SAAS_TAG: saas-v1.1.1
+    steps:
+      - name: Install runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y php-cli php-curl php-zip >/dev/null
+
+      - name: Create exact tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ensure_tag() {
+            local tag="$1" sha="$2" existing=""
+            if existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha' 2>/dev/null)"; then
+              test "$existing" = "$sha"
+            else
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${tag}" -f sha="$sha" >/dev/null
+            fi
+          }
+          ensure_tag "$MAIN_TAG" "$MAIN_SHA"
+          ensure_tag "$SAAS_TAG" "$SAAS_SHA"
+
+      - name: Publish patch releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$MAIN_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$MAIN_TAG" --repo "$GITHUB_REPOSITORY" --target "$MAIN_SHA" --title "AppDown v1.2.1" --notes $'AppDown v1.2.1 — Online Updater Maintenance\n\n- 将在线升级运行时备份、缓存、安装清单和锁文件加入 .gitignore。\n- 运行逻辑与 v1.2.0 一致。\n- 发布流程会实际执行 v1.2.0 → v1.2.1 在线升级，并验证 data/ 与 uploads/ 保持不变。'
+          fi
+          if ! gh release view "$SAAS_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$SAAS_TAG" --repo "$GITHUB_REPOSITORY" --target "$SAAS_SHA" --title "AppDown SaaS v1.1.1" --notes $'AppDown SaaS v1.1.1 — Online Updater Maintenance\n\n- 将在线升级运行时备份、缓存、安装清单和锁文件加入 .gitignore。\n- SaaS 运行逻辑与 saas-v1.1.0 一致。\n- 发布流程会实际执行 saas-v1.1.0 → saas-v1.1.1 在线升级，并验证中央/租户 data 与 uploads 保持不变。'
+          fi
+
+      - name: Clone previous releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v1.2.0 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" main-old
+          git clone --depth 1 --branch saas-v1.1.0 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" saas-old
+
+      - name: Perform real main online update
+        working-directory: main-old
+        run: |
+          set -euo pipefail
+          mkdir -p data uploads
+          printf 'KEEP_MAIN_DB' > data/app.db
+          printf 'KEEP_MAIN_UPLOAD' > uploads/e2e-keep.bin
+          php -r 'require "includes/updater.php"; $r=updater_check_release(true); if (($r["tag"]??"")!=="v1.2.1") { fwrite(STDERR,json_encode($r)); exit(1); } $x=updater_perform($r); echo json_encode($x),"\n";'
+          php -r 'require "includes/version.php"; if (APPDOWN_VERSION!=="1.2.1") exit(1); echo "main updated version passed\n";'
+          test "$(cat data/app.db)" = 'KEEP_MAIN_DB'
+          test "$(cat uploads/e2e-keep.bin)" = 'KEEP_MAIN_UPLOAD'
+          test -f data/update-installed-manifest.json
+          find data/update-backups -type f -name '*.zip' | grep -q .
+          echo 'main live online apply passed'
+
+      - name: Perform real SaaS online update
+        working-directory: saas-old
+        run: |
+          set -euo pipefail
+          mkdir -p data/tenants/e2e uploads/tenants/e2e
+          printf 'KEEP_SAAS_CONTROL' > data/saas.db
+          printf 'KEEP_TENANT_DB' > data/tenants/e2e/app.db
+          printf 'KEEP_TENANT_KEY' > data/tenants/e2e/.secret.key
+          printf 'KEEP_TENANT_UPLOAD' > uploads/tenants/e2e/keep.bin
+          php -r 'require "includes/updater.php"; $r=updater_check_release(true); if (($r["tag"]??"")!=="saas-v1.1.1") { fwrite(STDERR,json_encode($r)); exit(1); } $x=updater_perform($r); echo json_encode($x),"\n";'
+          php -r 'require "includes/version.php"; if (APPDOWN_VERSION!=="1.1.1") exit(1); echo "saas updated version passed\n";'
+          test "$(cat data/saas.db)" = 'KEEP_SAAS_CONTROL'
+          test "$(cat data/tenants/e2e/app.db)" = 'KEEP_TENANT_DB'
+          test "$(cat data/tenants/e2e/.secret.key)" = 'KEEP_TENANT_KEY'
+          test "$(cat uploads/tenants/e2e/keep.bin)" = 'KEEP_TENANT_UPLOAD'
+          test -f data/update-installed-manifest.json
+          find data/update-backups -type f -name '*.zip' | grep -q .
+          echo 'saas live online apply passed'
