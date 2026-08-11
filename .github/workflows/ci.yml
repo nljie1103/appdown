@@ -1,5 +1,5 @@
 name: AppDown CI
-# Final main Admin 2.0 / Landing Templates 2.0 feature-parity validation gate.
+# Final complete Admin 2.0 legacy-parity and Landing Templates 2.0 validation gate.
 
 on:
   push:
