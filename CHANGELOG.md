@@ -1,5 +1,20 @@
 # Changelog
 
+## saas-v1.1.0 - 2026-08-11
+
+新增由超级管理员控制的平台在线升级能力。
+
+### Online Update
+
+- 新增 `/super/update.php`，只有超级管理员可以更新整个平台。
+- SaaS 只识别 `saas-vX.Y.Z` 正式 Release，绝不会把单用户 `vX.Y.Z` 当成更新。
+- 升级前自动备份平台程序代码，保留 `data/saas.db`、`data/tenants/`、租户主密钥、所有租户上传文件和安装锁。
+- Release ZIP 校验 edition/version、路径穿越、符号链接、数量、大小与异常压缩比。
+- 使用同目录临时文件 + rename 覆盖代码，失败时尝试自动回滚。
+- 新增安装清单，后续升级可安全删除新 Release 已移除的旧程序文件。
+- 新增 `tests/smoke_updater.php`，离线验证 SaaS Release 过滤、数据保护和 ZIP 安全。
+- README 与 GitHub CI 同步更新。
+
 ## saas-v1.0.1 - 2026-08-11
 
 测试与文档补丁版本，不改变 SaaS 运行时业务逻辑。
@@ -107,7 +122,7 @@ AppDown 首个多租户版本。保留 PHP + SQLite + 原生前端架构，在�
 - APK/IPA 上传增加真实 ZIP/包结构检查，图片增加 MIME/可解析性检查，证书与 Keystore 设置独立大小限制。
 - Keystore 导入增加 PKCS#12 / keytool 实际解析验证。
 - 备份升级为 v3：AES-256-GCM + Argon2id/PBKDF2 KDF，文件头记录 KDF，继续兼容旧备份。
-- 加入 ZIP 路径遍历、文件数量、单文件大小、总解压大小和异常压缩比检查。
+- 加入 ZIP 路径穿越、文件数量、单文件大小、总解压大小和异常压缩比检查。
 - ZIP 恢复改为流式复制，避免单个文件整体载入内存。
 - 应用备份自动包含 APK/IPA/Mobileconfig 历史；有密码备份可跨服务器迁移签名材料，无密码备份主动排除私钥。
 

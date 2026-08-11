@@ -77,7 +77,7 @@ function fmt_bytes(int $bytes): string {
 </style></head><body>
 <header class="top"><div class="brand">AppDown SaaS · Super</div><div><span style="color:#94a3b8;margin-right:15px"><?=htmlspecialchars($_SESSION['super_user'] ?? '')?></span><a href="/super/logout.php">退出</a></div></header>
 <main class="wrap">
-<div class="head"><div><h1>租户管理</h1><div class="muted">一个租户对应一个独立分发页、SQLite 数据库和上传目录。</div></div><a class="btn dark" href="/" target="_blank">查看平台首页</a></div>
+<div class="head"><div><h1>租户管理</h1><div class="muted">一个租户对应一个独立分发页、SQLite 数据库和上传目录。</div></div><div class="actions"><a class="btn soft" href="/super/update.php">在线升级</a><a class="btn dark" href="/" target="_blank">查看平台首页</a></div></div>
 <?php if($message):?><div class="notice ok"><?=htmlspecialchars($message)?></div><?php endif;?>
 <?php if($error):?><div class="notice err"><?=htmlspecialchars($error)?></div><?php endif;?>
 <section class="stats"><div class="stat"><span class="muted">全部租户</span><strong><?=$total?></strong></div><div class="stat"><span class="muted">正常</span><strong><?=$active?></strong></div><div class="stat"><span class="muted">已停用</span><strong><?=$disabled?></strong></div></section>

@@ -379,7 +379,31 @@ GitHub CI 另外使用 PHP 8.0 Docker 对全仓 PHP 做最低版本语法检查�
 
 > SaaS 分支中的 `tests/smoke_templates.php` 会自动委托给 `tests/smoke_saas.php`，避免在没有租户上下文时公共配置 API 提前退出却返回状态码 0 的假阳性。
 >
-> `saas-v1.0.1` 还在独立 PHP 8.4.23 容器中使用离线提供的 `pdo_sqlite` / `sqlite3` / `zip` / `mbstring` / `curl` / `gd` 扩展，对正式 Release 源码重新执行了原仓库测试；单用户 `v1.1.0` 的模板 smoke test 与 SaaS 的双租户 + ZipArchive smoke test均真实通过。
+> 开发验证还在独立 PHP 8.4.23 容器中使用离线提供的 `pdo_sqlite` / `sqlite3` / `zip` / `mbstring` / `curl` / `gd` 扩展，对正式 Release 源码重新执行了原仓库测试。
+
+
+## 🔄 超级后台在线升级
+
+从 SaaS v1.1.0 开始，平台升级入口只提供给超级管理员：
+
+```text
+/super/update.php
+```
+
+普通租户 `/admin` **没有升级整个平台的权限**。超级后台会自动同步官方 GitHub Release，并且 SaaS 只识别 `saas-vX.Y.Z`，不会误装单用户 `vX.Y.Z`。
+
+升级流程：
+
+1. 固定从 `nljie1103/appdown` 获取官方 Release。
+2. 校验 Release tag、edition/version、ZIP 路径、符号链接、文件数量和大小。
+3. 将当前平台程序文件备份到 `data/update-backups/`。
+4. 覆盖平台程序代码；`data/saas.db`、`data/tenants/`、所有租户 `.secret.key`、`uploads/tenants/` 和安装锁都不会被覆盖。
+5. 中途失败时尝试自动回滚代码。
+6. 后续版本可根据安装清单清理已经从新 Release 删除的旧程序文件，而不会把租户运行数据当成旧代码删除。
+
+在线升级需要 `ZipArchive`；推荐启用 `curl`。如 GitHub API 请求频率较高，可通过服务器环境变量 `APPDOWN_GITHUB_TOKEN` 提高 API 配额。
+
+> SaaS 的平台升级属于高权限操作，`/super` 仍建议放在 Cloudflare Access、VPN 或 IP 白名单后。
 
 ## 🛡 安全建议
 
@@ -396,9 +420,11 @@ GitHub CI 另外使用 PHP 8.0 Docker 对全仓 PHP 做最低版本语法检查�
 ```text
 index.php                       平台欢迎页
 tenant.php                      租户公开分发页路由器
-super/                          超级后台
+super/                          超级后台（含 update.php 平台在线升级）
 admin/                          租户后台
 includes/saas.php               SaaS 控制层 / 租户路径与账号
+includes/updater.php            GitHub Release 在线升级内核
+includes/version.php            SaaS 当前版本 / edition
 includes/db.php                 按租户数据库路径缓存 PDO
 includes/landing_templates.php  5 套公开页模板
 api/config.php                  租户公共配置
@@ -407,6 +433,7 @@ api/mobileconfig.php            租户 Mobileconfig
 nginx-security.conf.example     Nginx/宝塔安全 + SaaS rewrite
 .htaccess                       Apache 安全 + SaaS rewrite
 tests/smoke_saas.php            双租户 / ZipArchive 集成测试
+tests/smoke_updater.php         在线升级离线安全测试
 ```
 
 ## 🌿 分支

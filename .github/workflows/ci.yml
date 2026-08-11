@@ -20,17 +20,11 @@ jobs:
           curl -fsSL --retry 3 "https://github.com/${GITHUB_REPOSITORY}/archive/${GITHUB_SHA}.tar.gz" -o /tmp/appdown.tar.gz
           mkdir -p "$GITHUB_WORKSPACE/src"
           tar -xzf /tmp/appdown.tar.gz --strip-components=1 -C "$GITHUB_WORKSPACE/src"
-
       - name: PHP 8.0 syntax check
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE/src:/app" \
-            -w /app \
-            php:8.0-cli \
-            sh -lc 'find . -type f -name "*.php" -print0 | xargs -0 -n1 php -l'
-
+          docker run --rm -v "$GITHUB_WORKSPACE/src:/app" -w /app php:8.0-cli sh -lc 'find . -type f -name "*.php" -print0 | xargs -0 -n1 php -l'
       - name: Install runtime test extensions
         shell: bash
         run: |
@@ -40,14 +34,10 @@ jobs:
           php -m | grep -qi '^pdo_sqlite$'
           php -m | grep -qi '^zip$'
           php -m | grep -qi '^mbstring$'
-
       - name: Run edition integration smoke test
         shell: bash
         working-directory: src
         run: |
           set -euo pipefail
-          if [ -f tests/smoke_saas.php ]; then
-            php tests/smoke_saas.php
-          else
-            php tests/smoke_templates.php
-          fi
+          if [ -f tests/smoke_saas.php ]; then php tests/smoke_saas.php; else php tests/smoke_templates.php; fi
+          php tests/smoke_updater.php
