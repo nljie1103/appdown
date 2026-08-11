@@ -16,7 +16,8 @@ error(){ echo -e "${RED}[✗]${NC} $1"; }
 [ "$(id -u)" -eq 0 ] || { error "请使用 sudo 运行此脚本"; exit 1; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-[ -n "$IOS_SSH_KEY" ] || IOS_SSH_KEY="$PROJECT_DIR/data/ios_builder_ed25519"
+DEFAULT_SSH_KEY="$PROJECT_DIR/data/ios_builder_ed25519"
+[ -n "$IOS_SSH_KEY" ] || IOS_SSH_KEY="$DEFAULT_SSH_KEY"
 
 ARCH="$(uname -m | tr '[:upper:]' '[:lower:]')"
 if [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ]; then
@@ -104,6 +105,11 @@ for _ in $(seq 1 60); do
       mkdir -p "$(dirname "$IOS_SSH_KEY")"
       ssh-keygen -q -t ed25519 -N '' -f "$IOS_SSH_KEY"
       chmod 600 "$IOS_SSH_KEY"
+      chmod 644 "${IOS_SSH_KEY}.pub"
+      if [ "$IOS_SSH_KEY" = "$DEFAULT_SSH_KEY" ] && [ -d "$PROJECT_DIR/data" ]; then
+        DATA_OWNER="$(stat -c '%u:%g' "$PROJECT_DIR/data" 2>/dev/null || true)"
+        [ -z "$DATA_OWNER" ] || chown "$DATA_OWNER" "$IOS_SSH_KEY" "${IOS_SSH_KEY}.pub"
+      fi
     fi
     PUBKEY="$(cat "${IOS_SSH_KEY}.pub")"
     sshpass -p alpine ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 -p "$SSH_PORT" user@localhost \
