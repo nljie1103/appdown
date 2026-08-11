@@ -175,8 +175,9 @@ try {
 
     // Static guardrails for paths most likely to cause cross-tenant leaks.
     $checks = [
-        'tools/build-worker.php' => ["appdown_upload_dir() . '/apks'", 'APPDOWN_TENANT'],
-        'tools/ios-build-worker.php' => ["appdown_upload_dir() . '/ipas'", "'/data/ios-build/' . \$tenantSlug"],
+        'admin/api/generate.php' => ['APPDOWN_TENANT=', 'appdown_data_dir()'],
+        'tools/build-worker.php' => ["appdown_upload_dir() . '/apks'", '$tenantRoot = realpath(appdown_upload_dir())'],
+        'tools/ios-build-worker.php' => ["appdown_upload_dir() . '/ipas'", "'/data/ios-build/' . \$tenantSlug", '$tenantRoot = realpath(appdown_upload_dir())'],
         'admin/api/package-info.php' => ['appdown_upload_url_prefix()', 'realpath(appdown_upload_dir())'],
         'admin/api/backup.php' => ['tenant_slug', 'appdown_upload_dir()'],
         'admin/api/mobileconfig.php' => ["appdown_upload_dir() . '/mobileconfigs'"],
