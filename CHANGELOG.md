@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.2.0 - 2026-08-11
+
+新增官方 GitHub Release 在线升级功能。
+
+### Online Update
+
+- 后台新增 `/admin/update.php` 在线升级栏目。
+- 固定同步 `nljie1103/appdown`，单用户版只识别 `vX.Y.Z` 正式 Release。
+- 下载源码 ZIP 后校验 edition/version、路径穿越、符号链接、文件数量、单文件/总大小和异常压缩比。
+- 升级前自动备份程序文件到 `data/update-backups/`，失败时尝试自动回滚。
+- 明确保留 `data/` 运行数据、`uploads/` 用户文件、安装锁与服务器本地配置。
+- 引入安装文件清单，完成一次在线升级后可在后续版本安全清理已经从 Release 删除的旧程序文件。
+- 新增 `tests/smoke_updater.php`，离线验证版本线隔离、程序文件替换、运行数据保护和恶意 ZIP 拒绝。
+- README 与 CI 同步更新。
+
 ## v1.1.0 - 2026-08-11
 
 新增可视化“分发首页模板”系统，并建立最低 PHP 版本与集成冒烟测试。

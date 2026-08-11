@@ -295,6 +295,7 @@ appdown/
 │   └── track.php
 ├── admin/                           # 后台
 │   ├── templates.php                # 分发首页模板选择
+│   ├── update.php                   # GitHub Release 在线升级
 │   ├── apps.php
 │   ├── attachments.php
 │   ├── generate.php
@@ -302,6 +303,8 @@ appdown/
 │       └── templates.php            # 模板 API
 ├── includes/
 │   ├── landing_templates.php        # 首页模板目录与 CSS
+│   ├── updater.php                  # 在线升级内核
+│   ├── version.php                  # 当前版本 / edition
 │   ├── db.php
 │   ├── auth.php
 │   ├── security.php
@@ -320,29 +323,34 @@ appdown/
 └── CHANGELOG.md
 ```
 
-## 🔄 更新
+## 🔄 在线升级
 
-Git 部署：
+从 v1.2.0 开始，单用户版后台新增：
+
+```text
+/admin/update.php
+```
+
+进入“在线升级”后会自动读取官方 GitHub 仓库 `nljie1103/appdown` 的最新正式 Release。单用户版只识别 `vX.Y.Z`，不会误装 `saas-vX.Y.Z`。
+
+点击升级时系统会：
+
+1. 从固定 GitHub 仓库下载对应 tag 的源码 ZIP。
+2. 校验 ZIP 路径、符号链接、文件数量、大小以及 `edition/version`。
+3. 自动把即将覆盖/删除的程序文件备份到 `data/update-backups/`。
+4. 原子覆盖程序文件，并保留 `data/` 运行数据、`uploads/` 用户文件、`install/install.lock` 和服务器本地配置。
+5. 如果升级中途失败，自动尝试恢复代码备份。
+6. 记录已安装程序文件清单，后续升级可以安全清理已经从 Release 删除的旧程序文件。
+
+在线升级要求 PHP `ZipArchive`；推荐同时启用 `curl`。公开仓库无需 GitHub Token，如频繁检查遇到 GitHub API 限流，可在服务器环境变量设置 `APPDOWN_GITHUB_TOKEN`，该值不会显示到后台。
+
+仍然支持 Git 部署：
 
 ```bash
 git pull
 ```
 
-更新后：
-
-1. 查看 `UPGRADE.md`
-2. 比较新的 `nginx-security.conf.example`
-3. 重新执行 `nginx -t`
-4. 打开后台确认数据库迁移正常
-5. 测试首页、一次 APK/IPA 上传和备份预览
-
-不要删除已有：
-
-```text
-data/
-uploads/
-install/install.lock
-```
+无论使用哪种更新方式，生产环境仍建议先做站点/服务器完整备份，并在升级后检查 `UPGRADE.md`、`nginx-security.conf.example`、首页、APK/IPA 上传与备份。
 
 ## 🌿 分支说明
 

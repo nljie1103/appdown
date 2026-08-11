@@ -22,6 +22,7 @@ function admin_header(string $title, string $currentPage = ''): void {
         ['code',      '自定义代码', 'fas fa-code', '/admin/custom-code.php'],
         ['system',    '系统信息', 'fas fa-server', '/admin/system.php'],
         ['backup',    '导入导出', 'fas fa-exchange-alt', '/admin/backup.php'],
+        ['update',    '在线升级', 'fas fa-cloud-download-alt', '/admin/update.php'],
         ['account',   '账户管理', 'fas fa-user-cog', '/admin/account.php'],
     ];
 ?>
