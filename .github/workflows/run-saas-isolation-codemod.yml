@@ -1,0 +1,40 @@
+name: Run SaaS Isolation Patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-saas-isolation-codemod.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-saas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone SaaS branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch saas "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+
+      - name: Apply asserted patch
+        working-directory: repo
+        run: python3 tools/saas-isolation-codemod.py
+
+      - name: PHP syntax check
+        working-directory: repo
+        run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Commit SaaS patch
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          git config user.name "Jay Leon"
+          git config user.email "59471244+nljie1103@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "fix(saas): isolate tenant generated files and backups"
+          git push origin saas
