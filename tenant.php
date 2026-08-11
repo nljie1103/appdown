@@ -17,7 +17,9 @@ $html = (string)file_get_contents($templateFile);
 $prefix = '/' . rawurlencode($slug);
 
 // 静态公共资源必须从根目录加载；租户 URL 下不能使用相对 static/。
+// CSS 使用 href，JS / 图片等使用 src，因此两种属性都需要覆盖。
 $html = str_replace('href="static/', 'href="/static/', $html);
+$html = str_replace('src="static/', 'src="/static/', $html);
 $html = str_replace("fetch('/api/config.php')", "fetch('{$prefix}/api/config.php')", $html);
 $html = str_replace("'/api/track.php'", "'{$prefix}/api/track.php'", $html);
 $html = str_replace('href="privacy.php"', 'href="' . $prefix . '/privacy.php"', $html);
