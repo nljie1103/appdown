@@ -7,7 +7,6 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-require_once $root . '/includes/landing_templates.php';
 
 function fail_test(string $message): void {
     fwrite(STDERR, "FAIL: {$message}\n");
@@ -16,18 +15,6 @@ function fail_test(string $message): void {
 
 function assert_test(bool $condition, string $message): void {
     if (!$condition) fail_test($message);
-}
-
-$catalog = landing_template_catalog();
-$expected = ['classic', 'glass', 'minimal', 'midnight', 'aurora'];
-assert_test(array_keys($catalog) === $expected, 'template catalog keys changed unexpectedly');
-assert_test(normalize_landing_template('unknown') === 'classic', 'unknown template must fall back to classic');
-assert_test(landing_template_css('classic') === '', 'classic template should not override the original page CSS');
-
-foreach (['glass', 'minimal', 'midnight', 'aurora'] as $name) {
-    $css = landing_template_css($name);
-    assert_test(strlen($css) > 100, "{$name} CSS is unexpectedly empty");
-    assert_test(str_contains($css, 'body'), "{$name} CSS should style the page body");
 }
 
 // Minimal integration coverage for api/config.php.
@@ -58,9 +45,24 @@ foreach ($copyItems as $item) {
 mkdir($tmpRoot . '/data', 0700, true);
 file_put_contents($tmpRoot . '/install/install.lock', "template-smoke\n");
 
-// db.php's relative data path naturally points at the copied temporary root.
+// Load all tested helpers from the temporary copy once, so api/config.php later
+// hits require_once instead of redeclaring functions from a second path.
+require_once $tmpRoot . '/includes/landing_templates.php';
 require_once $tmpRoot . '/includes/db.php';
 require_once $tmpRoot . '/includes/helpers.php';
+
+$catalog = landing_template_catalog();
+$expected = ['classic', 'glass', 'minimal', 'midnight', 'aurora'];
+assert_test(array_keys($catalog) === $expected, 'template catalog keys changed unexpectedly');
+assert_test(normalize_landing_template('unknown') === 'classic', 'unknown template must fall back to classic');
+assert_test(landing_template_css('classic') === '', 'classic template should not override the original page CSS');
+
+foreach (['glass', 'minimal', 'midnight', 'aurora'] as $name) {
+    $css = landing_template_css($name);
+    assert_test(strlen($css) > 100, "{$name} CSS is unexpectedly empty");
+    assert_test(str_contains($css, 'body'), "{$name} CSS should style the page body");
+}
+
 $pdo = get_db();
 set_setting($pdo, 'landing_template', 'midnight');
 set_setting($pdo, 'site_title', 'Template Smoke');
