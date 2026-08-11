@@ -1,5 +1,62 @@
 # Changelog
 
+## saas-v1.0.0 - 2026-08-11
+
+AppDown 首个多租户版本。保留 PHP + SQLite + 原生前端架构，在单用户版之上加入中央控制平面、独立租户分发站和完整文件/密钥隔离。
+
+### Multi-tenant
+
+- 根目录 `/` 改为平台欢迎页，不再直接显示某一个分发站。
+- 新增 `/super` 超级后台，可创建、停用/启用、修改显示名、重置密码和永久删除租户。
+- 每个租户拥有 `/<用户名>/` 独立公开分发页。
+- `/<用户名>/admin` 提供租户后台登录便捷入口，实际后台代码继续复用 `/admin`。
+- 租户用户名全局唯一，并保护 `admin`、`super`、`api`、`install`、`static` 等系统保留路径。
+
+### Isolation
+
+- 中央 `data/saas.db` 仅保存超级管理员与租户账号。
+- 每个租户使用 `data/tenants/<slug>/app.db` 独立 SQLite 数据库。
+- 每个租户使用独立 `data/tenants/<slug>/.secret.key` 加密签名密码和私钥。
+- 上传文件隔离到 `uploads/tenants/<slug>/`。
+- APK/IPA Worker 通过 `APPDOWN_TENANT=<slug>` 固定租户上下文。
+- Builder 的图标/启动图读取限制在当前租户 uploads 根目录。
+- Keystore、Mobileconfig、图片库、附件重命名、包解析、维护、孤儿文件扫描均改为租户路径。
+- 租户证书解析不再允许读取其他租户目录或服务器任意 `/etc/ssl` 文件。
+
+### Public routing
+
+- Apache `.htaccess` 新增 SaaS rewrite 与嵌套租户 Secrets 防护。
+- `nginx-security.conf.example` 新增 Nginx/宝塔 SaaS rewrite。
+- 新增租户级 `config`、`track`、`plist`、`mobileconfig` 公共路由。
+- 租户 `privacy.php` / `terms.php` 返回对应租户首页。
+- `/index.html` 不再作为 SaaS 根首页使用。
+
+### Landing Templates
+
+- SaaS 继承单用户版 5 套公开分发首页模板：经典、玻璃拟态、极简白、午夜深色、极光渐变。
+- 每个租户可独立选择模板。
+- 用户自定义 Head CSS 继续在模板 CSS 后加载，拥有覆盖权。
+
+### Backup
+
+- 租户导出只打包当前租户数据与上传目录。
+- SaaS 租户备份不包含中央超级管理员或租户登录密码。
+- 备份元数据记录源租户 slug；恢复到另一个用户名时自动重写租户本地文件路径。
+- 完整加密备份继续使用 AES-256-GCM + Argon2id/PBKDF2。
+
+### Validation
+
+- 新增 `tests/smoke_saas.php` 双租户集成测试。
+- 真实创建两个租户、两个 SQLite、两套 `.secret.key` 并验证数据不串库。
+- 验证一个租户不能使用自己的主密钥解密另一个租户的密文。
+- 在 GitHub Ubuntu Runner 安装系统 `php-zip`，使用真实 `ZipArchive` 现场创建并验证 APK、IPA 和路径遍历恶意 ZIP fixture。
+- PHP 8.0 全仓语法检查通过。
+
+### Upgrade note
+
+- SaaS 版建议全新/独立部署。
+- 当前不提供正在运行的 `main` 单用户实例到 `saas` 的自动原地迁移器；不要直接在生产目录切分支覆盖。
+
 ## v1.1.0 - 2026-08-11
 
 新增可视化“分发首页模板”系统，并建立最低 PHP 版本与集成冒烟测试。
