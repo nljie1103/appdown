@@ -30,6 +30,12 @@ foreach (['pdo_sqlite', 'openssl', 'mbstring'] as $ext) {
 }
 saas_assert(class_exists('ZipArchive'), 'ZipArchive extension missing');
 
+$catalog = landing_template_catalog();
+saas_assert(array_keys($catalog) === ['classic','glass','minimal','midnight','aurora','store','bento','split','mobile'], 'SaaS template 2.0 catalog mismatch');
+saas_assert(landing_template_layout('midnight') === 'console', 'SaaS midnight structural layout missing');
+saas_assert(is_file($root . '/static/landing-layouts.js'), 'SaaS structural landing JS missing');
+saas_assert(is_file($root . '/static/landing-layouts.css'), 'SaaS structural landing CSS missing');
+
 $suffix = strtolower(substr(bin2hex(random_bytes(4)), 0, 8));
 $alpha = 'alpha_' . $suffix;
 $beta = 'beta_' . $suffix;
@@ -37,12 +43,10 @@ $lockPath = $root . '/install/install.lock';
 $createdLock = false;
 
 try {
-    // Slug rules and system routes.
     saas_assert(validate_tenant_slug('admin')['ok'] === false, 'reserved slug admin must be rejected');
     saas_assert(validate_tenant_slug('super')['ok'] === false, 'reserved slug super must be rejected');
     saas_assert(validate_tenant_slug($alpha)['ok'] === true, 'valid tenant slug rejected');
 
-    // Create two truly independent tenants.
     $a = create_tenant($alpha, 'Alpha Test', 'alpha-password-123');
     $b = create_tenant($beta, 'Beta Test', 'beta-password-123');
     saas_assert(($a['ok'] ?? false) === true, 'failed to create alpha tenant');
@@ -52,7 +56,6 @@ try {
     saas_assert(is_file(tenant_db_path($alpha)), 'alpha SQLite database was not created');
     saas_assert(is_file(tenant_db_path($beta)), 'beta SQLite database was not created');
 
-    // Store intentionally different data in each SQLite database.
     $alphaTenant = find_tenant($alpha, true);
     $betaTenant = find_tenant($beta, true);
     saas_assert(is_array($alphaTenant) && is_array($betaTenant), 'tenant registry lookup failed');
@@ -81,31 +84,18 @@ try {
     saas_assert($betaDb->query("SELECT name FROM apps WHERE slug='beta-app'")->fetchColumn() === 'Beta App', 'beta app missing from beta DB');
     saas_assert($betaDb->query("SELECT COUNT(*) FROM apps WHERE slug='alpha-app'")->fetchColumn() == 0, 'alpha app leaked into beta DB');
 
-    // Secrets must be bound to the tenant master key.
     saas_assert(decrypt_secret($betaCipher) === 'beta-secret', 'beta secret decrypt failed');
     $crossRejected = false;
-    try {
-        decrypt_secret($alphaCipher);
-    } catch (RuntimeException $e) {
-        $crossRejected = true;
-    }
+    try { decrypt_secret($alphaCipher); } catch (RuntimeException $e) { $crossRejected = true; }
     saas_assert($crossRejected, 'beta tenant unexpectedly decrypted alpha ciphertext');
 
     set_current_tenant($alphaTenant);
     saas_assert(decrypt_secret($alphaCipher) === 'alpha-secret', 'alpha secret decrypt failed');
-    saas_assert(
-        tenant_absolute_asset_url('uploads/apps/demo.apk', $alpha) === '/uploads/tenants/' . $alpha . '/apps/demo.apk',
-        'legacy upload path was not mapped into alpha tenant'
-    );
-    saas_assert(
-        tenant_absolute_asset_url('uploads/tenants/' . $beta . '/apps/demo.apk', $alpha) === '/uploads/tenants/' . $beta . '/apps/demo.apk',
-        'already scoped path should remain stable for stored URLs'
-    );
+    saas_assert(tenant_absolute_asset_url('uploads/apps/demo.apk', $alpha) === '/uploads/tenants/' . $alpha . '/apps/demo.apk', 'legacy upload path was not mapped into alpha tenant');
+    saas_assert(tenant_absolute_asset_url('uploads/tenants/' . $beta . '/apps/demo.apk', $alpha) === '/uploads/tenants/' . $beta . '/apps/demo.apk', 'already scoped path should remain stable for stored URLs');
 
-    // Real ZipArchive APK/IPA structure checks.
     $tmpDir = sys_get_temp_dir() . '/appdown-saas-zip-' . $suffix;
     mkdir($tmpDir, 0700, true);
-
     $apk = $tmpDir . '/valid.apk';
     $zip = new ZipArchive();
     saas_assert($zip->open($apk, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 'failed to create APK fixture');
@@ -115,65 +105,48 @@ try {
     saas_assert(validate_app_archive($apk, 'apk')['ok'] === true, 'valid APK fixture rejected');
 
     $badApk = $tmpDir . '/invalid.apk';
-    $zip = new ZipArchive();
-    $zip->open($badApk, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-    $zip->addFromString('classes.dex', 'dex');
-    $zip->close();
+    $zip = new ZipArchive(); $zip->open($badApk, ZipArchive::CREATE | ZipArchive::OVERWRITE); $zip->addFromString('classes.dex', 'dex'); $zip->close();
     saas_assert(validate_app_archive($badApk, 'apk')['ok'] === false, 'invalid APK fixture accepted');
 
     $ipa = $tmpDir . '/valid.ipa';
-    $zip = new ZipArchive();
-    $zip->open($ipa, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-    $zip->addFromString('Payload/Test.app/Info.plist', '<plist/>');
-    $zip->addFromString('Payload/Test.app/Test', 'binary');
-    $zip->close();
+    $zip = new ZipArchive(); $zip->open($ipa, ZipArchive::CREATE | ZipArchive::OVERWRITE); $zip->addFromString('Payload/Test.app/Info.plist', '<plist/>'); $zip->addFromString('Payload/Test.app/Test', 'binary'); $zip->close();
     saas_assert(validate_app_archive($ipa, 'ipa')['ok'] === true, 'valid IPA fixture rejected');
 
     $evilZip = $tmpDir . '/evil.zip';
-    $zip = new ZipArchive();
-    $zip->open($evilZip, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-    $zip->addFromString('../outside.txt', 'nope');
-    $zip->close();
-    $zip = new ZipArchive();
-    $zip->open($evilZip);
-    $safe = validate_zip_safety($zip);
-    $zip->close();
+    $zip = new ZipArchive(); $zip->open($evilZip, ZipArchive::CREATE | ZipArchive::OVERWRITE); $zip->addFromString('../outside.txt', 'nope'); $zip->close();
+    $zip = new ZipArchive(); $zip->open($evilZip); $safe = validate_zip_safety($zip); $zip->close();
     saas_assert($safe['ok'] === false, 'ZIP path traversal fixture accepted');
 
-    // Public config and tenant renderer integration.
-    if (!file_exists($lockPath)) {
-        file_put_contents($lockPath, "saas-smoke\n");
-        $createdLock = true;
-    }
+    if (!file_exists($lockPath)) { file_put_contents($lockPath, "saas-smoke\n"); $createdLock = true; }
     set_current_tenant($alphaTenant);
     set_setting($alphaDb, 'landing_template', 'midnight');
-    $alphaDb->prepare("UPDATE custom_code SET code=? WHERE position='head_css'")
-        ->execute(['.alpha-user-css{display:block;}']);
+    $alphaDb->prepare("UPDATE custom_code SET code=? WHERE position='head_css'")->execute(['.alpha-user-css{display:block;}']);
     clear_config_cache();
     $_SERVER['REQUEST_METHOD'] = 'GET';
     $_SERVER['HTTPS'] = 'on';
     $_SERVER['HTTP_HOST'] = 'appdown.test';
     $_GET['tenant'] = $alpha;
 
-    ob_start();
-    include $root . '/api/config.php';
-    $configJson = ob_get_clean();
+    ob_start(); include $root . '/api/config.php'; $configJson = ob_get_clean();
     $config = json_decode((string)$configJson, true);
     saas_assert(is_array($config), 'tenant config API returned invalid JSON');
     saas_assert(($config['tenant']['slug'] ?? '') === $alpha, 'config API resolved wrong tenant');
     saas_assert(count($config['apps'] ?? []) === 1 && ($config['apps'][0]['name'] ?? '') === 'Alpha App', 'config API leaked/wrong app data');
+    saas_assert(($config['site']['landing_template'] ?? '') === 'midnight', 'tenant template selection missing');
+    saas_assert(($config['site']['landing_layout'] ?? '') === 'console', 'tenant structural layout missing');
     $headCss = (string)($config['custom_code']['head_css'] ?? '');
-    saas_assert(strpos($headCss, 'body{background:#070a12') !== false, 'tenant landing template CSS missing');
-    saas_assert(strpos($headCss, '.alpha-user-css') > strpos($headCss, 'body{background:#070a12'), 'tenant custom CSS no longer overrides template');
+    $templatePos = strpos($headCss, 'body{--adl-accent:#60a5fa');
+    $userPos = strpos($headCss, '.alpha-user-css');
+    saas_assert($templatePos !== false, 'tenant landing theme CSS missing');
+    saas_assert($userPos !== false && $templatePos < $userPos, 'tenant custom CSS no longer overrides template');
 
-    ob_start();
-    include $root . '/tenant.php';
-    $tenantHtml = ob_get_clean();
+    ob_start(); include $root . '/tenant.php'; $tenantHtml = ob_get_clean();
     saas_assert(strpos($tenantHtml, "fetch('/{$alpha}/api/config.php')") !== false, 'tenant renderer did not rewrite config API');
     saas_assert(strpos($tenantHtml, "'/{$alpha}/api/track.php'") !== false, 'tenant renderer did not rewrite tracking API');
-    saas_assert(strpos($tenantHtml, 'href="/static/') !== false, 'tenant renderer did not root static assets');
+    saas_assert(strpos($tenantHtml, 'href="/static/') !== false, 'tenant renderer did not root stylesheet assets');
+    saas_assert(strpos($tenantHtml, 'src="/static/landing-layouts.js"') !== false, 'tenant renderer did not root structural layout JS');
+    saas_assert(strpos($tenantHtml, 'AppDownLandingLayouts?.apply') !== false, 'tenant page did not activate structural layout engine');
 
-    // Static guardrails for paths most likely to cause cross-tenant leaks.
     $checks = [
         'admin/api/generate.php' => ['APPDOWN_TENANT=', 'appdown_data_dir()'],
         'tools/build-worker.php' => ["appdown_upload_dir() . '/apks'", '$tenantRoot = realpath(appdown_upload_dir())'],
@@ -187,14 +160,13 @@ try {
         foreach ($needles as $needle) saas_assert(strpos($source, $needle) !== false, "isolation marker missing in {$file}: {$needle}");
     }
 
-    fwrite(STDOUT, "SaaS tenant isolation + ZipArchive integration smoke test passed.\n");
+    fwrite(STDOUT, "SaaS tenant isolation + Landing 2.0 + ZipArchive integration smoke test passed.\n");
 } finally {
     set_current_tenant(null);
     if (isset($alpha) && find_tenant($alpha, true)) delete_tenant_permanently($alpha);
     if (isset($beta) && find_tenant($beta, true)) delete_tenant_permanently($beta);
     if (isset($tmpDir) && is_dir($tmpDir)) remove_tree($tmpDir);
     if ($createdLock && file_exists($lockPath)) @unlink($lockPath);
-    // Remove central test DB when no tenants/super users remain.
     $controlPath = saas_control_db_path();
     if (file_exists($controlPath)) {
         try {
@@ -202,10 +174,7 @@ try {
             $tenantCount = (int)$c->query('SELECT COUNT(*) FROM tenants')->fetchColumn();
             $superCount = (int)$c->query('SELECT COUNT(*) FROM super_users')->fetchColumn();
             if ($tenantCount === 0 && $superCount === 0) {
-                unset($c);
-                @unlink($controlPath);
-                @unlink($controlPath . '-wal');
-                @unlink($controlPath . '-shm');
+                unset($c); @unlink($controlPath); @unlink($controlPath . '-wal'); @unlink($controlPath . '-shm');
             }
         } catch (Throwable $ignored) {}
     }
