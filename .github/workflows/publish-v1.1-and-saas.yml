@@ -1,0 +1,89 @@
+name: Publish AppDown v1.1 and SaaS v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v1.1-and-saas.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish releases and clean temporary branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MAIN_SHA: bb7a724a4a3a1a1e883d95dbf840566e4819451f
+          SAAS_SHA: 0e43ea9d5b414bce272aefd53e05a3c44efe3b72
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+
+          token = os.environ['GH_TOKEN']
+          repo = os.environ['REPO']
+          api = f'https://api.github.com/repos/{repo}'
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'appdown-release-workflow',
+          }
+
+          def request(method, url, data=None, allow=(200,201,204,404,422)):
+              body = None if data is None else json.dumps(data, ensure_ascii=False).encode()
+              req = urllib.request.Request(url, data=body, method=method, headers=headers)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      payload = r.read().decode()
+                      return r.status, json.loads(payload) if payload else None
+              except urllib.error.HTTPError as e:
+                  payload = e.read().decode()
+                  if e.code not in allow:
+                      raise RuntimeError(f'{method} {url}: {e.code} {payload}')
+                  try: parsed = json.loads(payload) if payload else None
+                  except Exception: parsed = payload
+                  return e.code, parsed
+
+          def release(tag, target, name, body):
+              status, _ = request('GET', f'{api}/releases/tags/{tag}')
+              if status == 200:
+                  print(f'Release {tag} already exists; keeping it.')
+                  return
+              status, payload = request('POST', f'{api}/releases', {
+                  'tag_name': tag,
+                  'target_commitish': target,
+                  'name': name,
+                  'body': body,
+                  'draft': False,
+                  'prerelease': False,
+              })
+              if status != 201:
+                  raise RuntimeError(f'Unable to create {tag}: {status} {payload}')
+              print(f'Created {tag}: {payload.get("html_url", "") }')
+
+          release(
+              'v1.1.0', os.environ['MAIN_SHA'], 'AppDown v1.1.0',
+              '''AppDown v1.1.0 — Landing Templates\n\n单用户 / 单分发站版本新增可切换的公开分发首页模板，同时保持 PHP + SQLite 的轻量架构。\n\n主要更新：\n- 新增 5 套分发首页模板：经典、玻璃拟态、极简白、午夜深色、极光渐变。\n- 新增后台“页面模板”可视化选择器。\n- 模板只改变下载首页视觉层，不改变应用、轮播、下载链接和 iOS/Android 安装页逻辑。\n- 用户自定义 Head CSS 保持最终覆盖权。\n- README / CHANGELOG 完整更新。\n- 新增 GitHub CI：PHP 8.0 全仓语法检查 + SQLite 模板配置集成测试。\n\n多租户版本请使用 saas 分支与 saas-v1.0.0 Release。'''
+          )
+
+          release(
+              'saas-v1.0.0', os.environ['SAAS_SHA'], 'AppDown SaaS v1.0.0',
+              '''AppDown SaaS v1.0.0 — Multi-tenant Edition\n\n在 AppDown 单用户版基础上新增真正的多租户分发能力。\n\n核心能力：\n- 根域名为平台欢迎页；/super 为超级后台。\n- 每个租户使用 /用户名/ 独立公开分发页。\n- 中央 data/saas.db 管理超级管理员与租户账号。\n- 每租户独立 SQLite、.secret.key 与 uploads/tenants/<slug>/ 文件空间。\n- APK/IPA Builder、Keystore、Mobileconfig、备份、包解析、维护均绑定租户上下文。\n- 每个租户可独立选择 5 套公开分发首页模板。\n- Apache 与 Nginx/宝塔均加入多租户 rewrite 和嵌套 Secrets 防护。\n- 租户备份不包含中央登录密码，并支持跨 slug 恢复时重写本地文件路径。\n\n验证：\n- PHP 8.0 全仓语法检查通过。\n- GitHub Ubuntu Runner 实际安装 pdo_sqlite、php-zip、mbstring。\n- 真实创建两个租户、两个 SQLite、两套主密钥并验证不串库/不能跨租户解密。\n- 使用真实 ZipArchive 现场生成并验证 APK、IPA 以及带 ../ 路径穿越的恶意 ZIP。\n\n重要：SaaS 版建议全新/独立部署，不要直接把正在运行的 main 单用户实例原地切换到 saas 分支。完整部署说明见 saas 分支 README。'''
+          )
+
+          for branch in [
+              'agent/landing-templates',
+              'agent/publish-v1.0.0',
+              'agent/security-quality-v1-v3',
+          ]:
+              status, payload = request('DELETE', f'{api}/git/refs/heads/{branch}')
+              if status in (204, 404):
+                  print(f'Cleaned {branch} ({status})')
+              else:
+                  raise RuntimeError(f'Failed to delete {branch}: {status} {payload}')
+          PY
