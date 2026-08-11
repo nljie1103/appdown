@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.1.0 - 2026-08-11
+
+新增可视化“分发首页模板”系统，并建立最低 PHP 版本与集成冒烟测试。
+
+### Landing Templates
+
+- 新增 5 套分发首页模板：经典、玻璃拟态、极简白、午夜深色、极光渐变。
+- 新增后台“页面模板”入口 `/admin/templates.php`，支持卡片预览与一键切换。
+- 模板只覆盖公开下载首页视觉层，不改变 iOS / Android 安装页模板、应用数据、下载链接和轮播逻辑。
+- 模板 CSS 通过现有配置 API / `custom_code.head_css` 注入，避免复制 `index.html` 渲染内核。
+- 用户自定义 Head CSS 永远排在内置模板 CSS 后面，继续拥有最终覆盖权。
+- 未设置或非法模板名自动回退到原有 `classic` 样式，旧站升级无需迁移。
+
+### Quality
+
+- 新增 `tests/smoke_templates.php`，验证模板目录、CSS、配置 API 注入及自定义 CSS 优先级。
+- 新增 GitHub Actions CI：使用 PHP 8.0 Docker 镜像执行全仓 PHP 语法检查，并在真实 SQLite / Zip 扩展环境中执行冒烟测试。
+- README 重整并补齐模板、Nginx、主密钥、备份、构建环境和 `main` / `saas` 分支说明。
+
 ## v1.0.0 - 2026-08-11
 
 首个正式 Release，集中完成个人自建分发场景下的安全与质量加固。
