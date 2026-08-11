@@ -1,362 +1,421 @@
 <p align="center">
+  <img src="https://img.shields.io/badge/Edition-SaaS-6D5DFB?style=flat-square" alt="SaaS Edition">
   <img src="https://img.shields.io/badge/PHP-8.0+-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.0+">
   <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/Framework-None-green?style=flat-square" alt="No Framework">
-  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT">
 </p>
 
-<h1 align="center">AppDown</h1>
-<p align="center"><strong>自托管 IPA / APK 分发站 · 全后台配置 · 可视化首页模板 · URL 封装应用</strong></p>
-<p align="center">PHP + SQLite + 原生 JavaScript/CSS，无 Composer / Node.js / MySQL 依赖</p>
+<h1 align="center">AppDown SaaS</h1>
+<p align="center"><strong>一个安装实例 · 多个独立 IPA / APK 分发站 · 超级后台统一管理</strong></p>
+<p align="center">仍然保持 PHP + SQLite + 原生 JavaScript/CSS，不引入 MySQL、Redis、Node.js 或 Composer</p>
 
 ---
 
-> 当前 `main` 分支是 **单站 / 个人自建版**。如果你需要一个安装实例承载多个独立用户、每个用户拥有自己的分发站，请使用仓库的 `saas` 分支（SaaS 分支 README 会单独说明其路由、超级后台和租户数据结构）。
+> 你现在看到的是 **`saas` 多租户分支**。如果只需要自己搭一个分发站，请使用 [`main`](../../tree/main) 单用户版。
 
-## ✨ 核心功能
+## SaaS 版是什么
 
-### 分发首页
+AppDown SaaS 在单用户版完整能力之上增加了租户层。平台根域名不再直接展示某一个人的应用，而是作为平台欢迎页；超级管理员创建租户后，每个租户获得自己独立的分发页面、后台数据、SQLite 数据库、上传目录与加密主密钥。
 
-- 多应用统一展示，每个应用可配置独立图标、主题色、下载按钮和轮播截图
-- 后台维护应用、下载链接、版本与附件，无需修改 HTML
-- 响应式手机 / 桌面布局
-- 微信、QQ、微博、抖音等应用内浏览器打开提示
-- 页面访问 / 下载点击统计
-- 自定义 Logo、Favicon、背景、字体、公告、特色卡片和友情链接
-- 自定义 CSS / JavaScript 与内置页面特效
+典型访问结构：
 
-### 🎨 分发首页模板
+```text
+https://appdown.com/                 平台欢迎页
+https://appdown.com/super/           超级后台
+https://appdown.com/admin/           租户统一后台登录
+https://appdown.com/leon/            leon 的公开分发页
+https://appdown.com/leon/admin       leon 后台登录便捷入口
+https://appdown.com/alice/           alice 的公开分发页
+```
 
-这里的“页面模板”指 **用户打开站点首页时看到的应用下载展示页**，不是 iOS plist、Mobileconfig 或 Android/iOS 安装引导模板。
+`/用户名/admin` 只是便捷入口，会进入共享的 `/admin` 后台代码；登录成功后 Session 固定绑定对应租户，不能通过 query 参数切换到别的租户。
 
-后台进入：
+## 🔐 多租户隔离方式
+
+AppDown SaaS 没有给原来几十张业务表机械地增加 `tenant_id`，而是利用项目本身低依赖、SQLite 的优势，让每个租户拥有独立数据库和文件空间。
+
+```text
+data/
+├── saas.db                         # 中央控制库：超级管理员、租户账号
+└── tenants/
+    ├── leon/
+    │   ├── app.db                  # leon 独立业务数据库
+    │   ├── .secret.key             # leon 独立 AES 主密钥
+    │   └── ...缓存/备份/日志
+    └── alice/
+        ├── app.db
+        └── .secret.key
+
+uploads/
+└── tenants/
+    ├── leon/
+    │   ├── images/
+    │   ├── apps/
+    │   ├── apks/
+    │   ├── ipas/
+    │   ├── mobileconfigs/
+    │   ├── certs/                  # 禁止公网访问
+    │   └── keystores/              # 禁止公网访问
+    └── alice/
+        └── ...
+```
+
+因此：
+
+- A 租户查询的是 A 自己的 SQLite，不会通过漏写 `WHERE tenant_id = ?` 读到 B 的业务表。
+- APK / IPA / 图片 / Mobileconfig / Keystore 均写入当前租户目录。
+- 每个租户拥有独立 `.secret.key`；正常情况下 B 租户不能解密 A 租户密文。
+- APK/IPA Builder 通过 `APPDOWN_TENANT=<slug>` 继承固定租户上下文。
+- 构建时图标、启动图等源文件只允许来自当前租户 uploads 目录。
+- 包信息解析、备份、维护、孤儿文件扫描均限制在当前租户目录。
+
+## 👑 超级后台 `/super`
+
+首次安装时创建的是 **超级管理员**，不是普通租户。
+
+超级后台支持：
+
+- 创建租户
+- 查看全部租户
+- 查看启用 / 停用状态
+- 修改租户显示名称
+- 重置租户密码
+- 停用 / 重新启用租户
+- 直接打开租户公开页
+- 进入租户登录页
+- 查看租户磁盘占用
+- 永久删除租户及其数据库、主密钥、上传文件
+
+永久删除要求再次输入完整租户用户名确认。
+
+### 用户名 / Slug 规则
+
+租户用户名同时是公开 URL，所以采用严格规则：
+
+```text
+3 - 32 位
+小写字母 a-z
+数字 0-9
+下划线 _
+短横线 -
+首字符必须是字母或数字
+```
+
+例如：
+
+```text
+leon
+company_01
+app-team
+```
+
+系统路径不能被注册成用户名，例如：
+
+```text
+admin
+super
+api
+install
+static
+uploads
+data
+tools
+ios
+android
+```
+
+当前版本**普通租户不能自己改用户名**。用户名同时涉及公开 URL、目录、缓存和数据路径，统一由超级管理员控制可以避免错误迁移。超级后台当前提供显示名称和密码管理；如果未来加入“改 slug”，应作为专门的数据迁移操作实现，而不是普通字段编辑。
+
+## 👤 租户后台 `/admin`
+
+每个租户继续拥有单用户版的大部分后台能力：
+
+- 应用管理
+- 下载按钮
+- 轮播截图
+- iOS plist
+- Mobileconfig
+- APK / IPA 文件与版本
+- 附件管理
+- APK / IPA WebView 封装
+- 特色卡片
+- 友情链接
+- 图片库
+- 字体
+- 背景与特效
+- 自定义 CSS / JavaScript
+- 页面统计
+- 备份 / 恢复
+- 账户密码
+- 分发首页模板
+
+租户自己的密码在 `/admin/account.php` 修改；修改后其他旧 Session 自动失效。
+
+## 🎨 每个租户独立选择分发首页模板
+
+这里的“页面模板”是公开下载页面的视觉风格，不是 Android/iOS 安装页模板。
+
+后台：
 
 ```text
 /admin/templates.php
 ```
 
-首批内置 5 套模板：
+内置 5 套：
 
 | 模板 | 风格 |
 |---|---|
-| 经典 | AppDown 原有清爽浅色渐变与圆角卡片 |
-| 玻璃拟态 | 半透明玻璃、柔光背景、悬浮层次 |
-| 极简白 | 大留白、细边框、内容优先 |
-| 午夜深色 | 深色背景、开发者风格、高亮按钮 |
-| 极光渐变 | 彩色渐变、品牌感更强的玻璃卡片 |
+| 经典 | AppDown 原始浅色渐变、圆角卡片 |
+| 玻璃拟态 | 透明玻璃、柔光、悬浮层次 |
+| 极简白 | 留白、细边框、内容优先 |
+| 午夜深色 | 深色开发者风格 |
+| 极光渐变 | 高饱和渐变与品牌感玻璃卡片 |
 
-模板系统只覆盖视觉层，继续复用同一份下载、轮播、统计和浏览器检测逻辑，因此切换模板不会改变应用数据或链接。
+模板只覆盖视觉层，所有模板共用同一套下载、轮播、统计和浏览器检测逻辑。用户自己的 Head CSS 排在模板 CSS 后面，仍可覆盖内置样式。
 
-如果后台还配置了“自定义代码 → Head CSS”，用户自己的 CSS 会排在模板 CSS 后面，可以继续覆盖内置模板。
+## 📱 IPA / APK 分发与封装
 
-### 📱 iOS 分发
+SaaS 分支继续保留：
 
-- 自动生成企业分发 plist
-- IPA / Bundle ID / 版本信息维护
-- Mobileconfig WebClip 描述文件生成
+- 企业 OTA plist 动态生成
+- IPA / Bundle ID / 版本维护
+- Mobileconfig WebClip
 - Mobileconfig SSL 签名
-- 全局 / 单应用证书
-- iOS 安装引导模板
-- 证书到期信息与 OCSP 检查
-
-### 🤖 APK 生成器
-
+- 租户独立证书与私钥
 - URL → Android WebView APK
-- 自定义应用名、图标、启动图、包名、版本号
-- 在线生成 / 导入 Keystore
-- 后台构建任务与进度
-- APK 生成记录与关联应用
-- JDK / Android SDK 自动检测
-
-### 🍎 IPA 生成器
-
 - URL → iOS WKWebView IPA
-- Docker-OSX + macOS + Xcode 构建路线
-- 自定义 Bundle ID、版本号、图标
-- 无签名构建模式
-- 后台构建任务与结果管理
+- Android Keystore 创建 / 导入
+- APK / IPA 构建任务与历史
+- APK / IPA 真实 ZIP 结构校验
 
-### 📎 附件与版本
+### Builder 隔离
 
-- 应用 → 平台 → 版本三级管理
-- APK / IPA 上传与结构校验
-- 安装包信息解析
-- 更新日志和历史版本
-- 图片库与图片分类
+构建环境（Android SDK / Gradle / Docker-OSX）可以共享，**业务数据不能共享**：
 
-### 🔒 安全与备份
+```text
+共享：JDK、Android SDK、Gradle cache、Docker-OSX/Xcode 环境
+独立：租户 SQLite、Keystore、证书、输入图片、APK/IPA 结果、构建日志
+```
 
-- CSRF
-- PDO 预处理语句
-- 登录防爆破
-- Session 超时与修改密码后的旧 Session 失效
-- Apache / Nginx 敏感目录保护
-- Android Keystore 密码 AES-256-GCM 存储
-- Mobileconfig 私钥 AES-256-GCM 存储
-- 私钥不回传浏览器
-- Gradle 构建命令行不携带签名密码
-- v3 加密备份（AES-256-GCM + Argon2id / PBKDF2 fallback）
-- ZIP 路径穿越 / ZIP Bomb / 异常压缩比限制
-- SQLite 自动备份与保留策略
-
-详细安全说明见 [`SECURITY.md`](SECURITY.md)，升级注意事项见 [`UPGRADE.md`](UPGRADE.md)。
-
-## 🛠 技术栈
-
-| 组件 | 技术 |
-|---|---|
-| 后端 | PHP 8.0+ |
-| 数据库 | SQLite |
-| 前端 | 原生 JavaScript + CSS |
-| 后台 | 自定义 UI + Chart.js |
-| 图标 | Font Awesome 7.1.0（本地） |
-| APK 构建 | OpenJDK 17 + Android SDK + Gradle 8.5 |
-| IPA 构建 | Docker-OSX + Xcode + KVM |
-
-## 🚀 安装
+## 🚀 全新安装
 
 ### 环境要求
 
-基础运行：
+基础：
 
 - PHP 8.0+
 - `pdo_sqlite`
 - `fileinfo`
 - Nginx 或 Apache
 
-推荐扩展：
+强烈推荐：
 
-- `zip`：APK/IPA 结构解析、导入导出
-- `openssl`：证书、Mobileconfig 签名、备份加密
-- `sodium`：优先使用 Argon2id 备份 KDF
-- `curl`：OCSP 查询
-- `gd`：图片转换和压缩
+- `openssl`
+- `zip` / `ZipArchive`
+- `mbstring`
+- `sodium`
+- `curl`
+- `gd`
 
-不需要：
-
-- MySQL
-- Composer
-- Node.js / npm
-- Redis
-
-### 部署代码
+Ubuntu / Debian 示例：
 
 ```bash
-cd /www/wwwroot/你的域名
-git clone https://github.com/nljie1103/appdown.git .
+sudo apt update
+sudo apt install php-cli php-sqlite3 php-zip php-mbstring php-curl php-gd
 ```
 
-或从 GitHub Release / Code → Download ZIP 下载后解压到网站根目录。
+### 拉取 SaaS 分支
 
-### 初始化
+```bash
+git clone -b saas https://github.com/nljie1103/appdown.git /www/wwwroot/appdown
+cd /www/wwwroot/appdown
+```
 
-访问：
+然后访问：
 
 ```text
 https://你的域名/install/
 ```
 
-安装程序会检测环境、初始化 SQLite、创建管理员和 `install.lock`。
-
-安装后后台：
+安装器只创建：
 
 ```text
-https://你的域名/admin/
+data/saas.db
+超级管理员
+install/install.lock
 ```
 
-## 🌐 Nginx / 宝塔配置
+安装成功后：
+
+```text
+https://你的域名/super/
+```
+
+在超级后台创建第一个租户。
+
+## ⚠️ 不要直接把正在运行的 `main` 单用户站切换成 `saas`
+
+当前 SaaS 版的安装模型、根路由、账号模型和数据路径都与单用户版不同。因此对已经投入使用的 `main` 实例，**不建议直接在原网站执行：**
+
+```bash
+git switch saas
+git pull
+```
+
+然后期望自动无损变成 SaaS。
+
+推荐路线：
+
+1. 保留现有单用户站及完整备份。
+2. 新域名 / 子域名 / 新目录部署 `saas` 分支。
+3. 初始化超级管理员。
+4. 创建目标租户。
+5. 将需要迁移的站点数据通过租户备份方式导入并检查文件路径。
+6. 完成测试后再切 DNS / 域名。
+
+在正式提供自动“main → SaaS”迁移器之前，不要把生产站当作原地升级测试环境。
+
+## 🌐 Nginx / 宝塔：必须配置 SaaS 路由
 
 **Nginx 不读取 `.htaccess`。**
 
-仓库提供：
+SaaS 分支的：
 
 ```text
 nginx-security.conf.example
 ```
 
-宝塔用户：
+已经包含多租户 rewrite 与嵌套 Secrets 防护。
+
+宝塔：
 
 ```text
 网站 → 设置 → 伪静态
 ```
 
-把该文件中的规则加入当前站点 `server {}` 范围内，然后执行：
+把该文件内容合并到当前站点 `server {}`，然后：
 
 ```bash
 nginx -t
 nginx -s reload
 ```
 
-规则会保护：
-
-- `/data/`
-- `/includes/`
-- `/tools/`
-- `/android-template/`
-- `/ios-template/`
-- `/uploads/certs/`
-- `/uploads/keystores/`
-- 安装锁 / 安装日志
-- `.key/.pem/.p12/.pfx/.jks/.keystore/.bks`
-- 上传目录中的 PHP 文件
-
-升级后建议直接测试：
+主要路由包括：
 
 ```text
-https://你的域名/data/app.db
-https://你的域名/uploads/certs/test.key
-https://你的域名/uploads/keystores/test.jks
-https://你的域名/tools/build-worker.php
+/<slug>/                              -> tenant.php
+/<slug>/api/config.php               -> /api/config.php?tenant=<slug>
+/<slug>/api/track.php                -> /api/track.php?tenant=<slug>
+/<slug>/api/plist.php                -> /api/plist.php?tenant=<slug>
+/<slug>/api/mobileconfig.php         -> /api/mobileconfig.php?tenant=<slug>
+/<slug>/admin                        -> /admin/login.php?tenant=<slug>
+/<slug>/privacy.php                  -> /privacy.php?tenant=<slug>
+/<slug>/terms.php                    -> /terms.php?tenant=<slug>
 ```
 
-均应返回 403 或 404。
-
-Apache 用户使用仓库根目录 `.htaccess`，并确保站点允许 `AllowOverride`。
-
-## 🔐 主密钥与迁移
-
-新版会使用：
+并禁止：
 
 ```text
-data/.secret.key
+/data/
+/uploads/tenants/*/certs/
+/uploads/tenants/*/keystores/
+/includes/
+/tools/
+安装锁与日志
+上传目录 PHP
+.key/.pem/.p12/.pfx/.jks/.keystore/.bks
 ```
 
-加密 Android Keystore 密码和 Mobileconfig 私钥。
+### Apache
 
-如果直接手工复制 `app.db` 到另一台服务器，需要同步安全迁移 `.secret.key`；更推荐从后台导出带密码的 `.enc` 完整备份，在目标服务器导入。完整加密备份会在目标服务器重新使用目标主密钥保存 Secrets。
+SaaS 路由与安全规则已经写在根 `.htaccess`。请确保 Apache 启用了 `mod_rewrite`，并允许对应目录使用 `AllowOverride`。
 
-请不要把：
+## 💾 SaaS 备份规则
 
-```text
-data/.secret.key
-uploads/certs/
-uploads/keystores/
-```
+租户后台的备份是**租户级备份**：
 
-加入公开仓库或公开下载目录。
+包含：
 
-## 🤖 APK 构建环境（可选）
+- 当前租户应用与版本
+- 站点配置
+- 页面模板
+- 图片 / 安装包等上传文件（按选项）
+- Keystore / Mobileconfig 签名材料（仅完整加密备份）
 
-推荐：
+不包含：
+
+- 超级管理员账号
+- `data/saas.db` 中的租户密码
+- 其他租户数据
+
+原因是登录账号属于中央控制平面，由 `/super` 管理。
+
+完整 `.enc` 备份仍使用 AES-256-GCM + Argon2id/PBKDF2，并支持恢复到另一个租户用户名；恢复时租户本地 `uploads/tenants/<旧slug>/...` 会改写成当前租户路径。
+
+## 🧪 测试
+
+仓库包含两类 smoke test：
 
 ```bash
-sudo bash tools/setup-android-env.sh
+php tests/smoke_templates.php
+php tests/smoke_saas.php
 ```
 
-手动环境至少需要 JDK 17 与 Android SDK。
+`smoke_saas.php` 会创建临时的两个租户，并实际验证：
 
-可通过环境变量指定：
+- 两套 SQLite 数据库不混用
+- 两个上传根目录不同
+- 两套 `.secret.key` 不同
+- B 租户不能用自己的主密钥解开 A 租户密文
+- 公共配置 API 不串租户应用
+- `/用户名/` 页面正确改写租户 API
+- Builder / 备份 / 包解析的关键租户路径保护
+- 使用真实 `ZipArchive` 创建并检查 APK fixture
+- 无 `AndroidManifest.xml` 的 APK 被拒绝
+- 使用真实 `ZipArchive` 创建并检查 IPA fixture
+- 带 `../` 路径遍历的恶意 ZIP 被拒绝
 
-```bash
-export JAVA_HOME=/path/to/jdk
-export ANDROID_HOME=/path/to/android-sdk
-```
+GitHub CI 另外使用 PHP 8.0 Docker 对全仓 PHP 做最低版本语法检查。
 
-Gradle 发行包会缓存到：
+> 本次开发过程中用户提供的 `扩展.zip` 在 ChatGPT 文件接口中没有实际挂载成功，因此不能声称使用了该附件。仓库测试改为在 GitHub Ubuntu Runner 上安装系统 `php-zip`，并用真实 `ZipArchive` 完成端到端压缩包测试。
+
+## 🛡 安全建议
+
+- `/super` 建议额外放在 Cloudflare Access、VPN 或 IP 白名单后。
+- 不要把 `data/` 暴露到公网。
+- 不要让 Web Server 直接提供租户 `certs/` / `keystores/`。
+- 定期备份 `data/saas.db`；它保存平台租户账号。
+- 租户业务数据与中央控制库需要分别考虑备份。
+- Docker 权限仍属于高权限能力，不要把后台暴露给不可信管理员。
+- 给 PHP 用户配置 sudo 时，只允许明确脚本，不要使用 `NOPASSWD: ALL`。
+
+## 📂 关键文件
 
 ```text
-data/gradle-cache/gradle-8.5-bin.zip
+index.php                       平台欢迎页
+tenant.php                      租户公开分发页路由器
+super/                          超级后台
+admin/                          租户后台
+includes/saas.php               SaaS 控制层 / 租户路径与账号
+includes/db.php                 按租户数据库路径缓存 PDO
+includes/landing_templates.php  5 套公开页模板
+api/config.php                  租户公共配置
+api/plist.php                   租户 OTA plist
+api/mobileconfig.php            租户 Mobileconfig
+nginx-security.conf.example     Nginx/宝塔安全 + SaaS rewrite
+.htaccess                       Apache 安全 + SaaS rewrite
+tests/smoke_saas.php            双租户 / ZipArchive 集成测试
 ```
 
-构建签名密码不会再通过 `-PksPwd` / `-PksKeyPwd` 进入进程命令行。
-
-## 🍎 IPA 构建环境（可选）
-
-需要：
-
-- Linux 宿主机
-- KVM
-- Docker
-- 可运行的 Docker-OSX/macOS
-- Xcode
-- 建议 ≥ 8GB 内存
-- 建议预留 ≥ 50GB 磁盘
-
-环境脚本：
-
-```bash
-sudo bash tools/setup-ios-env.sh
-sudo bash tools/setup-ios-xcode.sh
-```
-
-后台“系统信息”也提供对应的检测 / 部署入口。
-
-如果允许 PHP 用户触发特权脚本，只给**明确脚本路径**最小化 sudo 权限，不要给 `www-data ALL=(ALL) NOPASSWD: ALL`。
-
-## 📂 主要目录
-
-```text
-appdown/
-├── index.html                       # 分发首页渲染内核
-├── api/                             # 公共 API
-│   ├── config.php                   # 首页配置 + 模板 CSS
-│   ├── plist.php
-│   ├── mobileconfig.php
-│   └── track.php
-├── admin/                           # 后台
-│   ├── templates.php                # 分发首页模板选择
-│   ├── apps.php
-│   ├── attachments.php
-│   ├── generate.php
-│   └── api/
-│       └── templates.php            # 模板 API
-├── includes/
-│   ├── landing_templates.php        # 首页模板目录与 CSS
-│   ├── db.php
-│   ├── auth.php
-│   ├── security.php
-│   └── ...
-├── data/                            # SQLite、缓存、主密钥、备份（禁止公网访问）
-├── uploads/
-│   ├── certs/                       # 禁止公网访问
-│   ├── keystores/                   # 禁止公网访问
-│   └── ...
-├── android-template/
-├── ios-template/
-├── tools/
-├── nginx-security.conf.example
-├── SECURITY.md
-├── UPGRADE.md
-└── CHANGELOG.md
-```
-
-## 🔄 更新
-
-Git 部署：
-
-```bash
-git pull
-```
-
-更新后：
-
-1. 查看 `UPGRADE.md`
-2. 比较新的 `nginx-security.conf.example`
-3. 重新执行 `nginx -t`
-4. 打开后台确认数据库迁移正常
-5. 测试首页、一次 APK/IPA 上传和备份预览
-
-不要删除已有：
-
-```text
-data/
-uploads/
-install/install.lock
-```
-
-## 🌿 分支说明
+## 🌿 分支
 
 | 分支 | 用途 |
 |---|---|
-| `main` | 单用户 / 单分发站版本 |
-| `saas` | 多租户版本：根欢迎页、`/super` 超级后台、`/用户名` 独立分发站 |
+| `main` | 单用户 / 单分发站版 |
+| `saas` | 多租户 SaaS 版 |
 
-开发过程中的 `agent/*` 分支只是临时工作分支，正式发布后会清理，不应作为部署分支使用。
+正式发布完成后，仓库只保留这两条长期分支；`agent/*` 为开发过程临时分支，不应部署。
 
-## 📄 License
+## License
 
 MIT License
-
----
-
-如果发现安全问题，请先查看 [`SECURITY.md`](SECURITY.md) 中的报告建议，不要在公开 Issue 中粘贴私钥、证书密码、数据库或敏感日志。
