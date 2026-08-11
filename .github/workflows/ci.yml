@@ -1,5 +1,5 @@
 name: AppDown CI
-# Final SaaS Admin 2.0 / Landing Templates 2.0 feature-parity validation gate.
+# Final SaaS Admin 2.0 / Landing Templates 2.0 validation after stale Vite chunk cleanup.
 
 on:
   push:
