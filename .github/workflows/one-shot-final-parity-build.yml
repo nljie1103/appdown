@@ -1,0 +1,54 @@
+name: One-shot Final Admin 2.0 Parity Build
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-final-parity-build.yml'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build Vue Admin 2.0
+        working-directory: admin-ui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Verify final parity
+        run: |
+          php tests/smoke_admin2.php
+          test -s admin/vue/admin2.js
+          test -s admin/vue/admin2.css
+          ls admin/vue/chunk-AttachmentsView-*.js >/dev/null
+          ls admin/vue/chunk-BackupView-*.js >/dev/null
+          ls admin/vue/chunk-FontsView-*.js >/dev/null
+          ls admin/vue/chunk-MediaView-*.js >/dev/null
+      - name: Commit main production assets
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A admin/vue
+          if ! git diff --cached --quiet; then
+            git commit -m 'build: compile final Admin 2.0 parity assets'
+            git push origin HEAD:main
+          fi
+      - name: Sync source and clean production tree to SaaS
+        run: |
+          rm -rf admin-ui/node_modules
+          git fetch origin main saas
+          git switch -C saas origin/saas
+          git checkout origin/main -- admin-ui tests/smoke_admin2.php
+          git rm -r -f admin/vue
+          git checkout origin/main -- admin/vue
+          git add -A admin-ui admin/vue tests/smoke_admin2.php
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(saas): sync final Admin 2.0 parity with clean assets'
+            git push origin HEAD:saas
+          fi
