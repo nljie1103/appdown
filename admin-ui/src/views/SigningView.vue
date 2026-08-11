@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { KeyRound, Plus, RefreshCw, Save, Trash2, Upload } from 'lucide-vue-next'
+import { KeyRound, Plus, RefreshCw, Save, Trash2, Upload } from '@lucide/vue'
 import { del, get, post, put } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const keys=ref<any[]>([]);const loading=ref(false);const mode=ref<'generate'|'upload'>('generate')

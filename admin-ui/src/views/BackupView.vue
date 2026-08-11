@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Download, Upload, ShieldCheck } from 'lucide-vue-next'
+import { Download, Upload, ShieldCheck } from '@lucide/vue'
 import { downloadPost, post } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const password=ref('');const includeUploads=ref(true);const exporting=ref(false);const importFile=ref<File|null>(null);const importPassword=ref('');const preview=ref<any>(null);const importing=ref(false)

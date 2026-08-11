@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { RefreshCw, Save, Upload } from 'lucide-vue-next'
+import { RefreshCw, Save, Upload } from '@lucide/vue'
 import { get, post } from '../api'
 import { useAppStore } from '../stores/app'
 const store=useAppStore();const family=ref('CustomFont');const url=ref('');const uploading=ref(false)

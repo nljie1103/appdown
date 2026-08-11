@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Plus, Search, RefreshCw, Trash2, Upload, X, ExternalLink } from 'lucide-vue-next'
+import { Plus, Search, RefreshCw, Trash2, Upload, X, ExternalLink } from '@lucide/vue'
 import { del, get, post, put } from '../api'
 import { useAppStore } from '../stores/app'
 
