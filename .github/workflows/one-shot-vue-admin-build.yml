@@ -1,5 +1,5 @@
 name: One-shot Vue Admin Build
-# retry 5: clean npm dependencies before SaaS branch switch
+# retry 6: migrate Lucide package, rebuild and sync
 on:
   push:
     branches: [main]
@@ -17,26 +17,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: admin-ui/package-lock.json
-      - name: Install and build Vue 3 admin
-        working-directory: admin-ui
+      - name: Migrate icon imports and lock dependencies
         run: |
-          npm ci --no-audit --no-fund
-          npm run build
+          grep -rl "from 'lucide-vue-next'" admin-ui/src --include='*.vue' --include='*.ts' | xargs -r sed -i "s/from 'lucide-vue-next'/from '@lucide\/vue'/g"
+          cd admin-ui
+          npm install --no-audit --no-fund
+      - name: Build Vue 3 admin
+        working-directory: admin-ui
+        run: npm run build
       - name: Verify production assets
         run: |
           test -s admin/vue/admin2.js
           test -s admin/vue/admin2.css
           grep -q 'AppDown' admin/vue/admin2.js
-          ls admin/vue/chunk-*.js >/dev/null
-      - name: Commit main build output
+          ! grep -R "lucide-vue-next" admin-ui/src admin-ui/package.json
+      - name: Commit main dependency migration and build output
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add admin/vue
+          git add admin-ui admin/vue
+          git reset admin-ui/node_modules 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git commit -m 'build: compile complete AppDown Admin 2.0 assets'
+            git commit -m 'chore: migrate Admin 2.0 to current Lucide Vue package'
             git push origin HEAD:main
           fi
       - name: Sync Vue admin and landing engine to SaaS
@@ -47,6 +49,6 @@ jobs:
           git checkout origin/main -- admin-ui admin/app.php admin/vue static/landing-layouts.js
           git add admin-ui admin/app.php admin/vue static/landing-layouts.js
           if ! git diff --cached --quiet; then
-            git commit -m 'feat(saas): sync complete Admin 2.0 and landing engine'
+            git commit -m 'feat(saas): sync current Admin 2.0 frontend'
             git push origin HEAD:saas
           fi
