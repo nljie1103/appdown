@@ -1,5 +1,16 @@
 # Changelog
 
+## saas-v1.0.1 - 2026-08-11
+
+测试与文档补丁版本，不改变 SaaS 运行时业务逻辑。
+
+### Validation
+
+- 修复 SaaS 分支 `tests/smoke_templates.php` 单独运行时缺少租户上下文却可能以状态码 0 提前退出的问题。
+- SaaS 下运行 `smoke_templates.php` 现在会委托给覆盖模板渲染、双租户 SQLite、主密钥隔离和 ZipArchive 的 `smoke_saas.php`，测试不会再假阳性。
+- 在独立 PHP 8.4.23 容器中使用离线 `pdo_sqlite` / `sqlite3` / `zip` / `mbstring` / `curl` / `gd` 扩展，对 `v1.1.0` 与 `saas-v1.0.0` Release 源码重新执行原仓库 smoke test 并通过。
+- README 更新真实测试环境与测试入口说明，移除已经过时的附件未挂载说明。
+
 ## saas-v1.0.0 - 2026-08-11
 
 AppDown 首个多租户版本。保留 PHP + SQLite + 原生前端架构，在单用户版之上加入中央控制平面、独立租户分发站和完整文件/密钥隔离。

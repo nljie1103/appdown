@@ -377,7 +377,9 @@ php tests/smoke_saas.php
 
 GitHub CI 另外使用 PHP 8.0 Docker 对全仓 PHP 做最低版本语法检查。
 
-> 本次开发过程中用户提供的 `扩展.zip` 在 ChatGPT 文件接口中没有实际挂载成功，因此不能声称使用了该附件。仓库测试改为在 GitHub Ubuntu Runner 上安装系统 `php-zip`，并用真实 `ZipArchive` 完成端到端压缩包测试。
+> SaaS 分支中的 `tests/smoke_templates.php` 会自动委托给 `tests/smoke_saas.php`，避免在没有租户上下文时公共配置 API 提前退出却返回状态码 0 的假阳性。
+>
+> `saas-v1.0.1` 还在独立 PHP 8.4.23 容器中使用离线提供的 `pdo_sqlite` / `sqlite3` / `zip` / `mbstring` / `curl` / `gd` 扩展，对正式 Release 源码重新执行了原仓库测试；单用户 `v1.1.0` 的模板 smoke test 与 SaaS 的双租户 + ZipArchive smoke test均真实通过。
 
 ## 🛡 安全建议
 

@@ -8,6 +8,15 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 
+// On the SaaS edition, the dedicated smoke test already covers landing-template
+// rendering together with real tenant context, SQLite isolation and ZipArchive.
+// Delegate instead of running the single-site fixture without a tenant, which
+// would make require_tenant_context() exit before assertions are reached.
+if (is_file($root . '/includes/saas.php')) {
+    require __DIR__ . '/smoke_saas.php';
+    exit(0);
+}
+
 function fail_test(string $message): void {
     fwrite(STDERR, "FAIL: {$message}\n");
     exit(1);
