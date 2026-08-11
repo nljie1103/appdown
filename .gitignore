@@ -27,6 +27,9 @@ uploads/keystores/*
 uploads/certs/*
 !uploads/**/.gitkeep
 
+# Vue/Vite development dependencies (production assets are committed under admin/vue/)
+admin-ui/node_modules/
+
 # IDE
 .idea/
 .vscode/
