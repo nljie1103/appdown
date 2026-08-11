@@ -9,6 +9,7 @@
     <meta name="theme-color" content="#ffffff">
 
     <link rel="stylesheet" href="static/fontawesome-free-7.1.0-web/css/all.min.css">
+    <link rel="stylesheet" href="static/landing-layouts.css">
 
     <style>
         :root {
@@ -931,6 +932,8 @@
             <a href="terms.php" class="footer-link">用户协议</a>
         </p>
     </footer>
+
+    <script src="static/landing-layouts.js"></script>
 
     <script>
         ((window, document) => {
@@ -2279,6 +2282,7 @@
 
                         // 2. 渲染所有内容
                         Renderer.renderAll();
+                        window.AppDownLandingLayouts?.apply(data?.site?.landing_template || 'classic', { site: data?.site || {}, apps: APP_CONFIG });
 
                         // 3. 绑定事件
                         // 事件委托：Tab切换
@@ -2302,6 +2306,7 @@
                             } else if (SITE_DATA) {
                                 Renderer.renderFeatures(SITE_DATA.features);
                             }
+                            window.AppDownLandingLayouts?.syncActive(newTab);
                         });
 
                         // 事件委托：轮播控制
