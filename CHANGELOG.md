@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased - Admin 2.0 / Landing Templates 2.0
+
+- 管理后台直接升级为 Vue 3 + TypeScript + Vite SPA；`/admin/` 与登录成功后的默认入口进入 Admin 2.0。
+- Admin 2.0 接入真实 PHP API，覆盖应用、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、模板、内容组件、字体、设置、自定义代码、备份、系统、账户与在线升级。
+- Vue Router 路由懒加载，生产资产提交在 `admin/vue/`；生产服务器无需 Node.js。
+- 新增浅色 / 深色 / 跟随系统主题与 shadcn New York + Linear + Vercel/Stripe 风格 Design System。
+- 分发首页模板升级为 9 套真实结构布局，不再仅通过 CSS 换色；Aurora 使用独立 Showcase 结构和样式。
+- `api/config.php` 将应用下载、截图、特色卡片从 N+1 查询改为批量查询并分组。
+- CI 新增 Vue TypeScript/Vite 可重复构建、Admin 2.0 smoke、结构模板 smoke 与 Nginx 配置语法检查。
+
 ## v1.2.1 - 2026-08-11
 
 在线升级维护补丁。

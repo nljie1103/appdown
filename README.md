@@ -1,19 +1,37 @@
 <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.0+-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.0+">
   <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/Framework-None-green?style=flat-square" alt="No Framework">
+  <img src="https://img.shields.io/badge/Admin-Vue_3-42B883?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3 Admin">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
 </p>
 
 <h1 align="center">AppDown</h1>
 <p align="center"><strong>自托管 IPA / APK 分发站 · 全后台配置 · 可视化首页模板 · URL 封装应用</strong></p>
-<p align="center">PHP + SQLite + 原生 JavaScript/CSS，无 Composer / Node.js / MySQL 依赖</p>
+<p align="center">PHP + SQLite 后端 · Vue 3 + TypeScript 管理后台 · 生产环境无需 Node.js</p>
 
 ---
 
 > 当前 `main` 分支是 **单站 / 个人自建版**。如果你需要一个安装实例承载多个独立用户、每个用户拥有自己的分发站，请使用仓库的 `saas` 分支（SaaS 分支 README 会单独说明其路由、超级后台和租户数据结构）。
 
 ## ✨ 核心功能
+
+### 🧭 AppDown Admin 2.0
+
+`/admin/` 现在默认进入 **Vue 3 + TypeScript** 管理后台，而不是把每个功能做成互相独立的 PHP 页面。视觉基准为 70% shadcn New York + 20% Linear + 10% Vercel / Stripe，并支持浅色、深色、跟随系统三种主题。
+
+Admin 2.0 已接入真实 PHP API，而不是静态演示数据，覆盖：
+
+- 仪表盘真实访问 / 下载趋势与来源统计
+- 应用 CRUD、iOS / Android 版本、下载方式、截图上传
+- 附件平台 / 版本 / 文件管理
+- APK / IPA Builder、实时任务进度、构建产物重命名 / 关联附件 / 删除
+- Android Keystore 创建 / 导入 / 加密密码维护
+- Mobileconfig 与签名证书
+- 分发首页模板、特色卡片 / 分类 / 友情链接、字体、自定义代码
+- 站点设置、备份 / 恢复、Android/iOS 构建环境、账户安全
+- 单用户版在线升级
+
+源码位于 `admin-ui/`，生产构建产物位于 `admin/vue/`。正式部署 / Release 已直接包含构建后的 JS/CSS，**生产服务器不需要安装 Node.js**。PHP + SQLite 继续负责认证、权限、业务逻辑、文件、Builder 与数据安全边界。
 
 ### 分发首页
 
@@ -25,29 +43,25 @@
 - 自定义 Logo、Favicon、背景、字体、公告、特色卡片和友情链接
 - 自定义 CSS / JavaScript 与内置页面特效
 
-### 🎨 分发首页模板
+### 🎨 分发首页模板 2.0
 
-这里的“页面模板”指 **用户打开站点首页时看到的应用下载展示页**，不是 iOS plist、Mobileconfig 或 Android/iOS 安装引导模板。
+这里的模板是用户真正看到的 **App 分发页布局**。2.0 不再只是覆盖颜色：模板可以重新组织 Hero、应用选择器、下载按钮、截图、统计、特色卡片等 DOM 与组件，同时继续共用同一套下载、轮播、统计、浏览器检测与安全逻辑。
 
-后台进入：
+后台进入 Admin 2.0 的“页面模板”，当前内置 9 套：
 
-```text
-/admin/templates.php
-```
-
-首批内置 5 套模板：
-
-| 模板 | 风格 |
+| 模板 | 结构特点 |
 |---|---|
-| 经典 | AppDown 原有清爽浅色渐变与圆角卡片 |
-| 玻璃拟态 | 半透明玻璃、柔光背景、悬浮层次 |
-| 极简白 | 大留白、细边框、内容优先 |
-| 午夜深色 | 深色背景、开发者风格、高亮按钮 |
-| 极光渐变 | 彩色渐变、品牌感更强的玻璃卡片 |
+| 经典 | 保留 AppDown 原始居中分发结构，作为兼容基线 |
+| 玻璃工作台 | 独立玻璃 Hero、悬浮应用选择器、分层内容区 |
+| 编辑部 | 杂志式超大标题、细线导航、大留白与横向截图 |
+| 开发者终端 | 深色左侧应用控制栏 + 右侧产品舞台 |
+| 品牌发布 | 独立 Aurora Showcase，大品牌 Hero + 控制面板 + 沉浸内容舞台 |
+| App Store | 左侧应用列表 + 右侧应用详情 / 下载 / 截图 |
+| Bento 展示 | Hero、统计、下载、截图和特色能力组成 Bento 网格 |
+| Split 产品页 | 左侧固定品牌 / 应用栏 + 右侧当前应用舞台 |
+| Mobile First | 手机产品页式窄内容流、触控优先组件与纵向截图 |
 
-模板系统只覆盖视觉层，继续复用同一份下载、轮播、统计和浏览器检测逻辑，因此切换模板不会改变应用数据或链接。
-
-如果后台还配置了“自定义代码 → Head CSS”，用户自己的 CSS 会排在模板 CSS 后面，可以继续覆盖内置模板。
+结构引擎位于 `static/landing-layouts.js`，公共布局 CSS 位于 `static/landing-layouts.css`；Aurora Showcase 另有 `static/landing-showcase.css`。用户自己的 Head CSS 仍然排在内置模板 token 后面，可继续覆盖内置样式。
 
 ### 📱 iOS 分发
 
@@ -107,9 +121,10 @@
 |---|---|
 | 后端 | PHP 8.0+ |
 | 数据库 | SQLite |
-| 前端 | 原生 JavaScript + CSS |
-| 后台 | 自定义 UI + Chart.js |
-| 图标 | Font Awesome 7.1.0（本地） |
+| 公开分发页 | 原生 JavaScript + CSS + Landing Templates 2.0 |
+| 管理后台 | Vue 3 + TypeScript + Vite + Vue Router + Pinia |
+| 后台图标 | `@lucide/vue`（Vite 打包） |
+| 公开页图标 | Font Awesome 7.1.0（本地） |
 | APK 构建 | OpenJDK 17 + Android SDK + Gradle 8.5 |
 | IPA 构建 | Docker-OSX + Xcode + KVM |
 
@@ -132,12 +147,24 @@
 - `curl`：OCSP 查询
 - `gd`：图片转换和压缩
 
-不需要：
+生产部署不需要：
 
 - MySQL
 - Composer
-- Node.js / npm
+- Node.js / npm（仅开发者重新构建 `admin-ui/` 时需要 Node 22）
 - Redis
+
+### Admin 2.0 前端开发构建
+
+普通部署不需要 Node。只有修改 `admin-ui/` 源码时才执行：
+
+```bash
+cd admin-ui
+npm ci
+npm run build
+```
+
+Vite 会把生产资产写入 `admin/vue/`。GitHub CI 会重新构建并比较 SHA256，源码与提交的生产产物不一致时 CI 会失败。
 
 ### 部署代码
 
