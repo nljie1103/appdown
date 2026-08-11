@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased - SaaS Admin 2.0 / Landing Templates 2.0
+## saas-v1.2.0 - 2026-08-11
+
+SaaS 租户 Admin 2.0 与分发首页模板 2.0 正式发布。
 
 - 租户 `/admin/` 直接升级为 Vue 3 + TypeScript + Vite SPA，并与单用户版共用同一套 Admin 2.0 Design System。
 - 租户身份继续由服务端 Session 固定解析；Vue 不获得任意切换 tenant 的能力。
