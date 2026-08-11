@@ -1,0 +1,19 @@
+<script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { RefreshCw, Play, Trash2, TerminalSquare } from 'lucide-vue-next'
+import { get, post } from '../api'
+import { useAppStore } from '../stores/app'
+const store=useAppStore();const android=ref<any>(null);const ios=ref<any>(null);const androidLog=ref<any>(null);const iosLog=ref<any>(null);const busy=ref('');let timer:number|undefined
+async function load(){try{[android.value,ios.value,androidLog.value,iosLog.value]=await Promise.all([get('/admin/api/system.php?action=android_status'),get('/admin/api/system.php?action=ios_status'),get('/admin/api/system.php?action=install_log'),get('/admin/api/system.php?action=ios_install_log')])}catch(e:any){store.notify(e?.message||'环境检测失败','error')}}
+async function action(name:string,label:string,danger=false){if(danger&&!confirm(`确定执行「${label}」？`))return;busy.value=name;try{await post(`/admin/api/system.php?action=${name}`,{});store.notify(`${label} 已启动`,'info');await load()}catch(e:any){store.notify(e?.message||`${label} 失败`,'error')}finally{busy.value=''}}
+function statusItems(obj:any){return Object.entries(obj||{}).filter(([k])=>k!=='all_ok').map(([k,v]:any)=>({key:k,ok:!!v?.ok,detail:v?.version||v?.path||''}))}
+onMounted(()=>{load();timer=window.setInterval(async()=>{if(androidLog.value?.status==='running'||iosLog.value?.status==='running')await load()},2500)});onBeforeUnmount(()=>{if(timer)clearInterval(timer)})
+</script>
+<template><div>
+<div class="page-head"><div><h1>系统信息</h1><p>检测并管理 Android / iOS Builder 运行环境，状态直接来自现有系统 API。</p></div><button class="button" @click="load"><RefreshCw :size="14"/>重新检测</button></div>
+<div class="two-col">
+ <section class="panel"><div class="panel-head"><div><h3>Android 构建环境</h3><span>JDK 17 · Android SDK 34 · Keytool</span></div><span class="badge" :class="{danger:android&&!android.all_ok}">{{android?.all_ok?'就绪':'未就绪'}}</span></div><div style="padding:12px"><div class="status-grid"><div v-for="s in statusItems(android)" :key="s.key" class="status-card"><div class="status-line"><b>{{s.key}}</b><span class="status-dot" :class="{ok:s.ok}"></span></div><p>{{s.detail|| (s.ok?'可用':'不可用')}}</p></div></div><div class="page-actions" style="margin-top:12px"><button class="button primary" :disabled="!!busy" @click="action('install_android','安装 Android 环境')"><Play :size="13"/>一键安装</button><button class="button danger" :disabled="!!busy" @click="action('uninstall_android','卸载 Android 环境',true)"><Trash2 :size="13"/>卸载</button></div><div class="log-box" style="margin-top:12px;min-height:120px">{{androidLog?.log||'暂无 Android 环境任务日志'}}</div></div></section>
+ <section class="panel"><div class="panel-head"><div><h3>iOS 构建环境</h3><span>Docker · KVM · macOS Container · Xcode</span></div><span class="badge" :class="{danger:ios&&!ios.all_ok}">{{ios?.all_ok?'就绪':'未就绪'}}</span></div><div style="padding:12px"><div class="status-grid"><div v-for="s in statusItems(ios)" :key="s.key" class="status-card"><div class="status-line"><b>{{s.key}}</b><span class="status-dot" :class="{ok:s.ok}"></span></div><p>{{s.detail|| (s.ok?'可用':'不可用')}}</p></div></div><div class="page-actions" style="margin-top:12px"><button class="button primary" :disabled="!!busy" @click="action('install_ios','安装 iOS 环境')"><Play :size="13"/>一键安装</button><button class="button" :disabled="!!busy" @click="action('verify_ios_xcode','验证 Xcode')"><TerminalSquare :size="13"/>验证 Xcode</button><button class="button danger" :disabled="!!busy" @click="action('uninstall_ios','卸载 iOS 环境',true)"><Trash2 :size="13"/>卸载</button></div><div class="log-box" style="margin-top:12px;min-height:120px">{{iosLog?.log||'暂无 iOS 环境任务日志'}}</div></div></section>
+</div>
+<div class="card" style="margin-top:13px"><h3>安全说明</h3><p class="subtle" style="line-height:1.7">环境安装/卸载属于高权限操作，Vue 只是调用原有受登录 + CSRF 保护的 PHP API；后台 Worker、sudo 权限边界和服务器命令仍由服务端控制。</p></div>
+</div></template>
