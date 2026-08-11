@@ -58,21 +58,21 @@ if ($siteUrlRow && !empty($siteUrlRow['setting_val'])) {
 }
 if ($siteUrl === '') $siteUrl = $scheme . '://' . $host;
 
-function tenant_absolute_http_url(string $value, string $base, string $tenantSlug): string {
+function tenant_absolute_http_url(string $value, string $base, string $tenantSlug, string $requestScheme): string {
     $value = tenant_absolute_asset_url($value, $tenantSlug);
     if ($value === '') return '';
     if (preg_match('#^https?://#i', $value)) return $value;
-    if (str_starts_with($value, '//')) return (($GLOBALS['scheme'] ?? 'https') . ':' . $value);
+    if (str_starts_with($value, '//')) return $requestScheme . ':' . $value;
     return rtrim($base, '/') . '/' . ltrim($value, '/');
 }
 
-$ipaUrl = encode_url_path(tenant_absolute_http_url((string)$app['ios_ipa_url'], $siteUrl, $tenant['slug']));
+$ipaUrl = encode_url_path(tenant_absolute_http_url((string)$app['ios_ipa_url'], $siteUrl, $tenant['slug'], $scheme));
 $iconUrl = (string)($app['icon_url'] ?? '');
 if ($iconUrl === '') {
     $logo = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key='logo_url'")->fetchColumn();
     $iconUrl = (string)($logo ?: '');
 }
-if ($iconUrl !== '') $iconUrl = encode_url_path(tenant_absolute_http_url($iconUrl, $siteUrl, $tenant['slug']));
+if ($iconUrl !== '') $iconUrl = encode_url_path(tenant_absolute_http_url($iconUrl, $siteUrl, $tenant['slug'], $scheme));
 
 $bundleId = $app['ios_bundle_id'] ?: 'com.app.' . $app['slug'];
 $bundleVersion = $app['ios_version'] ?: '1.0.0';
