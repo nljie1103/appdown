@@ -6,6 +6,8 @@
 require_once __DIR__ . '/../includes/init.php';
 require_once __DIR__ . '/../includes/layout.php';
 require_auth();
+$tenant = require_tenant_context();
+$tenantPublicPath = tenant_public_path($tenant['slug']);
 
 admin_header('页面模板', 'templates');
 ?>
@@ -21,7 +23,7 @@ admin_header('页面模板', 'templates');
             <h3 style="margin:0 0 5px;">选择模板</h3>
             <div style="color:var(--text-secondary);font-size:.9em;">切换后前台配置缓存会立即刷新。</div>
         </div>
-        <a class="btn btn-outline" href="/" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> 打开前台预览</a>
+        <a class="btn btn-outline" href="<?= htmlspecialchars($tenantPublicPath) ?>" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> 打开前台预览</a>
     </div>
     <div id="templateGrid" class="template-grid">
         <div style="color:var(--text-secondary);padding:30px 0;">正在加载模板...</div>

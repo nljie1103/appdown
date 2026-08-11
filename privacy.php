@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/init.php';
+$tenant = require_tenant_context();
+$tenantHome = tenant_public_path($tenant['slug']);
 $pdo = get_db();
 $siteName = '';
 $copyright = '';
@@ -21,12 +23,12 @@ $c = htmlspecialchars($copyright);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>隐私政策 - <?= $s ?></title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
     <div class="container">
         <header class="policy-header">
-            <a href="/" class="back-button">← 返回首页</a>
+            <a href="<?= htmlspecialchars($tenantHome) ?>" class="back-button">← 返回首页</a>
             <h1>隐私政策</h1>
             <p>最后更新日期：<?= date('Y') ?>年1月1日 &nbsp;|&nbsp; 生效日期：<?= date('Y') ?>年1月1日</p>
         </header>

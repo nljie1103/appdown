@@ -322,8 +322,13 @@ function is_task_cancelled(PDO $pdo, int $taskId): bool {
 
 function safe_project_file(string $root, string $relative): string {
     if ($relative === '' || str_contains($relative, '..')) return '';
-    $path = realpath($root . '/' . ltrim($relative, '/'));
-    return ($path && str_starts_with($path, $root . DIRECTORY_SEPARATOR) && is_file($path)) ? $path : '';
+    $tenantRoot = realpath(appdown_upload_dir());
+    if (!$tenantRoot) return '';
+    $normalized = ltrim($relative, '/');
+    $prefix = appdown_upload_url_prefix() . '/';
+    if (!str_starts_with($normalized, $prefix)) return '';
+    $path = realpath($root . '/' . $normalized);
+    return ($path && str_starts_with($path, $tenantRoot . DIRECTORY_SEPARATOR) && is_file($path)) ? $path : '';
 }
 
 function parse_gradle_progress(string $line, int $current): int {

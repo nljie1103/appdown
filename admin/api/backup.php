@@ -19,7 +19,7 @@ else { $data = get_json_input(); $action = $data['action'] ?? ''; }
 $allTables = [
     'site_settings', 'apps', 'app_downloads', 'app_images',
     'feature_categories', 'feature_cards', 'friend_links', 'custom_code',
-    'app_platforms', 'app_attachments', 'image_categories', 'image_library', 'admin_users',
+    'app_platforms', 'app_attachments', 'image_categories', 'image_library',
     'keystores', 'mc_certificates', 'generated_mobileconfigs', 'generated_apks', 'generated_ipas'
 ];
 
@@ -184,10 +184,10 @@ if ($action === 'import') {
         'app_attachments', 'generated_mobileconfigs', 'generated_apks', 'generated_ipas',
         'mc_certificates', 'keystores', 'app_platforms', 'app_images', 'app_downloads',
         'image_library', 'image_categories', 'feature_cards', 'feature_categories',
-        'friend_links', 'custom_code', 'site_settings', 'apps', 'admin_users'
+        'friend_links', 'custom_code', 'site_settings', 'apps'
     ];
     $insertOrder = [
-        'admin_users', 'apps', 'site_settings', 'custom_code', 'friend_links',
+        'apps', 'site_settings', 'custom_code', 'friend_links',
         'feature_categories', 'feature_cards', 'image_categories', 'image_library',
         'app_downloads', 'app_images', 'app_platforms', 'app_attachments',
         'keystores', 'mc_certificates', 'generated_mobileconfigs', 'generated_apks', 'generated_ipas'

@@ -38,6 +38,6 @@ function enforce_backup_export_security(): void {
         }
     } catch (Throwable $e) {
         error_log('[AppDown] backup signing-material preflight failed: ' . $e->getMessage());
-        json_response(['error' => '签名材料无法使用当前主密钥解密，请先检查 data/.secret.key 或 APPDOWN_MASTER_KEY，再创建完整备份'], 500);
+        json_response(['error' => '签名材料无法使用当前主密钥解密，请先检查 当前租户的 .secret.key 或 APPDOWN_MASTER_KEY，再创建完整备份'], 500);
     }
 }

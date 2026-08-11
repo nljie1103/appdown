@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/init.php';
+require_tenant_context();
 require_method('POST');
 
 $data = get_json_input();
