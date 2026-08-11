@@ -5,6 +5,8 @@
 - 租户 `/admin/` 直接升级为 Vue 3 + TypeScript + Vite SPA，并与单用户版共用同一套 Admin 2.0 Design System。
 - 租户身份继续由服务端 Session 固定解析；Vue 不获得任意切换 tenant 的能力。
 - 租户 Admin 2.0 覆盖应用、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、9 套页面模板、内容组件、字体、设置、备份、系统与账户能力。
+- 租户后台新增完整图片媒体库，并补齐分类、图片转换压缩、重命名、排序与路径复制。
+- 补齐租户 Vue 与旧后台功能等价：应用 iOS OTA/Mobileconfig/安装型下载、内容组件全字段、Mobileconfig 编辑/关联/证书维护，以及 Builder 路径和 Xcode Apple ID + 2FA 安装流程。
 - SaaS 租户 capability 明确关闭整个平台在线升级；平台更新仍只允许 `/super/update.php` 的超级管理员。
 - 每个租户可独立选择 9 套真实结构分发模板；租户页面同时修正新布局 JS/CSS 的 `/static/` 根路径加载。
 - 租户 `api/config.php` 将应用下载、截图、特色卡片从 N+1 查询改为批量查询并保持租户路径重写。

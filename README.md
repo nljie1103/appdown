@@ -155,7 +155,7 @@ android
 
 `/admin/` 与 `/<slug>/admin` 登录后现在默认进入 **Vue 3 + TypeScript** 的 AppDown Admin 2.0。单用户版与 SaaS 租户后台共享同一套 Vue Design System 和生产构建产物，但租户身份仍完全由 PHP Session 在服务端解析，不接受浏览器传入任意 tenant 参数切换上下文。
 
-租户 Admin 2.0 已覆盖真实业务能力：应用、下载方式、截图、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、页面模板、内容组件、字体、站点设置、自定义代码、备份恢复、环境检测和账户安全。
+租户 Admin 2.0 已覆盖真实业务能力：应用、iOS OTA、Mobileconfig、安装型下载、截图、附件、APK/IPA Builder、构建产物、Keystore、页面模板、内容组件、完整媒体库、字体、站点设置、自定义代码、备份恢复、系统概览、Builder 自定义路径、Xcode 2FA 和账户安全。
 
 源码位于 `admin-ui/`，生产构建产物位于 `admin/vue/`；正式部署不需要 Node.js。**租户后台没有整个平台的在线升级权限**，SaaS 平台更新继续只允许超级管理员通过 `/super/update.php` 执行。
 
