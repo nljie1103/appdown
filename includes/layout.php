@@ -6,7 +6,7 @@
 function admin_header(string $title, string $currentPage = ''): void {
     $user = $_SESSION['admin_user'] ?? 'Admin';
     $csrf = csrf_token();
-    $ver = '20260412f'; // 静态资源版本号，更新后修改此值强制刷新缓存
+    $ver = '20260811a'; // 静态资源版本号，更新后修改此值强制刷新缓存
     $pdo = get_db();
     $siteTitle = $pdo->query("SELECT setting_val FROM site_settings WHERE setting_key='site_title'")->fetchColumn() ?: '管理后台';
     $nav = [
@@ -15,6 +15,7 @@ function admin_header(string $title, string $currentPage = ''): void {
         ['generate',  '生成应用', 'fas fa-magic',      '/admin/generate.php'],
         ['attachments','附件管理', 'fas fa-paperclip', '/admin/attachments.php'],
         ['settings',  '站点设置', 'fas fa-cog', '/admin/settings.php'],
+        ['templates', '页面模板', 'fas fa-palette', '/admin/templates.php'],
         ['features',  '特色卡片', 'fas fa-star', '/admin/features.php'],
         ['links',     '友情链接', 'fas fa-link', '/admin/links.php'],
         ['fonts',     '字体管理', 'fas fa-font', '/admin/fonts.php'],
