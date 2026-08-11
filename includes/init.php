@@ -36,3 +36,6 @@ require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/upload.php';
+
+// 高敏感备份导出的后端兜底：普通请求会立即返回，不增加数据库开销。
+require_once __DIR__ . '/backup_guard.php';

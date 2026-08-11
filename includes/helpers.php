@@ -71,10 +71,15 @@ function get_request_method(): string {
 }
 
 function get_json_input(): array {
+    static $loaded = false;
+    static $cached = [];
+    if ($loaded) return $cached;
+    $loaded = true;
     $raw = file_get_contents('php://input');
-    if (empty($raw)) return [];
+    if (empty($raw)) return $cached;
     $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
+    $cached = is_array($data) ? $data : [];
+    return $cached;
 }
 
 function sanitize_string(string $str): string {

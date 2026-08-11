@@ -73,6 +73,11 @@ function require_auth(): void {
         header('Location: /admin/login.php');
         exit;
     }
+
+    // 只有认证成功后，才允许高敏感备份导出执行 Secrets 预检。
+    if (function_exists('enforce_backup_export_security')) {
+        enforce_backup_export_security();
+    }
 }
 
 function do_login(string $username, string $password): bool {
