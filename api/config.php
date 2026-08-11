@@ -1,98 +1,128 @@
 <?php
 /**
- * 公共API: 返回完整站点配置JSON
- * GET /api/config.php
+ * SaaS 公共 API：返回当前租户完整站点配置 JSON。
+ * Web Server 将 /<slug>/api/config.php 重写到本文件并附带 tenant=<slug>。
  */
 
 require_once __DIR__ . '/../includes/init.php';
 require_once __DIR__ . '/../includes/landing_templates.php';
 require_method('GET');
 
-// 检测是否已安装
+$tenant = require_tenant_context();
+$slug = $tenant['slug'];
 $lock = __DIR__ . '/../install/install.lock';
-$db_file = __DIR__ . '/../data/app.db';
-if (!file_exists($lock) || !file_exists($db_file)) {
-    http_response_code(503);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['error' => 'not_installed']);
-    exit;
+$dbFile = tenant_db_path($slug);
+if (!file_exists($lock) || !file_exists($dbFile)) {
+    json_response(['error' => 'tenant_not_initialized'], 503);
 }
 
-// 文件缓存 (5分钟)
-$cache_path = __DIR__ . '/../data/config_cache.json';
-if (file_exists($cache_path) && (time() - filemtime($cache_path)) < 300) {
+$cachePath = tenant_config_cache_path($slug);
+if (file_exists($cachePath) && (time() - filemtime($cachePath)) < 300) {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: public, max-age=60');
-    readfile($cache_path);
+    readfile($cachePath);
     exit;
 }
 
 $pdo = get_db();
-
-// 站点设置
 $settings = [];
-$rows = $pdo->query('SELECT setting_key, setting_val FROM site_settings')->fetchAll();
-foreach ($rows as $r) {
-    $settings[$r['setting_key']] = $r['setting_val'];
+foreach ($pdo->query('SELECT setting_key, setting_val FROM site_settings')->fetchAll() as $row) {
+    $settings[$row['setting_key']] = $row['setting_val'];
 }
 
-// 应用列表
+function tenant_public_asset(?string $value, string $slug): string {
+    return tenant_absolute_asset_url((string)$value, $slug);
+}
+
+function tenant_public_href(?string $value, string $slug): string {
+    $value = trim((string)$value);
+    if ($value === '' || $value === '#') return $value;
+    if (preg_match('#^/?api/(config|track|plist|mobileconfig)\.php(.*)$#i', $value, $m)) {
+        return '/' . rawurlencode($slug) . '/api/' . strtolower($m[1]) . '.php' . $m[2];
+    }
+    return tenant_absolute_asset_url($value, $slug);
+}
+
 $apps = $pdo->query('SELECT id, slug, name, icon, icon_url, theme_color, feature_category_id FROM apps WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
-
 foreach ($apps as &$app) {
-    // 下载按钮
+    $appId = (int)$app['id'];
+    $app['icon_url'] = tenant_public_asset($app['icon_url'] ?? '', $slug);
+
     $dlStmt = $pdo->prepare('SELECT btn_type, btn_icon, btn_text, btn_subtext, href FROM app_downloads WHERE app_id = ? AND is_active = 1 ORDER BY sort_order ASC');
-    $dlStmt->execute([$app['id']]);
-    $app['downloads'] = $dlStmt->fetchAll();
+    $dlStmt->execute([$appId]);
+    $downloads = $dlStmt->fetchAll();
+    foreach ($downloads as &$download) {
+        $download['href'] = tenant_public_href($download['href'] ?? '', $slug);
+    }
+    unset($download);
+    $app['downloads'] = $downloads;
 
-    // 轮播图
     $imgStmt = $pdo->prepare('SELECT image_url, alt_text FROM app_images WHERE app_id = ? ORDER BY sort_order ASC');
-    $imgStmt->execute([$app['id']]);
-    $app['images'] = array_column($imgStmt->fetchAll(), null);
+    $imgStmt->execute([$appId]);
+    $images = $imgStmt->fetchAll();
+    foreach ($images as &$image) {
+        $image['image_url'] = tenant_public_asset($image['image_url'] ?? '', $slug);
+    }
+    unset($image);
+    $app['images'] = $images;
 
-    // 应用关联的特色卡片
-    $fcId = (int)($app['feature_category_id'] ?? 0);
-    if ($fcId > 0) {
+    $featureCategoryId = (int)($app['feature_category_id'] ?? 0);
+    if ($featureCategoryId > 0) {
         $fcStmt = $pdo->prepare('SELECT title, description, icon, icon_url FROM feature_cards WHERE category_id = ? AND is_active = 1 ORDER BY sort_order ASC');
-        $fcStmt->execute([$fcId]);
-        $app['features'] = $fcStmt->fetchAll();
+        $fcStmt->execute([$featureCategoryId]);
+        $appFeatures = $fcStmt->fetchAll();
+        foreach ($appFeatures as &$feature) {
+            // index.html 对 feature.icon_url 直接作为 src，因此使用根绝对 URL。
+            $feature['icon_url'] = tenant_public_asset($feature['icon_url'] ?? '', $slug);
+        }
+        unset($feature);
+        $app['features'] = $appFeatures;
     }
 
-    // 输出时用slug做id，移除数据库id
     $app['id'] = $app['slug'];
     unset($app['slug'], $app['feature_category_id']);
 }
 unset($app);
 
-// 特色卡片
 $features = $pdo->query('SELECT title, description, icon, icon_url FROM feature_cards WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+foreach ($features as &$feature) {
+    $feature['icon_url'] = tenant_public_asset($feature['icon_url'] ?? '', $slug);
+}
+unset($feature);
 
-// 友情链接
 $links = $pdo->query('SELECT name, url, icon, icon_url, show_icon FROM friend_links WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+foreach ($links as &$link) {
+    $link['url'] = tenant_public_href($link['url'] ?? '#', $slug);
+    // 现有首页渲染友情链接图标时会自行补一个“/”，这里保留无前导斜杠。
+    $iconUrl = tenant_public_asset($link['icon_url'] ?? '', $slug);
+    $link['icon_url'] = ltrim($iconUrl, '/');
+}
+unset($link);
 
-// 自定义代码
 $custom = [];
 $cRows = $pdo->query('SELECT position, code FROM custom_code')->fetchAll();
-foreach ($cRows as $r) {
-    $custom[$r['position']] = $r['code'];
-}
+foreach ($cRows as $row) $custom[$row['position']] = $row['code'];
 
-// 分发首页模板通过现有 head_css 注入机制加载，避免复制首页渲染逻辑。
-// 用户自己的 CSS 放在模板 CSS 之后，因此仍可覆盖内置模板。
 $landingTemplate = normalize_landing_template($settings['landing_template'] ?? 'classic');
 $templateCss = landing_template_css($landingTemplate);
 if ($templateCss !== '') {
+    // 用户 CSS 保持后置，拥有最终覆盖权。
     $custom['head_css'] = $templateCss . "\n" . ($custom['head_css'] ?? '');
 }
 
 $config = [
+    'tenant' => [
+        'slug' => $slug,
+        'display_name' => $tenant['display_name'],
+        'public_path' => tenant_public_path($slug),
+    ],
     'site' => [
-        'title'             => $settings['site_title'] ?? '',
-        'heading'           => $settings['site_heading'] ?? '',
-        'logo_url'          => $settings['logo_url'] ?? '',
-        'favicon_url'       => $settings['favicon_url'] ?? '',
+        'title'             => $settings['site_title'] ?? $tenant['display_name'],
+        'heading'           => $settings['site_heading'] ?? $tenant['display_name'],
+        'logo_url'          => tenant_public_asset($settings['logo_url'] ?? '', $slug),
+        'favicon_url'       => tenant_public_asset($settings['favicon_url'] ?? '', $slug),
         'notice_text'       => $settings['notice_text'] ?? '',
-        'notice_enabled'    => (bool)($settings['notice_enabled'] ?? true),
+        'notice_enabled'    => ($settings['notice_enabled'] ?? '0') === '1',
         'copyright'         => $settings['copyright'] ?? '',
         'carousel_interval' => (int)($settings['carousel_interval'] ?? 4000),
         'landing_template'  => $landingTemplate,
@@ -101,14 +131,14 @@ $config = [
             'rating'       => (float)($settings['stats_rating'] ?? 0),
             'daily_active' => (int)($settings['stats_daily_active'] ?? 0),
         ],
-        'font_url'    => $settings['font_url'] ?? '',
-        'font_family' => $settings['font_family'] ?? 'CustomFont',
-        'bg_type'     => $settings['bg_type'] ?? 'default',
-        'bg_color'    => $settings['bg_color'] ?? '',
-        'bg_gradient' => $settings['bg_gradient'] ?? '',
-        'bg_image'    => $settings['bg_image'] ?? '',
-        'effects_config' => $settings['effects_config'] ?? '{}',
-        'inapp_redirect' => (bool)($settings['inapp_redirect'] ?? false),
+        'font_url'          => tenant_public_asset($settings['font_url'] ?? '', $slug),
+        'font_family'       => $settings['font_family'] ?? 'CustomFont',
+        'bg_type'           => $settings['bg_type'] ?? 'default',
+        'bg_color'          => $settings['bg_color'] ?? '',
+        'bg_gradient'       => $settings['bg_gradient'] ?? '',
+        'bg_image'          => tenant_public_asset($settings['bg_image'] ?? '', $slug),
+        'effects_config'    => $settings['effects_config'] ?? '{}',
+        'inapp_redirect'    => ($settings['inapp_redirect'] ?? '0') === '1',
     ],
     'apps'         => $apps,
     'features'     => $features,
@@ -117,9 +147,10 @@ $config = [
 ];
 
 $json = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+if ($json === false) json_response(['error' => 'config_encode_failed'], 500);
 
-// 写入缓存
-file_put_contents($cache_path, $json, LOCK_EX);
+if (!is_dir(dirname($cachePath))) @mkdir(dirname($cachePath), 0750, true);
+file_put_contents($cachePath, $json, LOCK_EX);
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: public, max-age=60');
