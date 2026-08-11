@@ -28,7 +28,7 @@ Admin 2.0 已接入真实 PHP API，而不是静态演示数据，覆盖：
 - Android Keystore 创建 / 导入 / 加密密码维护
 - Mobileconfig 与签名证书
 - 分发首页模板、特色卡片 / 分类 / 友情链接、完整媒体库、字体、自定义代码
-- 站点设置、备份 / 恢复、PHP/SQLite 系统概览、Android/iOS Builder 路径与 Xcode 2FA、账户安全
+- 站点设置、加密备份 / 恢复、APK/IPA 包信息解析、TTF/OTF 字体名自动识别、PHP/SQLite 系统概览、Android/iOS Builder 路径与 Xcode 2FA、账户安全
 - 单用户版在线升级
 
 源码位于 `admin-ui/`，生产构建产物位于 `admin/vue/`。正式部署 / Release 已直接包含构建后的 JS/CSS，**生产服务器不需要安装 Node.js**。PHP + SQLite 继续负责认证、权限、业务逻辑、文件、Builder 与数据安全边界。
