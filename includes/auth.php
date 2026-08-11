@@ -1,10 +1,12 @@
 <?php
 /**
- * 登录鉴权
+ * SaaS 租户后台鉴权。
+ * 租户用户名即公开 slug，由中央 saas.db 全局唯一管理。
  */
 
 function invalidate_session(): void {
     $_SESSION = [];
+    set_current_tenant(null);
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_destroy();
         @session_start();
@@ -12,17 +14,15 @@ function invalidate_session(): void {
 }
 
 function is_logged_in(): bool {
-    if (empty($_SESSION['admin_id'])) return false;
+    if (empty($_SESSION['admin_id']) || empty($_SESSION['tenant_slug'])) return false;
 
-    // Session 超时检查：超过 2 小时自动登出
     $timeout = 7200;
-    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+    if (isset($_SESSION['last_activity']) && (time() - (int)$_SESSION['last_activity'] > $timeout)) {
         invalidate_session();
         return false;
     }
     $_SESSION['last_activity'] = time();
 
-    // 验证安装指纹：如果网站重装了，旧session失效
     $lockFile = __DIR__ . '/../install/install.lock';
     if (file_exists($lockFile)) {
         $fingerprint = md5(filemtime($lockFile) . realpath($lockFile));
@@ -33,23 +33,21 @@ function is_logged_in(): bool {
     }
 
     try {
-        $pdo = get_db();
-        $stmt = $pdo->prepare('SELECT id FROM admin_users WHERE id = ?');
-        $stmt->execute([$_SESSION['admin_id']]);
-        if (!$stmt->fetch()) {
+        $tenant = find_tenant((string)$_SESSION['tenant_slug']);
+        if (!$tenant || (int)$tenant['id'] !== (int)$_SESSION['admin_id']) {
             invalidate_session();
             return false;
         }
-
-        // 修改密码后立即使其他设备上的旧 Session 失效。
+        set_current_tenant($tenant);
+        $pdo = get_db();
         $epoch = get_setting($pdo, 'auth_session_epoch', '1');
         if (!hash_equals($epoch, (string)($_SESSION['auth_session_epoch'] ?? ''))) {
             invalidate_session();
             return false;
         }
-
         schedule_daily_maintenance($pdo);
-    } catch (\Exception $e) {
+    } catch (Throwable $e) {
+        error_log('[AppDown SaaS auth] ' . $e->getMessage());
         return false;
     }
 
@@ -74,37 +72,36 @@ function require_auth(): void {
         exit;
     }
 
-    // 只有认证成功后，才允许高敏感备份导出执行 Secrets 预检。
-    if (function_exists('enforce_backup_export_security')) {
-        enforce_backup_export_security();
-    }
+    if (function_exists('enforce_backup_export_security')) enforce_backup_export_security();
 }
 
 function do_login(string $username, string $password): bool {
-    $pdo = get_db();
-    $stmt = $pdo->prepare('SELECT id, password FROM admin_users WHERE username = ?');
-    $stmt->execute([$username]);
-    $user = $stmt->fetch();
+    $slug = normalize_tenant_slug($username);
+    $tenant = find_tenant($slug);
+    if (!$tenant || !password_verify($password, $tenant['password'])) return false;
 
-    if (!$user || !password_verify($password, $user['password'])) return false;
+    set_current_tenant($tenant);
+    $pdo = get_db();
 
     session_regenerate_id(true);
-    $_SESSION['admin_id'] = $user['id'];
-    $_SESSION['admin_user'] = $username;
+    $_SESSION['admin_id'] = (int)$tenant['id'];
+    $_SESSION['admin_user'] = $tenant['slug'];
+    $_SESSION['tenant_slug'] = $tenant['slug'];
+    $_SESSION['tenant_display_name'] = $tenant['display_name'];
     $_SESSION['last_activity'] = time();
     $_SESSION['auth_session_epoch'] = get_setting($pdo, 'auth_session_epoch', '1');
 
     $lockFile = __DIR__ . '/../install/install.lock';
-    if (file_exists($lockFile)) {
-        $_SESSION['install_fp'] = md5(filemtime($lockFile) . realpath($lockFile));
-    }
+    if (file_exists($lockFile)) $_SESSION['install_fp'] = md5(filemtime($lockFile) . realpath($lockFile));
 
-    $pdo->prepare("UPDATE admin_users SET last_login = datetime('now') WHERE id = ?")->execute([$user['id']]);
+    get_saas_db()->prepare("UPDATE tenants SET last_login = datetime('now'), updated_at = datetime('now') WHERE id = ?")
+        ->execute([(int)$tenant['id']]);
     return true;
 }
 
 function do_logout(): void {
     $_SESSION = [];
+    set_current_tenant(null);
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
         setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
