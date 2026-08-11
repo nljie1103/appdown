@@ -59,6 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f tests/smoke_saas.php ]; then php tests/smoke_saas.php; else php tests/smoke_templates.php; fi
+          php tests/smoke_landing_showcase.php
           php tests/smoke_updater.php
           php tests/smoke_admin2.php
 
