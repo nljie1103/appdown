@@ -1,0 +1,39 @@
+name: One-shot SaaS Admin 2.0 Rebuild
+on:
+  push:
+    branches: [saas]
+    paths:
+      - '.github/workflows/one-shot-saas-admin2-rebuild.yml'
+permissions:
+  contents: write
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+      - name: Build Admin 2.0 from SaaS HEAD
+        working-directory: admin-ui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Verify production assets
+        run: |
+          test -s admin/vue/admin2.js
+          test -s admin/vue/admin2.css
+          grep -q 'AppDown' admin/vue/admin2.js
+      - name: Commit rebuilt production assets
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin/vue
+          if ! git diff --cached --quiet; then
+            git commit -m 'build(saas): sync Admin 2.0 production assets'
+            git push origin HEAD:saas
+          fi
