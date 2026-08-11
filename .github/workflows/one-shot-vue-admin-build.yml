@@ -1,5 +1,5 @@
 name: One-shot Vue Admin Build
-# retry 4: full Admin 2.0 feature set + landing layout sync
+# retry 5: clean npm dependencies before SaaS branch switch
 on:
   push:
     branches: [main]
@@ -41,6 +41,7 @@ jobs:
           fi
       - name: Sync Vue admin and landing engine to SaaS
         run: |
+          rm -rf admin-ui/node_modules
           git fetch origin main saas
           git switch -C saas origin/saas
           git checkout origin/main -- admin-ui admin/app.php admin/vue static/landing-layouts.js
