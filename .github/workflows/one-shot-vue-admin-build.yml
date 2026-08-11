@@ -1,5 +1,5 @@
 name: One-shot Vue Admin Build
-# retry 2: TypeScript dashboard fix
+# retry 3: remove invalid data: CSS import before production build
 on:
   push:
     branches: [main]
@@ -19,6 +19,8 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: admin-ui/package.json
+      - name: Normalize admin source
+        run: sed -i '1{/^@import url/d;}' admin-ui/src/styles.css
       - name: Install and build Vue 3 admin
         working-directory: admin-ui
         run: |
@@ -29,11 +31,11 @@ jobs:
           test -s admin/vue/admin2.js
           test -s admin/vue/admin2.css
           grep -q 'AppDown' admin/vue/admin2.js
-      - name: Commit main build output
+      - name: Commit main source fix and build output
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add admin-ui/package-lock.json admin/vue
+          git add admin-ui/src/styles.css admin-ui/package-lock.json admin/vue
           if ! git diff --cached --quiet; then
             git commit -m 'build: compile AppDown Admin 2.0 Vue assets'
             git push origin HEAD:main
