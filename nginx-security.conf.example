@@ -1,6 +1,11 @@
-# AppDown Nginx / 宝塔伪静态安全规则
-# 用法：把本文件内容放到对应站点的 server {} 内。
+# AppDown SaaS - Nginx / 宝塔伪静态安全与多租户路由
+# 用法：把本文件内容放到对应站点 server {} 内。
 # 宝塔：网站 -> 设置 -> 伪静态。
+#
+# 注意：下面的 rewrite 会把 /用户名/... 内部路由到 PHP 文件，
+# 仍需站点原本存在正常的 PHP-FPM location 配置。
+
+index index.php index.html;
 
 # 数据库、缓存、主密钥、备份
 location ^~ /data/ {
@@ -20,11 +25,17 @@ location ~* ^/install/(install\.lock|access\.log)$ {
     return 404;
 }
 
-# 签名材料永不直接对公网提供
+# 单站旧目录签名材料
 location ^~ /uploads/keystores/ { deny all; return 404; }
 location ^~ /uploads/certs/ { deny all; return 404; }
 
-# 上传目录禁止 PHP 执行（包含 .php5/.php7 等常见变体）
+# SaaS 租户嵌套签名材料
+location ~* ^/uploads/tenants/[^/]+/(?:keystores|certs)/ {
+    deny all;
+    return 404;
+}
+
+# 上传目录禁止 PHP 执行
 location ~* ^/uploads/.*\.php[0-9]*$ {
     deny all;
     return 404;
@@ -41,6 +52,25 @@ location ~ (^|/)\.(?!well-known/) {
     deny all;
     return 404;
 }
+
+# 旧单站首页不再直接展示。
+location = /index.html {
+    return 302 /;
+}
+
+# -------------------- SaaS 路由 --------------------
+# 租户公共 API：/<slug>/api/config.php 等 -> /api/*.php?tenant=<slug>
+rewrite ^/([a-z0-9][a-z0-9_-]{2,31})/api/(config|track|plist|mobileconfig)\.php$ /api/$2.php?tenant=$1&$args last;
+
+# 每个租户自己的隐私政策 / 用户协议。
+rewrite ^/([a-z0-9][a-z0-9_-]{2,31})/(privacy|terms)\.php$ /$2.php?tenant=$1&$args last;
+
+# /<slug>/admin 只是便捷入口，实际共用 /admin 后台代码。
+rewrite ^/([a-z0-9][a-z0-9_-]{2,31})/admin/?$ /admin/login.php?tenant=$1&$args last;
+
+# /<slug> 或 /<slug>/ -> tenant.php。
+# negative lookahead 防止系统目录被当成用户名。
+rewrite ^/(?!admin/?$|super/?$|api/?$|install/?$|static/?$|uploads/?$|data/?$|includes/?$|tools/?$|tests/?$|android/?$|ios/?$|android-template/?$|ios-template/?$)([a-z0-9][a-z0-9_-]{2,31})/?$ /tenant.php?tenant=$1&$args last;
 
 # 推荐安全响应头（不会影响自定义 JS/CSS）
 add_header X-Content-Type-Options "nosniff" always;
