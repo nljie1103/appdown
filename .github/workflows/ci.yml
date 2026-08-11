@@ -1,5 +1,5 @@
 name: AppDown CI
-# Final SaaS Admin 2.0 / Landing Templates 2.0 validation after stale Vite chunk cleanup.
+# Final SaaS complete Admin 2.0 legacy-parity and Landing Templates 2.0 validation gate.
 
 on:
   push:
