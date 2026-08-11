@@ -28,6 +28,16 @@ jobs:
           set -euo pipefail
           docker run --rm -v "$GITHUB_WORKSPACE/src:/app" -w /app php:8.0-cli sh -lc 'find . -type f -name "*.php" -print0 | xargs -0 -n1 php -l'
 
+      - name: Mobile environment shell syntax check
+        shell: bash
+        working-directory: src
+        run: |
+          set -euo pipefail
+          bash -n tools/setup-android-env.sh
+          bash -n tools/setup-ios-env.sh
+          bash -n tools/uninstall-ios-env.sh
+          bash -n tools/setup-ios-xcode.sh
+
       - name: Install runtime test extensions and nginx
         shell: bash
         run: |
