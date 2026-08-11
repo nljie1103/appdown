@@ -1,17 +1,25 @@
 <?php
 /**
- * 数据库连接单例 + Schema初始化
+ * 数据库连接 + Schema 初始化。
+ * SaaS 分支下 get_db() 按租户数据库路径缓存连接；单站逻辑仍由同一 Schema 提供。
  */
 
 function get_db(): PDO {
-    static $pdo = null;
-    if ($pdo !== null) return $pdo;
+    static $connections = [];
 
-    $db_dir = __DIR__ . '/../data';
-    $db_path = $db_dir . '/app.db';
+    if (function_exists('appdown_db_path')) {
+        $db_path = appdown_db_path();
+    } else {
+        $db_path = __DIR__ . '/../data/app.db';
+    }
+    $db_dir = dirname($db_path);
 
-    if (!is_dir($db_dir)) {
-        mkdir($db_dir, 0750, true);
+    if (isset($connections[$db_path]) && $connections[$db_path] instanceof PDO) {
+        return $connections[$db_path];
+    }
+
+    if (!is_dir($db_dir) && !mkdir($db_dir, 0750, true) && !is_dir($db_dir)) {
+        throw new RuntimeException('无法创建数据库目录');
     }
 
     $is_new = !file_exists($db_path);
@@ -29,6 +37,7 @@ function get_db(): PDO {
         migrate_schema($pdo);
     }
 
+    $connections[$db_path] = $pdo;
     return $pdo;
 }
 
@@ -323,7 +332,6 @@ function init_schema(PDO $pdo): void {
         );
     ");
 
-    // 默认自定义代码位置
     $stmt = $pdo->prepare("INSERT OR IGNORE INTO custom_code (position, code) VALUES (?, '')");
     foreach (['head_css', 'head_js', 'footer_css', 'footer_js'] as $pos) {
         $stmt->execute([$pos]);
@@ -331,341 +339,217 @@ function init_schema(PDO $pdo): void {
 }
 
 function clear_config_cache(): void {
-    $path = __DIR__ . '/../data/config_cache.json';
-    if (file_exists($path)) {
-        unlink($path);
-    }
+    $path = function_exists('appdown_config_cache_path')
+        ? appdown_config_cache_path()
+        : (__DIR__ . '/../data/config_cache.json');
+    if (file_exists($path)) unlink($path);
 }
 
 /**
  * 已有数据库的增量迁移
  */
 function migrate_schema(PDO $pdo): void {
-    // 检测 apps 表是否有 icon_url 列
     $cols = $pdo->query("PRAGMA table_info(apps)")->fetchAll();
     $colNames = array_column($cols, 'name');
 
-    if (!in_array('icon_url', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('ios_template', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN ios_template TEXT NOT NULL DEFAULT 'modern'");
-    }
-    if (!in_array('ios_ipa_url', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN ios_ipa_url TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('ios_bundle_id', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN ios_bundle_id TEXT NOT NULL DEFAULT ''");
-    }
+    if (!in_array('icon_url', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
+    if (!in_array('ios_template', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN ios_template TEXT NOT NULL DEFAULT 'modern'");
+    if (!in_array('ios_ipa_url', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN ios_ipa_url TEXT NOT NULL DEFAULT ''");
+    if (!in_array('ios_bundle_id', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN ios_bundle_id TEXT NOT NULL DEFAULT ''");
+    if (!in_array('feature_category_id', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN feature_category_id INTEGER NOT NULL DEFAULT 0");
+    if (!in_array('mc_url', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_url TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_icon_data', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_icon_data TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_bundle_id', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_bundle_id TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_version', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_version TEXT NOT NULL DEFAULT '1'");
+    if (!in_array('mc_fullscreen', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_fullscreen INTEGER NOT NULL DEFAULT 1");
+    if (!in_array('mc_description', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_description TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_template', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_template TEXT NOT NULL DEFAULT 'modern'");
+    if (!in_array('mc_sign_cert', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_cert TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_sign_key', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_key TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_sign_chain', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_chain TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_sign_mode', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_mode TEXT NOT NULL DEFAULT ''");
+    if (!in_array('mc_payload_org', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_payload_org TEXT NOT NULL DEFAULT ''");
+    if (!in_array('android_template', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN android_template TEXT NOT NULL DEFAULT 'modern'");
+    if (!in_array('android_apk_url', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN android_apk_url TEXT NOT NULL DEFAULT ''");
+    if (!in_array('android_version', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN android_version TEXT NOT NULL DEFAULT ''");
+    if (!in_array('android_size', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN android_size TEXT NOT NULL DEFAULT ''");
+    if (!in_array('android_description', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN android_description TEXT NOT NULL DEFAULT ''");
 
-    if (!in_array('feature_category_id', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN feature_category_id INTEGER NOT NULL DEFAULT 0");
-    }
-
-    // Mobileconfig + Android 安装页相关字段
-    if (!in_array('mc_url', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_url TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_icon_data', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_icon_data TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_bundle_id', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_bundle_id TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_version', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_version TEXT NOT NULL DEFAULT '1'");
-    }
-    if (!in_array('mc_fullscreen', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_fullscreen INTEGER NOT NULL DEFAULT 1");
-    }
-    if (!in_array('mc_description', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_description TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_template', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_template TEXT NOT NULL DEFAULT 'modern'");
-    }
-    if (!in_array('mc_sign_cert', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_cert TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_sign_key', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_key TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_sign_chain', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_chain TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_sign_mode', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_sign_mode TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('mc_payload_org', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_payload_org TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('android_template', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN android_template TEXT NOT NULL DEFAULT 'modern'");
-    }
-    if (!in_array('android_apk_url', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN android_apk_url TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('android_version', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN android_version TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('android_size', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN android_size TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('android_description', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN android_description TEXT NOT NULL DEFAULT ''");
-    }
-
-    // app_downloads 增加 btn_icon 列
     $dlCols = $pdo->query("PRAGMA table_info(app_downloads)")->fetchAll();
     $dlColNames = array_column($dlCols, 'name');
-    if (!in_array('btn_icon', $dlColNames)) {
-        $pdo->exec("ALTER TABLE app_downloads ADD COLUMN btn_icon TEXT NOT NULL DEFAULT ''");
-    }
+    if (!in_array('btn_icon', $dlColNames)) $pdo->exec("ALTER TABLE app_downloads ADD COLUMN btn_icon TEXT NOT NULL DEFAULT ''");
 
-    // 新增附件管理表
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS app_platforms (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            app_id      INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
-            name        TEXT NOT NULL,
-            sort_order  INTEGER NOT NULL DEFAULT 0,
-            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS app_attachments (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            app_id        INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
-            platform_id   INTEGER NOT NULL REFERENCES app_platforms(id) ON DELETE CASCADE,
-            version       TEXT NOT NULL,
-            file_url      TEXT NOT NULL,
-            file_size     TEXT NOT NULL DEFAULT '',
-            changelog     TEXT NOT NULL DEFAULT '',
-            sort_order    INTEGER NOT NULL DEFAULT 0,
-            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+            platform_id INTEGER NOT NULL REFERENCES app_platforms(id) ON DELETE CASCADE,
+            version TEXT NOT NULL,
+            file_url TEXT NOT NULL,
+            file_size TEXT NOT NULL DEFAULT '',
+            changelog TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
-    ");
-
-    // 图片库表
-    $pdo->exec("
         CREATE TABLE IF NOT EXISTS image_categories (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL,
-            sort_order  INTEGER NOT NULL DEFAULT 0,
-            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    ");
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS image_library (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            category_id INTEGER NOT NULL REFERENCES image_categories(id) ON DELETE CASCADE,
-            file_url    TEXT NOT NULL,
-            filename    TEXT NOT NULL DEFAULT '',
-            file_size   TEXT NOT NULL DEFAULT '',
-            width       INTEGER NOT NULL DEFAULT 0,
-            height      INTEGER NOT NULL DEFAULT 0,
-            sort_order  INTEGER NOT NULL DEFAULT 0,
-            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    ");
-    // 给已有的image_library表补sort_order列
-    $ilCols = $pdo->query("PRAGMA table_info(image_library)")->fetchAll();
-    $ilColNames = array_column($ilCols, 'name');
-    if (!in_array('sort_order', $ilColNames)) {
-        $pdo->exec("ALTER TABLE image_library ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
-    }
-    if (!in_array('remark', $ilColNames)) {
-        $pdo->exec("ALTER TABLE image_library ADD COLUMN remark TEXT NOT NULL DEFAULT ''");
-    }
-
-    // 特色卡片分类表 + feature_cards 新字段
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS feature_categories (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL,
-            sort_order  INTEGER NOT NULL DEFAULT 0,
-            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
-    ");
-    $fcCols = $pdo->query("PRAGMA table_info(feature_cards)")->fetchAll();
-    $fcColNames = array_column($fcCols, 'name');
-    if (!in_array('icon_url', $fcColNames)) {
-        $pdo->exec("ALTER TABLE feature_cards ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('category_id', $fcColNames)) {
-        $pdo->exec("ALTER TABLE feature_cards ADD COLUMN category_id INTEGER NOT NULL DEFAULT 0");
-    }
-
-    // 友情链接新增图标字段
-    $flCols = $pdo->query("PRAGMA table_info(friend_links)")->fetchAll();
-    $flColNames = array_column($flCols, 'name');
-    if (!in_array('icon', $flColNames)) {
-        $pdo->exec("ALTER TABLE friend_links ADD COLUMN icon TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('icon_url', $flColNames)) {
-        $pdo->exec("ALTER TABLE friend_links ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('show_icon', $flColNames)) {
-        $pdo->exec("ALTER TABLE friend_links ADD COLUMN show_icon INTEGER NOT NULL DEFAULT 0");
-    }
-
-    // 登录尝试记录表（基于IP的防爆破）
-    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS image_library (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL REFERENCES image_categories(id) ON DELETE CASCADE,
+            file_url TEXT NOT NULL,
+            filename TEXT NOT NULL DEFAULT '',
+            file_size TEXT NOT NULL DEFAULT '',
+            width INTEGER NOT NULL DEFAULT 0,
+            height INTEGER NOT NULL DEFAULT 0,
+            remark TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS feature_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         CREATE TABLE IF NOT EXISTS login_attempts (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            ip          TEXT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT NOT NULL,
             attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, attempted_at);
-    ");
-
-    // APK生成器相关表
-    $pdo->exec("
         CREATE TABLE IF NOT EXISTS keystores (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            name            TEXT NOT NULL,
-            file_url        TEXT NOT NULL,
-            alias           TEXT NOT NULL,
-            store_password  TEXT NOT NULL,
-            key_password    TEXT NOT NULL,
-            validity_years  INTEGER NOT NULL DEFAULT 25,
-            org_name        TEXT NOT NULL DEFAULT '',
-            org_unit        TEXT NOT NULL DEFAULT '',
-            country         TEXT NOT NULL DEFAULT '',
-            state_name      TEXT NOT NULL DEFAULT '',
-            locality        TEXT NOT NULL DEFAULT '',
-            common_name     TEXT NOT NULL DEFAULT '',
-            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            file_url TEXT NOT NULL,
+            alias TEXT NOT NULL,
+            store_password TEXT NOT NULL,
+            key_password TEXT NOT NULL,
+            validity_years INTEGER NOT NULL DEFAULT 25,
+            org_name TEXT NOT NULL DEFAULT '',
+            org_unit TEXT NOT NULL DEFAULT '',
+            country TEXT NOT NULL DEFAULT '',
+            state_name TEXT NOT NULL DEFAULT '',
+            locality TEXT NOT NULL DEFAULT '',
+            common_name TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS build_tasks (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            build_type      TEXT NOT NULL DEFAULT 'apk',
-            status          TEXT NOT NULL DEFAULT 'pending',
-            progress        INTEGER NOT NULL DEFAULT 0,
-            progress_msg    TEXT NOT NULL DEFAULT '',
-            params          TEXT NOT NULL DEFAULT '{}',
-            keystore_id     INTEGER NOT NULL DEFAULT 0,
-            pid             INTEGER NOT NULL DEFAULT 0,
-            result_url      TEXT NOT NULL DEFAULT '',
-            result_size     TEXT NOT NULL DEFAULT '',
-            error_msg       TEXT NOT NULL DEFAULT '',
-            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            build_type TEXT NOT NULL DEFAULT 'apk',
+            status TEXT NOT NULL DEFAULT 'pending',
+            progress INTEGER NOT NULL DEFAULT 0,
+            progress_msg TEXT NOT NULL DEFAULT '',
+            params TEXT NOT NULL DEFAULT '{}',
+            keystore_id INTEGER NOT NULL DEFAULT 0,
+            pid INTEGER NOT NULL DEFAULT 0,
+            result_url TEXT NOT NULL DEFAULT '',
+            result_size TEXT NOT NULL DEFAULT '',
+            error_msg TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS generated_apks (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_id         INTEGER NOT NULL,
-            app_id          INTEGER DEFAULT NULL,
-            app_name        TEXT NOT NULL,
-            package_name    TEXT NOT NULL,
-            version_name    TEXT NOT NULL DEFAULT '1.0.0',
-            version_code    INTEGER NOT NULL DEFAULT 1,
-            url             TEXT NOT NULL,
-            icon_url        TEXT NOT NULL DEFAULT '',
-            splash_url      TEXT NOT NULL DEFAULT '',
-            apk_url         TEXT NOT NULL DEFAULT '',
-            apk_size        TEXT NOT NULL DEFAULT '',
-            keystore_id     INTEGER NOT NULL,
-            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            app_id INTEGER DEFAULT NULL,
+            app_name TEXT NOT NULL,
+            package_name TEXT NOT NULL,
+            version_name TEXT NOT NULL DEFAULT '1.0.0',
+            version_code INTEGER NOT NULL DEFAULT 1,
+            url TEXT NOT NULL,
+            icon_url TEXT NOT NULL DEFAULT '',
+            splash_url TEXT NOT NULL DEFAULT '',
+            apk_url TEXT NOT NULL DEFAULT '',
+            apk_size TEXT NOT NULL DEFAULT '',
+            keystore_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
-    ");
-
-    // build_tasks 增加 pid 列（追踪Worker进程）
-    $btCols = $pdo->query("PRAGMA table_info(build_tasks)")->fetchAll();
-    $btColNames = array_column($btCols, 'name');
-    if (!in_array('pid', $btColNames)) {
-        $pdo->exec("ALTER TABLE build_tasks ADD COLUMN pid INTEGER NOT NULL DEFAULT 0");
-    }
-
-    // Mobileconfig 证书管理 + 生成记录表
-    $pdo->exec("
         CREATE TABLE IF NOT EXISTS mc_certificates (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL,
-            mode        TEXT NOT NULL DEFAULT 'text',
-            cert        TEXT NOT NULL DEFAULT '',
-            [key]       TEXT NOT NULL DEFAULT '',
-            chain       TEXT NOT NULL DEFAULT '',
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            mode TEXT NOT NULL DEFAULT 'text',
+            cert TEXT NOT NULL DEFAULT '',
+            [key] TEXT NOT NULL DEFAULT '',
+            chain TEXT NOT NULL DEFAULT '',
             payload_org TEXT NOT NULL DEFAULT '',
-            is_global   INTEGER NOT NULL DEFAULT 0,
+            is_global INTEGER NOT NULL DEFAULT 0,
             cert_issuer TEXT NOT NULL DEFAULT '',
             cert_expires TEXT NOT NULL DEFAULT '',
-            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS generated_mobileconfigs (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            app_id       INTEGER DEFAULT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id INTEGER DEFAULT NULL,
             display_name TEXT NOT NULL,
-            target_url   TEXT NOT NULL,
-            bundle_id    TEXT NOT NULL DEFAULT '',
-            version      TEXT NOT NULL DEFAULT '1',
-            fullscreen   INTEGER NOT NULL DEFAULT 1,
-            icon_data    TEXT NOT NULL DEFAULT '',
-            description  TEXT NOT NULL DEFAULT '',
-            cert_id      INTEGER DEFAULT NULL,
-            payload_org  TEXT NOT NULL DEFAULT '',
-            file_path    TEXT NOT NULL DEFAULT '',
-            file_size    TEXT NOT NULL DEFAULT '',
-            template     TEXT NOT NULL DEFAULT 'modern',
-            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            target_url TEXT NOT NULL,
+            bundle_id TEXT NOT NULL DEFAULT '',
+            version TEXT NOT NULL DEFAULT '1',
+            fullscreen INTEGER NOT NULL DEFAULT 1,
+            icon_data TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            cert_id INTEGER DEFAULT NULL,
+            payload_org TEXT NOT NULL DEFAULT '',
+            file_path TEXT NOT NULL DEFAULT '',
+            file_size TEXT NOT NULL DEFAULT '',
+            template TEXT NOT NULL DEFAULT 'modern',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS generated_ipas (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_id      INTEGER NOT NULL,
-            app_id       INTEGER DEFAULT NULL,
-            app_name     TEXT NOT NULL,
-            bundle_id    TEXT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            app_id INTEGER DEFAULT NULL,
+            app_name TEXT NOT NULL,
+            bundle_id TEXT NOT NULL,
             version_name TEXT NOT NULL DEFAULT '1.0.0',
             version_code INTEGER NOT NULL DEFAULT 1,
-            url          TEXT NOT NULL,
-            icon_url     TEXT NOT NULL DEFAULT '',
-            ipa_url      TEXT NOT NULL DEFAULT '',
-            ipa_size     TEXT NOT NULL DEFAULT '',
+            url TEXT NOT NULL,
+            icon_url TEXT NOT NULL DEFAULT '',
+            ipa_url TEXT NOT NULL DEFAULT '',
+            ipa_size TEXT NOT NULL DEFAULT '',
             signing_mode TEXT NOT NULL DEFAULT 'unsigned',
-            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
     ");
 
-    // apps 表增加 mc_file_id 列
-    if (!in_array('mc_file_id', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_file_id INTEGER DEFAULT NULL");
-    }
-    if (!in_array('mc_file_url', $colNames)) {
-        $pdo->exec("ALTER TABLE apps ADD COLUMN mc_file_url TEXT NOT NULL DEFAULT ''");
-    }
+    $ilCols = $pdo->query("PRAGMA table_info(image_library)")->fetchAll();
+    $ilColNames = array_column($ilCols, 'name');
+    if (!in_array('sort_order', $ilColNames)) $pdo->exec("ALTER TABLE image_library ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+    if (!in_array('remark', $ilColNames)) $pdo->exec("ALTER TABLE image_library ADD COLUMN remark TEXT NOT NULL DEFAULT ''");
 
-    // build_tasks 增加 build_type 列（区分 apk/ipa）
-    if (!in_array('build_type', $btColNames)) {
-        $pdo->exec("ALTER TABLE build_tasks ADD COLUMN build_type TEXT NOT NULL DEFAULT 'apk'");
-    }
+    $fcCols = $pdo->query("PRAGMA table_info(feature_cards)")->fetchAll();
+    $fcColNames = array_column($fcCols, 'name');
+    if (!in_array('icon_url', $fcColNames)) $pdo->exec("ALTER TABLE feature_cards ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
+    if (!in_array('category_id', $fcColNames)) $pdo->exec("ALTER TABLE feature_cards ADD COLUMN category_id INTEGER NOT NULL DEFAULT 0");
 
-    // IPA 生成记录表
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS generated_ipas (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_id      INTEGER NOT NULL,
-            app_id       INTEGER DEFAULT NULL,
-            app_name     TEXT NOT NULL,
-            bundle_id    TEXT NOT NULL,
-            version_name TEXT NOT NULL DEFAULT '1.0.0',
-            version_code INTEGER NOT NULL DEFAULT 1,
-            url          TEXT NOT NULL,
-            icon_url     TEXT NOT NULL DEFAULT '',
-            ipa_url      TEXT NOT NULL DEFAULT '',
-            ipa_size     TEXT NOT NULL DEFAULT '',
-            signing_mode TEXT NOT NULL DEFAULT 'unsigned',
-            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-    ");
+    $flCols = $pdo->query("PRAGMA table_info(friend_links)")->fetchAll();
+    $flColNames = array_column($flCols, 'name');
+    if (!in_array('icon', $flColNames)) $pdo->exec("ALTER TABLE friend_links ADD COLUMN icon TEXT NOT NULL DEFAULT ''");
+    if (!in_array('icon_url', $flColNames)) $pdo->exec("ALTER TABLE friend_links ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
+    if (!in_array('show_icon', $flColNames)) $pdo->exec("ALTER TABLE friend_links ADD COLUMN show_icon INTEGER NOT NULL DEFAULT 0");
 
-    // mc_certificates 增加证书信息列
+    $btCols = $pdo->query("PRAGMA table_info(build_tasks)")->fetchAll();
+    $btColNames = array_column($btCols, 'name');
+    if (!in_array('pid', $btColNames)) $pdo->exec("ALTER TABLE build_tasks ADD COLUMN pid INTEGER NOT NULL DEFAULT 0");
+    if (!in_array('build_type', $btColNames)) $pdo->exec("ALTER TABLE build_tasks ADD COLUMN build_type TEXT NOT NULL DEFAULT 'apk'");
+
+    if (!in_array('mc_file_id', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_file_id INTEGER DEFAULT NULL");
+    if (!in_array('mc_file_url', $colNames)) $pdo->exec("ALTER TABLE apps ADD COLUMN mc_file_url TEXT NOT NULL DEFAULT ''");
+
     $mcCols = array_map(function($r) { return $r['name']; }, $pdo->query("PRAGMA table_info(mc_certificates)")->fetchAll());
-    if (!in_array('cert_issuer', $mcCols)) {
-        $pdo->exec("ALTER TABLE mc_certificates ADD COLUMN cert_issuer TEXT NOT NULL DEFAULT ''");
-    }
-    if (!in_array('cert_expires', $mcCols)) {
-        $pdo->exec("ALTER TABLE mc_certificates ADD COLUMN cert_expires TEXT NOT NULL DEFAULT ''");
-    }
+    if (!in_array('cert_issuer', $mcCols)) $pdo->exec("ALTER TABLE mc_certificates ADD COLUMN cert_issuer TEXT NOT NULL DEFAULT ''");
+    if (!in_array('cert_expires', $mcCols)) $pdo->exec("ALTER TABLE mc_certificates ADD COLUMN cert_expires TEXT NOT NULL DEFAULT ''");
 }
