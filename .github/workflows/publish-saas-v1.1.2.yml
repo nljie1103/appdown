@@ -1,0 +1,32 @@
+name: Publish SaaS v1.1.2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-saas-v1.1.2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      SAAS_SHA: 2828686736b6587fa25056867b2bbbd4198645e4
+      SAAS_TAG: saas-v1.1.2
+    steps:
+      - name: Create exact tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing=""
+          if existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${SAAS_TAG}" --jq '.object.sha' 2>/dev/null)"; then
+            test "$existing" = "$SAAS_SHA"
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${SAAS_TAG}" -f sha="$SAAS_SHA" >/dev/null
+          fi
+          if ! gh release view "$SAAS_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$SAAS_TAG" --repo "$GITHUB_REPOSITORY" --target "$SAAS_SHA" --title "AppDown SaaS v1.1.2" --notes $'AppDown SaaS v1.1.2 — Nginx / 宝塔路由修复\n\n- 修复 nginx-security.conf.example 中含 {2,31} 量词的 rewrite 正则未加引号，导致 Nginx 报 directive "rewrite" is not terminated by ";"。\n- 四条 SaaS rewrite 正则统一使用双引号。\n- GitHub CI 新增真实 nginx -t 示例配置语法检查，并已通过。\n- README / CHANGELOG 已同步宝塔伪静态配置步骤与已知问题说明。\n\n已安装 saas-v1.1.1 的站点可以从 /super/update.php 在线升级。'
+          fi
