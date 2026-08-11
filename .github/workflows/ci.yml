@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  php-checks:
+  full-stack-checks:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch source
@@ -20,12 +20,14 @@ jobs:
           curl -fsSL --retry 3 "https://github.com/${GITHUB_REPOSITORY}/archive/${GITHUB_SHA}.tar.gz" -o /tmp/appdown.tar.gz
           mkdir -p "$GITHUB_WORKSPACE/src"
           tar -xzf /tmp/appdown.tar.gz --strip-components=1 -C "$GITHUB_WORKSPACE/src"
+
       - name: PHP 8.0 syntax check
         shell: bash
         run: |
           set -euo pipefail
           docker run --rm -v "$GITHUB_WORKSPACE/src:/app" -w /app php:8.0-cli sh -lc 'find . -type f -name "*.php" -print0 | xargs -0 -n1 php -l'
-      - name: Install runtime test extensions
+
+      - name: Install runtime test extensions and nginx
         shell: bash
         run: |
           set -euo pipefail
@@ -34,6 +36,7 @@ jobs:
           php -m | grep -qi '^pdo_sqlite$'
           php -m | grep -qi '^zip$'
           php -m | grep -qi '^mbstring$'
+
       - name: Nginx example syntax check
         shell: bash
         run: |
@@ -49,10 +52,33 @@ jobs:
           }
           EOF
           sudo nginx -t -c /tmp/appdown-nginx-test.conf
-      - name: Run edition integration smoke test
+
+      - name: Run edition integration smoke tests
         shell: bash
         working-directory: src
         run: |
           set -euo pipefail
           if [ -f tests/smoke_saas.php ]; then php tests/smoke_saas.php; else php tests/smoke_templates.php; fi
           php tests/smoke_updater.php
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/admin-ui/package-lock.json
+
+      - name: Vue 3 TypeScript and production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/src"
+          find admin/vue -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/admin-vue-before.sha256
+          cd admin-ui
+          npm ci --no-audit --no-fund
+          npm run build
+          cd ..
+          test -s admin/vue/admin2.js
+          test -s admin/vue/admin2.css
+          find admin/vue -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/admin-vue-after.sha256
+          diff -u /tmp/admin-vue-before.sha256 /tmp/admin-vue-after.sha256
