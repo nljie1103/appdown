@@ -1,5 +1,5 @@
 name: One-shot Vue Admin Build
-# retry 3: remove invalid data: CSS import before production build
+# retry 4: full Admin 2.0 feature set + landing layout sync
 on:
   push:
     branches: [main]
@@ -18,35 +18,34 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: admin-ui/package.json
-      - name: Normalize admin source
-        run: sed -i '1{/^@import url/d;}' admin-ui/src/styles.css
+          cache-dependency-path: admin-ui/package-lock.json
       - name: Install and build Vue 3 admin
         working-directory: admin-ui
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run build
       - name: Verify production assets
         run: |
           test -s admin/vue/admin2.js
           test -s admin/vue/admin2.css
           grep -q 'AppDown' admin/vue/admin2.js
-      - name: Commit main source fix and build output
+          ls admin/vue/chunk-*.js >/dev/null
+      - name: Commit main build output
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add admin-ui/src/styles.css admin-ui/package-lock.json admin/vue
+          git add admin/vue
           if ! git diff --cached --quiet; then
-            git commit -m 'build: compile AppDown Admin 2.0 Vue assets'
+            git commit -m 'build: compile complete AppDown Admin 2.0 assets'
             git push origin HEAD:main
           fi
-      - name: Sync Vue admin source and build to SaaS
+      - name: Sync Vue admin and landing engine to SaaS
         run: |
           git fetch origin main saas
           git switch -C saas origin/saas
-          git checkout origin/main -- admin-ui admin/app.php admin/vue
-          git add admin-ui admin/app.php admin/vue
+          git checkout origin/main -- admin-ui admin/app.php admin/vue static/landing-layouts.js
+          git add admin-ui admin/app.php admin/vue static/landing-layouts.js
           if ! git diff --cached --quiet; then
-            git commit -m 'feat(saas): sync AppDown Admin 2.0 Vue frontend'
+            git commit -m 'feat(saas): sync complete Admin 2.0 and landing engine'
             git push origin HEAD:saas
           fi
