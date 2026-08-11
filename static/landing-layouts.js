@@ -12,6 +12,15 @@
     return node;
   };
 
+  function ensureStyleSheet(id, href) {
+    if (document.getElementById(id)) return;
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
   function iconNode(app) {
     const box = el('div', 'adl-active-icon');
     if (app?.icon_url) {
@@ -91,6 +100,7 @@
     }
 
     if (currentTemplate === 'aurora') {
+      ensureStyleSheet('appdown-landing-showcase-css', '/static/landing-showcase.css');
       const showcase = el('section', 'adl-showcase');
       const hero = el('div', 'adl-showcase-hero');
       const brand = el('div', 'adl-showcase-brand');
