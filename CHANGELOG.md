@@ -8,9 +8,13 @@
 - Android 模板新增默认 launcher icon，未填写自定义图标也可构建；永久 CI 真实执行环境安装、Gradle Release、JKS 签名、apksigner 与 aapt 验证。
 - iOS Builder 改为 SSH/SCP 传输工程与 IPA，不再依赖 macOS 实际无法保证存在的 `/mnt/build` 共享目录。
 - iOS Phase 1 增加 x86_64/KVM 检测、loopback SSH、专用 SSH identity；SSH 未就绪时安装任务明确失败，不再出现假阳性 done。
-- Xcode Worker 使用后台配置的 SSH 端口、known_hosts 与 identity，并新增可选 Xcode 版本；Xcode 是否就绪最终以 `xcodebuild` 实测为准。
-- Builder 明确标注当前 IPA 为 unsigned；永久 CI 在真实 macOS Runner 上执行 iOS 模板 `xcodebuild archive`。
+- Xcode Web Worker 使用后台配置的 SSH 端口、known_hosts 与 identity，并新增可选 Xcode 版本；Xcode 是否就绪最终以 `xcodebuild` 实测为准。
+- 终端版 `setup-ios-xcode.sh` 同步移除写死 50922 与 `StrictHostKeyChecking=no`，支持 AppDown SSH identity、Intel `/usr/local/bin` 与 Apple Silicon `/opt/homebrew/bin` Homebrew 路径，并严格执行最终 `xcodebuild -version` 验证。
+- iOS 模板改为 Xcode 12 兼容 project format、最低 iOS 14，并补齐完整默认 AppIcon；自定义图标继续由 Builder 覆盖默认资源。该模板同时已在永久 macOS CI 中通过真实 `xcodebuild archive`。
+- Builder 明确标注当前 IPA 为 unsigned，不再把未签名产物描述成可直接安装的签名 IPA。
 - iOS 卸载脚本尊重自定义容器/镜像参数，默认不删除 Docker 镜像，避免误伤共享资源。
+- 旧 `/admin/system.php` 改为跳转 Admin 2.0 系统页，避免旧页面继续使用已经淘汰的 Docker/iOS 检测逻辑，系统环境状态只保留一套来源。
+- 永久 CI 增加移动环境 Shell 语法、真实 Android APK 构建和真实 macOS/Xcode iOS archive 三层门禁。
 - 从本版本开始 `main` 与 `saas` Release 数字版本统一：`v1.3.1` / `saas-v1.3.1`，后续同批发布继续保持相同 X.Y.Z。
 
 ## v1.3.0 - 2026-08-11
@@ -20,7 +24,7 @@ AppDown Admin 2.0 与分发首页模板 2.0 正式发布。
 - 管理后台直接升级为 Vue 3 + TypeScript + Vite SPA；`/admin/` 与登录成功后的默认入口进入 Admin 2.0。
 - Admin 2.0 接入真实 PHP API，覆盖应用、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、模板、内容组件、字体、设置、自定义代码、备份、系统、账户与在线升级。
 - 新增完整图片媒体库：分类、上传、WebP/JPG/PNG 转换质量、重命名、备注、排序与路径复制。
-- 补齐 Vue 与旧后台功能等价：应用特色分类/iOS OTA/Mobileconfig/安装型下载与截图排序，Mobileconfig 编辑/关联/证书维护，以及 Builder 自定义路径、Xcode Apple ID + 2FA 安装。
+- 补齐 Vue 与旧后台功能等价：应用特色分类/iOS OTA/Mobileconfig/安装型下载与截图排序，Mobileconfig 编辑/关联/证书维护，以及 Builder 自定义路径、Xcode 2FA 和账户安全。
 - 最终旧后台功能对照补齐：附件页恢复 APK/IPA 包信息解析，字体上传恢复 TTF/OTF 内部字体名识别，备份恢复密码二次确认与管理员账户默认不勾选，并补齐媒体库 GIF / 拖拽和账户表单校验。
 - Vue Router 路由懒加载，生产资产提交在 `admin/vue/`；生产服务器无需 Node.js。
 - 新增浅色 / 深色 / 跟随系统主题与 shadcn New York + Linear + Vercel/Stripe 风格 Design System。
