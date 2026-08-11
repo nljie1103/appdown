@@ -1,4 +1,5 @@
 name: One-shot Vue Admin Build
+# retry 2: TypeScript dashboard fix
 on:
   push:
     branches: [main]
