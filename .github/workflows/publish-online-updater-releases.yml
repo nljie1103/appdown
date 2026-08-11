@@ -58,9 +58,9 @@ jobs:
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/main-src"
-          php -r '$z=updater_download_release(APPDOWN_RELEASE_TAG); try { updater_archive_map($z, APPDOWN_EDITION, APPDOWN_VERSION); echo "main live archive validation passed\n"; } finally { @unlink($z); }' -d auto_prepend_file=includes/updater.php
+          php -r 'require "includes/updater.php"; $z=updater_download_release(APPDOWN_RELEASE_TAG); try { updater_archive_map($z, APPDOWN_EDITION, APPDOWN_VERSION); echo "main live archive validation passed\n"; } finally { @unlink($z); }'
           cd "$GITHUB_WORKSPACE/saas-src"
-          php -r '$z=updater_download_release(APPDOWN_RELEASE_TAG); try { updater_archive_map($z, APPDOWN_EDITION, APPDOWN_VERSION); echo "saas live archive validation passed\n"; } finally { @unlink($z); }' -d auto_prepend_file=includes/updater.php
+          php -r 'require "includes/updater.php"; $z=updater_download_release(APPDOWN_RELEASE_TAG); try { updater_archive_map($z, APPDOWN_EDITION, APPDOWN_VERSION); echo "saas live archive validation passed\n"; } finally { @unlink($z); }'
 
       - name: Publish releases
         env:
@@ -78,6 +78,6 @@ jobs:
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/main-src"
-          php -r '$r=updater_check_release(true); if (($r["tag"]??"")!==APPDOWN_RELEASE_TAG) { fwrite(STDERR, json_encode($r)); exit(1); } echo "main live release discovery passed\n";' -d auto_prepend_file=includes/updater.php
+          php -r 'require "includes/updater.php"; $r=updater_check_release(true); if (($r["tag"]??"")!==APPDOWN_RELEASE_TAG) { fwrite(STDERR, json_encode($r)); exit(1); } echo "main live release discovery passed\n";'
           cd "$GITHUB_WORKSPACE/saas-src"
-          php -r '$r=updater_check_release(true); if (($r["tag"]??"")!==APPDOWN_RELEASE_TAG) { fwrite(STDERR, json_encode($r)); exit(1); } echo "saas live release discovery passed\n";' -d auto_prepend_file=includes/updater.php
+          php -r 'require "includes/updater.php"; $r=updater_check_release(true); if (($r["tag"]??"")!==APPDOWN_RELEASE_TAG) { fwrite(STDERR, json_encode($r)); exit(1); } echo "saas live release discovery passed\n";'
