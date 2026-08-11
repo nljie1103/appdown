@@ -42,9 +42,8 @@ jobs:
         run: |
           set -euo pipefail
           ensure_tag() {
-            local tag="$1" sha="$2" existing
-            existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha' 2>/dev/null || true)"
-            if [ -n "$existing" ]; then
+            local tag="$1" sha="$2" existing=""
+            if existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha' 2>/dev/null)"; then
               test "$existing" = "$sha" || { echo "Tag $tag points to unexpected $existing" >&2; exit 1; }
               echo "$tag already points to $sha"
             else
