@@ -11,6 +11,10 @@ data/ios_known_hosts
 data/*_worker_*.log
 data/*_install.log
 data/ios-build/
+data/update-backups/
+data/update-release-cache-*.json
+data/update-installed-manifest.json
+data/update.lock
 
 # Uploads (user content)
 uploads/images/*
