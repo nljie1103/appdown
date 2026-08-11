@@ -1,0 +1,56 @@
+name: One-shot v1.3.1 Repair Builder
+
+on:
+  push:
+    branches:
+      - fix-v1.3.1-main
+      - fix-v1.3.1-saas
+
+permissions:
+  contents: write
+
+jobs:
+  repair-build-commit:
+    if: ${{ !contains(github.event.head_commit.message, '[v131-built]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+      - name: Apply known-issues repair
+        run: python3 tools/one-shot-v131-fix.py
+      - name: PHP and shell syntax checks
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
+          bash -n tools/setup-ios-env.sh tools/uninstall-ios-env.sh tools/setup-android-env.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+      - name: Rebuild Admin 2.0 production assets
+        run: |
+          set -euo pipefail
+          cd admin-ui
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Run smoke tests available on branch
+        run: |
+          set -euo pipefail
+          if [ -f tests/smoke_saas.php ]; then php tests/smoke_saas.php; else php tests/smoke_templates.php; fi
+          php tests/smoke_landing_showcase.php
+          php tests/smoke_updater.php
+          php tests/smoke_admin2.php
+      - name: Remove one-shot machinery and commit built patch
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          rm -f tools/one-shot-v131-fix.py .github/workflows/one-shot-v131-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: repair known issues and unify v1.3.1 [v131-built]'
+          git push origin "HEAD:${BRANCH}"
