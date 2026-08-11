@@ -1,35 +1,70 @@
 <?php
 /**
  * 分发首页模板定义。
- * 模板只覆盖视觉层，继续复用 index.html 的渲染、下载、轮播和统计逻辑。
+ *
+ * 2.0 模板系统把“视觉皮肤”和“结构布局”拆开：
+ * - 本文件提供模板目录与少量主题 token / 背景 CSS；
+ * - static/landing-layouts.js 负责真实 DOM 布局；
+ * - static/landing-layouts.css 负责每种布局的组件与响应式样式。
+ *
+ * 所有模板继续复用同一份应用数据、下载、轮播、统计和事件追踪逻辑。
  */
 
 function landing_template_catalog(): array {
     return [
         'classic' => [
             'name' => '经典',
-            'description' => '保留 AppDown 当前清爽渐变与卡片布局。',
-            'preview' => '经典浅色渐变、圆角卡片',
+            'description' => 'AppDown 原始居中分发页，适合希望保持旧站体验的用户。',
+            'preview' => '居中 Hero · 顶部应用切换 · 经典轮播',
+            'layout' => 'classic',
         ],
         'glass' => [
-            'name' => '玻璃拟态',
-            'description' => '半透明玻璃卡片、柔和光晕与悬浮层次。',
-            'preview' => '玻璃卡片、柔光背景',
+            'name' => '玻璃工作台',
+            'description' => 'Hero 与应用选择器拆成玻璃面板，内容区更像现代产品展示页。',
+            'preview' => '玻璃 Hero · 悬浮导航 · 分层内容',
+            'layout' => 'spotlight',
         ],
         'minimal' => [
-            'name' => '极简白',
-            'description' => '更克制的留白、细边框与内容优先布局。',
-            'preview' => '大留白、细线、低干扰',
+            'name' => '编辑部',
+            'description' => '杂志式标题、细线导航和超大截图区域，强调内容本身而非装饰。',
+            'preview' => 'Editorial · 大留白 · 横向截图',
+            'layout' => 'editorial',
         ],
         'midnight' => [
-            'name' => '午夜深色',
-            'description' => '深色背景、柔和高亮，适合工具和开发者产品。',
-            'preview' => '深色、霓虹高亮',
+            'name' => '开发者终端',
+            'description' => '左侧应用控制栏 + 右侧产品舞台，适合工具、开发者和科技产品。',
+            'preview' => '深色控制栏 · 双栏舞台 · 高密度信息',
+            'layout' => 'console',
         ],
         'aurora' => [
-            'name' => '极光渐变',
-            'description' => '更鲜明的渐变背景与高饱和按钮，适合品牌展示。',
-            'preview' => '极光渐变、彩色玻璃',
+            'name' => '品牌发布',
+            'description' => '大面积品牌 Hero、胶囊式应用切换和沉浸式截图，适合品牌发布。',
+            'preview' => '大 Hero · 极光背景 · 沉浸展示',
+            'layout' => 'showcase',
+        ],
+        'store' => [
+            'name' => 'App Store',
+            'description' => '应用商店式信息架构：左侧应用列表，右侧详情、下载方式和截图。',
+            'preview' => '商店侧栏 · 应用摘要 · 截图画廊',
+            'layout' => 'store',
+        ],
+        'bento' => [
+            'name' => 'Bento 展示',
+            'description' => '将统计、下载、截图和特色能力组织成 Bento 卡片矩阵。',
+            'preview' => 'Bento 网格 · 指标卡 · 模块化组件',
+            'layout' => 'bento',
+        ],
+        'split' => [
+            'name' => 'Split 产品页',
+            'description' => '桌面端左右分屏：左侧品牌与应用选择，右侧专注当前应用。',
+            'preview' => '左右分屏 · 固定产品栏 · 大截图',
+            'layout' => 'split',
+        ],
+        'mobile' => [
+            'name' => 'Mobile First',
+            'description' => '模拟手机产品页的窄内容流，按钮、截图和功能卡围绕触控体验重新布局。',
+            'preview' => '移动优先 · 底部感按钮 · 纵向内容流',
+            'layout' => 'mobile',
         ],
     ];
 }
@@ -39,70 +74,47 @@ function normalize_landing_template(string $template): string {
     return isset($templates[$template]) ? $template : 'classic';
 }
 
+function landing_template_layout(string $template): string {
+    $template = normalize_landing_template($template);
+    $catalog = landing_template_catalog();
+    return (string)($catalog[$template]['layout'] ?? 'classic');
+}
+
 function landing_template_css(string $template): string {
     $template = normalize_landing_template($template);
     $css = [
         'classic' => '',
         'glass' => <<<'CSS'
-body{background:linear-gradient(135deg,#eef7ff 0%,#f9f2ff 45%,#fff7ef 100%)!important;background-attachment:fixed!important}
-body::before{background:radial-gradient(circle at 15% 20%,rgba(80,170,255,.26),transparent 34%),radial-gradient(circle at 82% 20%,rgba(182,113,255,.24),transparent 31%),radial-gradient(circle at 55% 85%,rgba(255,160,92,.2),transparent 35%)!important;filter:blur(16px)!important;opacity:1!important}
-.container{max-width:1180px!important}
-.app-tabs-container,.download-notice,.feature-card,.partners-section,.download-stats{background:rgba(255,255,255,.56)!important;border:1px solid rgba(255,255,255,.78)!important;box-shadow:0 18px 50px rgba(43,61,92,.12)!important;backdrop-filter:blur(22px) saturate(135%)!important;-webkit-backdrop-filter:blur(22px) saturate(135%)!important}
-.app-tabs-container{border-radius:28px!important;padding:7px!important}
-.app-tab{border-radius:20px!important;border-bottom:0!important}
-.app-tab.active{background:rgba(255,255,255,.8)!important;box-shadow:0 8px 24px rgba(35,55,90,.12)!important}
-.app-section h2{border:0!important}
-.download-button{border-radius:18px!important;box-shadow:0 14px 28px rgba(25,60,105,.18)!important}
-.carousel-container{border-radius:28px!important;background:rgba(255,255,255,.46)!important;border:1px solid rgba(255,255,255,.7)!important;box-shadow:0 24px 55px rgba(38,59,90,.15)!important;backdrop-filter:blur(18px)!important}
-.friend-link-card{background:rgba(255,255,255,.62)!important;border:1px solid rgba(255,255,255,.75)!important;border-radius:16px!important}
+body{--adl-accent:#5b7cff;background:linear-gradient(135deg,#eef7ff 0%,#f7f2ff 46%,#fff8ef 100%)!important;background-attachment:fixed!important}
+body::before{background:radial-gradient(circle at 15% 20%,rgba(80,170,255,.22),transparent 34%),radial-gradient(circle at 82% 20%,rgba(182,113,255,.2),transparent 31%),radial-gradient(circle at 55% 85%,rgba(255,160,92,.16),transparent 35%)!important}
 CSS,
         'minimal' => <<<'CSS'
-body{background:#fff!important;color:#111!important}
-body::before{display:none!important}
-.container{max-width:980px!important;padding-top:44px!important}
-.logo{border-radius:24px!important;box-shadow:none!important;border:1px solid #ececec!important}
-h1{font-size:clamp(2rem,5vw,3.6rem)!important;letter-spacing:-.045em!important;font-weight:760!important}
-.download-notice{background:#fafafa!important;color:#444!important;border:1px solid #ededed!important;box-shadow:none!important;font-weight:500!important}
-.app-tabs-container{background:transparent!important;border:0!important;border-bottom:1px solid #e8e8e8!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important}
-.app-tab{font-size:1rem!important;font-weight:600!important;padding:15px 18px!important;border-bottom:2px solid transparent!important}
-.app-tab:hover,.app-tab.active{background:transparent!important;box-shadow:none!important;transform:none!important}
-.app-section h2{font-size:1.45rem!important;border:0!important;margin-top:30px!important}
-.download-button{border-radius:12px!important;box-shadow:none!important;min-width:190px!important}
-.carousel-container{border-radius:18px!important;box-shadow:none!important;border:1px solid #ececec!important;background:#fafafa!important}
-.download-stats{background:#fafafa!important;border:1px solid #ececec!important;box-shadow:none!important;border-radius:16px!important}
-.feature-card{box-shadow:none!important;border:1px solid #ececec!important;border-radius:16px!important;background:#fff!important}
-.partners-section{box-shadow:none!important;border-top:1px solid #eee!important;background:#fafafa!important}
-.friend-link-card{box-shadow:none!important;border:1px solid #e8e8e8!important;background:#fff!important}
+body{--adl-accent:#111;background:#fff!important;color:#111!important}
+body::before,.background-animation{display:none!important}
 CSS,
         'midnight' => <<<'CSS'
-:root{--primary:#f4f7ff!important;--secondary:#a7b0c4!important}
-body{background:#070a12!important;color:#f4f7ff!important}
-body::before{background:radial-gradient(circle at 20% 15%,rgba(59,130,246,.22),transparent 34%),radial-gradient(circle at 80% 18%,rgba(139,92,246,.2),transparent 32%),radial-gradient(circle at 50% 90%,rgba(14,165,233,.12),transparent 40%)!important;filter:blur(10px)!important;opacity:1!important}
-h1,h2,h3,.stat-number{color:#f6f8ff!important}
-.download-notice{background:rgba(251,191,36,.1)!important;color:#fcd34d!important;border:1px solid rgba(251,191,36,.25)!important;box-shadow:none!important}
-.app-tabs-container,.download-stats,.feature-card,.partners-section{background:rgba(17,24,39,.78)!important;border:1px solid rgba(148,163,184,.14)!important;box-shadow:0 18px 48px rgba(0,0,0,.28)!important;backdrop-filter:blur(18px)!important}
-.app-tab{color:#aeb8cc!important}
-.app-tab:hover{background:rgba(255,255,255,.05)!important}
-.app-tab.active{background:rgba(96,165,250,.1)!important}
-.app-section h2{border-color:rgba(148,163,184,.18)!important}
-.download-button{box-shadow:0 12px 32px rgba(0,0,0,.28)!important;border:1px solid rgba(255,255,255,.12)!important}
-.carousel-container{background:#0d1321!important;border:1px solid rgba(148,163,184,.14)!important;box-shadow:0 24px 60px rgba(0,0,0,.38)!important}
-.friend-link-card{background:#111827!important;color:#dce5f7!important;border:1px solid rgba(148,163,184,.15)!important}
-footer,footer a,.stat-label,.feature-card p{color:#9ca9be!important}
+body{--adl-accent:#60a5fa;background:#070a12!important;color:#f4f7ff!important}
+body::before{background:radial-gradient(circle at 20% 15%,rgba(59,130,246,.2),transparent 34%),radial-gradient(circle at 80% 18%,rgba(139,92,246,.18),transparent 32%)!important}
 CSS,
         'aurora' => <<<'CSS'
-body{background:linear-gradient(140deg,#dff8ff 0%,#eee6ff 34%,#ffe7ef 67%,#fff2d9 100%)!important;background-attachment:fixed!important}
-body::before{background:radial-gradient(circle at 8% 15%,rgba(0,210,255,.35),transparent 31%),radial-gradient(circle at 88% 13%,rgba(146,76,255,.33),transparent 31%),radial-gradient(circle at 65% 80%,rgba(255,78,145,.24),transparent 34%),radial-gradient(circle at 18% 82%,rgba(255,188,58,.2),transparent 30%)!important;filter:blur(24px)!important;opacity:.9!important}
-.logo{box-shadow:0 18px 50px rgba(104,65,180,.2)!important}
-h1{font-size:clamp(2rem,5vw,3.4rem)!important;letter-spacing:-.04em!important}
-.app-tabs-container{background:rgba(255,255,255,.68)!important;border:1px solid rgba(255,255,255,.82)!important;border-radius:999px!important;padding:7px!important;box-shadow:0 18px 45px rgba(75,61,128,.13)!important;backdrop-filter:blur(20px)!important}
-.app-tab{border:0!important;border-radius:999px!important}
-.app-tab.active{background:#fff!important;box-shadow:0 8px 22px rgba(72,55,120,.13)!important}
-.app-section h2{border:0!important}
-.download-button{border-radius:999px!important;box-shadow:0 16px 30px rgba(75,61,128,.18)!important}
-.carousel-container{border-radius:30px!important;background:rgba(255,255,255,.58)!important;border:1px solid rgba(255,255,255,.88)!important;box-shadow:0 26px 60px rgba(73,56,120,.15)!important;backdrop-filter:blur(18px)!important}
-.download-stats,.feature-card,.partners-section{background:rgba(255,255,255,.58)!important;border:1px solid rgba(255,255,255,.8)!important;box-shadow:0 20px 48px rgba(73,56,120,.12)!important;backdrop-filter:blur(18px)!important}
-.feature-card,.friend-link-card{border-radius:22px!important}
+body{--adl-accent:#7c3aed;background:linear-gradient(140deg,#dff8ff 0%,#eee6ff 34%,#ffe7ef 67%,#fff2d9 100%)!important;background-attachment:fixed!important}
+body::before{background:radial-gradient(circle at 8% 15%,rgba(0,210,255,.3),transparent 31%),radial-gradient(circle at 88% 13%,rgba(146,76,255,.28),transparent 31%),radial-gradient(circle at 65% 80%,rgba(255,78,145,.2),transparent 34%)!important}
+CSS,
+        'store' => <<<'CSS'
+body{--adl-accent:#007aff;background:#f5f5f7!important;color:#1d1d1f!important}
+body::before,.background-animation{display:none!important}
+CSS,
+        'bento' => <<<'CSS'
+body{--adl-accent:#111827;background:#f3f4f6!important;color:#111827!important}
+body::before{background:radial-gradient(circle at 10% 10%,rgba(99,102,241,.1),transparent 30%),radial-gradient(circle at 90% 20%,rgba(14,165,233,.09),transparent 28%)!important}
+CSS,
+        'split' => <<<'CSS'
+body{--adl-accent:#2563eb;background:#f8fafc!important;color:#111827!important}
+body::before,.background-animation{display:none!important}
+CSS,
+        'mobile' => <<<'CSS'
+body{--adl-accent:#111827;background:#eef0f4!important;color:#111827!important}
+body::before{display:none!important}
 CSS,
     ];
     return $css[$template] ?? '';
