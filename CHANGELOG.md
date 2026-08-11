@@ -4,6 +4,8 @@
 
 - 管理后台直接升级为 Vue 3 + TypeScript + Vite SPA；`/admin/` 与登录成功后的默认入口进入 Admin 2.0。
 - Admin 2.0 接入真实 PHP API，覆盖应用、附件、APK/IPA Builder、构建产物、Keystore、Mobileconfig、模板、内容组件、字体、设置、自定义代码、备份、系统、账户与在线升级。
+- 新增完整图片媒体库：分类、上传、WebP/JPG/PNG 转换质量、重命名、备注、排序与路径复制。
+- 补齐 Vue 与旧后台功能等价：应用特色分类/iOS OTA/Mobileconfig/安装型下载与截图排序，Mobileconfig 编辑/关联/证书维护，以及 Builder 自定义路径、Xcode Apple ID + 2FA 安装。
 - Vue Router 路由懒加载，生产资产提交在 `admin/vue/`；生产服务器无需 Node.js。
 - 新增浅色 / 深色 / 跟随系统主题与 shadcn New York + Linear + Vercel/Stripe 风格 Design System。
 - 分发首页模板升级为 9 套真实结构布局，不再仅通过 CSS 换色；Aurora 使用独立 Showcase 结构和样式。
