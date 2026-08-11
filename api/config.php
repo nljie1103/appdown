@@ -8,7 +8,6 @@ require_once __DIR__ . '/../includes/init.php';
 require_once __DIR__ . '/../includes/landing_templates.php';
 require_method('GET');
 
-// 检测是否已安装
 $lock = __DIR__ . '/../install/install.lock';
 $db_file = __DIR__ . '/../data/app.db';
 if (!file_exists($lock) || !file_exists($db_file)) {
@@ -18,7 +17,6 @@ if (!file_exists($lock) || !file_exists($db_file)) {
     exit;
 }
 
-// 文件缓存 (5分钟)
 $cache_path = __DIR__ . '/../data/config_cache.json';
 if (file_exists($cache_path) && (time() - filemtime($cache_path)) < 300) {
     header('Content-Type: application/json; charset=utf-8');
@@ -28,60 +26,78 @@ if (file_exists($cache_path) && (time() - filemtime($cache_path)) < 300) {
 }
 
 $pdo = get_db();
-
-// 站点设置
 $settings = [];
-$rows = $pdo->query('SELECT setting_key, setting_val FROM site_settings')->fetchAll();
-foreach ($rows as $r) {
-    $settings[$r['setting_key']] = $r['setting_val'];
+foreach ($pdo->query('SELECT setting_key, setting_val FROM site_settings')->fetchAll() as $row) {
+    $settings[$row['setting_key']] = $row['setting_val'];
 }
 
-// 应用列表
+// 一次取出应用，再批量读取下载、截图和应用特色，避免每个应用 2~3 次查询的 N+1。
 $apps = $pdo->query('SELECT id, slug, name, icon, icon_url, theme_color, feature_category_id FROM apps WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
+$appIds = array_map(static fn(array $app): int => (int)$app['id'], $apps);
+$downloadsByApp = [];
+$imagesByApp = [];
+$featuresByCategory = [];
 
-foreach ($apps as &$app) {
-    // 下载按钮
-    $dlStmt = $pdo->prepare('SELECT btn_type, btn_icon, btn_text, btn_subtext, href FROM app_downloads WHERE app_id = ? AND is_active = 1 ORDER BY sort_order ASC');
-    $dlStmt->execute([$app['id']]);
-    $app['downloads'] = $dlStmt->fetchAll();
+if ($appIds) {
+    $marks = implode(',', array_fill(0, count($appIds), '?'));
 
-    // 轮播图
-    $imgStmt = $pdo->prepare('SELECT image_url, alt_text FROM app_images WHERE app_id = ? ORDER BY sort_order ASC');
-    $imgStmt->execute([$app['id']]);
-    $app['images'] = array_column($imgStmt->fetchAll(), null);
-
-    // 应用关联的特色卡片
-    $fcId = (int)($app['feature_category_id'] ?? 0);
-    if ($fcId > 0) {
-        $fcStmt = $pdo->prepare('SELECT title, description, icon, icon_url FROM feature_cards WHERE category_id = ? AND is_active = 1 ORDER BY sort_order ASC');
-        $fcStmt->execute([$fcId]);
-        $app['features'] = $fcStmt->fetchAll();
+    $stmt = $pdo->prepare("SELECT app_id, btn_type, btn_icon, btn_text, btn_subtext, href FROM app_downloads WHERE is_active = 1 AND app_id IN ($marks) ORDER BY app_id, sort_order ASC");
+    $stmt->execute($appIds);
+    foreach ($stmt->fetchAll() as $row) {
+        $appId = (int)$row['app_id'];
+        unset($row['app_id']);
+        $downloadsByApp[$appId][] = $row;
     }
 
-    // 输出时用slug做id，移除数据库id
+    $stmt = $pdo->prepare("SELECT app_id, image_url, alt_text FROM app_images WHERE app_id IN ($marks) ORDER BY app_id, sort_order ASC");
+    $stmt->execute($appIds);
+    foreach ($stmt->fetchAll() as $row) {
+        $appId = (int)$row['app_id'];
+        unset($row['app_id']);
+        $imagesByApp[$appId][] = $row;
+    }
+}
+
+$categoryIds = [];
+foreach ($apps as $app) {
+    $categoryId = (int)($app['feature_category_id'] ?? 0);
+    if ($categoryId > 0) $categoryIds[$categoryId] = $categoryId;
+}
+if ($categoryIds) {
+    $ids = array_values($categoryIds);
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT category_id, title, description, icon, icon_url FROM feature_cards WHERE is_active = 1 AND category_id IN ($marks) ORDER BY category_id, sort_order ASC");
+    $stmt->execute($ids);
+    foreach ($stmt->fetchAll() as $row) {
+        $categoryId = (int)$row['category_id'];
+        unset($row['category_id']);
+        $featuresByCategory[$categoryId][] = $row;
+    }
+}
+
+foreach ($apps as &$app) {
+    $appId = (int)$app['id'];
+    $categoryId = (int)($app['feature_category_id'] ?? 0);
+    $app['downloads'] = $downloadsByApp[$appId] ?? [];
+    $app['images'] = $imagesByApp[$appId] ?? [];
+    $app['features'] = $categoryId > 0 ? ($featuresByCategory[$categoryId] ?? []) : [];
     $app['id'] = $app['slug'];
     unset($app['slug'], $app['feature_category_id']);
 }
 unset($app);
 
-// 特色卡片
 $features = $pdo->query('SELECT title, description, icon, icon_url FROM feature_cards WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
-
-// 友情链接
 $links = $pdo->query('SELECT name, url, icon, icon_url, show_icon FROM friend_links WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 
-// 自定义代码
 $custom = [];
-$cRows = $pdo->query('SELECT position, code FROM custom_code')->fetchAll();
-foreach ($cRows as $r) {
-    $custom[$r['position']] = $r['code'];
+foreach ($pdo->query('SELECT position, code FROM custom_code')->fetchAll() as $row) {
+    $custom[$row['position']] = $row['code'];
 }
 
-// 分发首页模板通过现有 head_css 注入机制加载，避免复制首页渲染逻辑。
-// 用户自己的 CSS 放在模板 CSS 之后，因此仍可覆盖内置模板。
 $landingTemplate = normalize_landing_template($settings['landing_template'] ?? 'classic');
 $templateCss = landing_template_css($landingTemplate);
 if ($templateCss !== '') {
+    // 内置模板 token 先注入，用户自己的 CSS 保持后置，仍拥有最终覆盖权。
     $custom['head_css'] = $templateCss . "\n" . ($custom['head_css'] ?? '');
 }
 
@@ -96,19 +112,20 @@ $config = [
         'copyright'         => $settings['copyright'] ?? '',
         'carousel_interval' => (int)($settings['carousel_interval'] ?? 4000),
         'landing_template'  => $landingTemplate,
+        'landing_layout'    => landing_template_layout($landingTemplate),
         'stats' => [
             'downloads'    => (int)($settings['stats_downloads'] ?? 0),
             'rating'       => (float)($settings['stats_rating'] ?? 0),
             'daily_active' => (int)($settings['stats_daily_active'] ?? 0),
         ],
-        'font_url'    => $settings['font_url'] ?? '',
-        'font_family' => $settings['font_family'] ?? 'CustomFont',
-        'bg_type'     => $settings['bg_type'] ?? 'default',
-        'bg_color'    => $settings['bg_color'] ?? '',
-        'bg_gradient' => $settings['bg_gradient'] ?? '',
-        'bg_image'    => $settings['bg_image'] ?? '',
-        'effects_config' => $settings['effects_config'] ?? '{}',
-        'inapp_redirect' => (bool)($settings['inapp_redirect'] ?? false),
+        'font_url'          => $settings['font_url'] ?? '',
+        'font_family'       => $settings['font_family'] ?? 'CustomFont',
+        'bg_type'           => $settings['bg_type'] ?? 'default',
+        'bg_color'          => $settings['bg_color'] ?? '',
+        'bg_gradient'       => $settings['bg_gradient'] ?? '',
+        'bg_image'          => $settings['bg_image'] ?? '',
+        'effects_config'    => $settings['effects_config'] ?? '{}',
+        'inapp_redirect'    => (bool)($settings['inapp_redirect'] ?? false),
     ],
     'apps'         => $apps,
     'features'     => $features,
@@ -117,8 +134,9 @@ $config = [
 ];
 
 $json = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-// 写入缓存
+if ($json === false) {
+    json_response(['error' => 'config_encode_failed'], 500);
+}
 file_put_contents($cache_path, $json, LOCK_EX);
 
 header('Content-Type: application/json; charset=utf-8');
