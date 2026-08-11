@@ -1,4 +1,4 @@
-name: Run SaaS Final Isolation Patch
+name: Run SaaS Business Patch
 
 on:
   push:
@@ -20,53 +20,9 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch saas "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
 
-      - name: Normalize codemod inputs
-        working-directory: repo
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('admin/backup.php')
-          s=p.read_text()
-          old="admin_users:'管理员账户'"
-          if s.count(old)!=1: raise SystemExit(f'expected one backup label, got {s.count(old)}')
-          p.write_text(s.replace(old,"'admin_users':'管理员账户'"))
-
-          # The business patch must not depend on cosmetic test-source escaping.
-          p=Path('tools/saas-postfix.py')
-          s=p.read_text()
-          start=s.index('# Strengthen SaaS smoke-test static guardrails.')
-          end=s.index("Path('tools/saas-postfix.py').unlink", start)
-          p.write_text(s[:start] + s[end:])
-          PY
-
       - name: Apply asserted business patch
         working-directory: repo
-        run: python3 tools/saas-postfix.py
-
-      - name: Finalize backup UI and test guardrails
-        working-directory: repo
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p=Path('admin/backup.php')
-          s=p.read_text()
-          checkbox='<label class="check-item"><input type="checkbox" value="admin_users">管理员账户</label>'
-          label="'admin_users':'管理员账户（SaaS中央账户，不导出）',"
-          if s.count(checkbox)!=1: raise SystemExit('admin backup checkbox not found exactly once')
-          if s.count(label)!=1: raise SystemExit('admin backup label not found exactly once')
-          p.write_text(s.replace(checkbox,'').replace(label,''))
-
-          p=Path('tests/smoke_saas.php')
-          s=p.read_text()
-          old='''        'tools/build-worker.php' => ["appdown_upload_dir() . '/apks'", 'APPDOWN_TENANT'],
-        'tools/ios-build-worker.php' => ["appdown_upload_dir() . '/ipas'", "'/data/ios-build/' . \\$tenantSlug"],'''
-          new='''        'admin/api/generate.php' => ['APPDOWN_TENANT=', 'appdown_data_dir()'],
-        'tools/build-worker.php' => ["appdown_upload_dir() . '/apks'", '$tenantRoot = realpath(appdown_upload_dir())'],
-        'tools/ios-build-worker.php' => ["appdown_upload_dir() . '/ipas'", "'/data/ios-build/' . \\$tenantSlug", '$tenantRoot = realpath(appdown_upload_dir())'],'''
-          if s.count(old)!=1: raise SystemExit(f'smoke guardrail block count={s.count(old)}')
-          p.write_text(s.replace(old,new))
-          PY
+        run: python3 tools/saas-business-postfix.py
 
       - name: PHP syntax check
         working-directory: repo
