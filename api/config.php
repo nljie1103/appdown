@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/init.php';
+require_once __DIR__ . '/../includes/landing_templates.php';
 require_method('GET');
 
 // 检测是否已安装
@@ -76,6 +77,14 @@ foreach ($cRows as $r) {
     $custom[$r['position']] = $r['code'];
 }
 
+// 分发首页模板通过现有 head_css 注入机制加载，避免复制首页渲染逻辑。
+// 用户自己的 CSS 放在模板 CSS 之后，因此仍可覆盖内置模板。
+$landingTemplate = normalize_landing_template($settings['landing_template'] ?? 'classic');
+$templateCss = landing_template_css($landingTemplate);
+if ($templateCss !== '') {
+    $custom['head_css'] = $templateCss . "\n" . ($custom['head_css'] ?? '');
+}
+
 $config = [
     'site' => [
         'title'             => $settings['site_title'] ?? '',
@@ -86,6 +95,7 @@ $config = [
         'notice_enabled'    => (bool)($settings['notice_enabled'] ?? true),
         'copyright'         => $settings['copyright'] ?? '',
         'carousel_interval' => (int)($settings['carousel_interval'] ?? 4000),
+        'landing_template'  => $landingTemplate,
         'stats' => [
             'downloads'    => (int)($settings['stats_downloads'] ?? 0),
             'rating'       => (float)($settings['stats_rating'] ?? 0),

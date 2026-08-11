@@ -1,0 +1,46 @@
+name: AppDown CI
+
+on:
+  push:
+    branches: [main, saas, agent/landing-templates]
+  pull_request:
+    branches: [main, saas]
+
+permissions:
+  contents: read
+
+jobs:
+  php-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 "https://github.com/${GITHUB_REPOSITORY}/archive/${GITHUB_SHA}.tar.gz" -o /tmp/appdown.tar.gz
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          tar -xzf /tmp/appdown.tar.gz --strip-components=1 -C "$GITHUB_WORKSPACE/src"
+
+      - name: PHP 8.0 syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/src:/app" \
+            -w /app \
+            php:8.0-cli \
+            sh -lc 'find . -type f -name "*.php" -print0 | xargs -0 -n1 php -l'
+
+      - name: Install runtime test extensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y php-cli php-sqlite3 php-zip php-curl php-gd >/dev/null
+          php -m | grep -qi '^pdo_sqlite$'
+          php -m | grep -qi '^zip$'
+
+      - name: Run landing template smoke test
+        shell: bash
+        working-directory: src
+        run: php tests/smoke_templates.php

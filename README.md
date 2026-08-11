@@ -6,508 +6,357 @@
 </p>
 
 <h1 align="center">AppDown</h1>
-<p align="center"><strong>自托管 APP 下载落地页 · 全后台可配置 · 开箱即用</strong></p>
-<p align="center">基于 PHP + SQLite，零外部依赖，无需 Composer / Node.js / MySQL</p>
+<p align="center"><strong>自托管 IPA / APK 分发站 · 全后台配置 · 可视化首页模板 · URL 封装应用</strong></p>
+<p align="center">PHP + SQLite + 原生 JavaScript/CSS，无 Composer / Node.js / MySQL 依赖</p>
 
 ---
 
-## ✨ 功能一览
+> 当前 `main` 分支是 **单站 / 个人自建版**。如果你需要一个安装实例承载多个独立用户、每个用户拥有自己的分发站，请使用仓库的 `saas` 分支（SaaS 分支 README 会单独说明其路由、超级后台和租户数据结构）。
 
-<table>
-<tr>
-<td width="50%">
+## ✨ 核心功能
 
-**🏢 后台管理**
-- 全可视化配置，无需改代码
-- 多应用管理，独立图标 / 主题色 / 下载按钮
-- 拖拽排序，实时预览
+### 分发首页
 
-**📱 iOS 分发**
-- 自动生成 plist 文件（IPA 企业签分发）
-- Mobileconfig WebClip 描述文件（免签安装到桌面）
-- SSL 证书签名（全局 / 单应用独立证书管理）
-- 生成 → 关联附件库 → 编辑应用选择 → 部署
-- 双模板可选（毛玻璃 / 仿 App Store）
-- 内置安装图文教程引导
-- 微信 / QQ 自动提示跳转 Safari
+- 多应用统一展示，每个应用可配置独立图标、主题色、下载按钮和轮播截图
+- 后台维护应用、下载链接、版本与附件，无需修改 HTML
+- 响应式手机 / 桌面布局
+- 微信、QQ、微博、抖音等应用内浏览器打开提示
+- 页面访问 / 下载点击统计
+- 自定义 Logo、Favicon、背景、字体、公告、特色卡片和友情链接
+- 自定义 CSS / JavaScript 与内置页面特效
 
-**🤖 APK 生成器（URL 转 APK）**
-- 输入网址自动封装为 Android WebView 应用
-- 自定义应用名称、图标、启动图、包名、版本号
-- 签名密钥管理（在线生成 / 导入已有密钥）
-- 后台构建 + 实时进度轮询
-- 生成结果管理（下载 / 关联到应用 / 删除）
-- 一键环境部署脚本
-- 自动检测非标准路径的 JDK / SDK
-- 支持自定义 JAVA_HOME / ANDROID_HOME 路径
+### 🎨 分发首页模板
 
-**🍎 IPA 生成器（URL 转 IPA）**
-- 通过 Docker-OSX 在 Linux 上运行 macOS + Xcode
-- 输入网址自动封装为 iOS WKWebView 应用
-- 自定义应用名称、Bundle ID、版本号、图标
-- 无签名模式构建（CODE_SIGNING_ALLOWED=NO）
-- 三阶段环境部署：Docker 容器(自动) → Xcode 安装(Web 界面 / 终端交互) → 验证(自动)
-- 支持自定义 SSH 端口 / 容器名称
-- 后台构建 + 实时进度轮询 + IPA 管理
+这里的“页面模板”指 **用户打开站点首页时看到的应用下载展示页**，不是 iOS plist、Mobileconfig 或 Android/iOS 安装引导模板。
 
-**📊 数据统计**
-- 页面访问量 / 下载次数
-- 来源智能识别（搜索引擎 / 社交平台 / 开发者平台 / 直接访问）
-- 来源 TOP10（自动合并 http/https，图标+类型标签）
-- 7天趋势图 / 今日下载明细
+后台进入：
 
-</td>
-<td width="50%">
+```text
+/admin/templates.php
+```
 
-**🎨 高度自定义**
-- 自定义代码注入（CSS / JS）
-- 11 种内置一键特效（樱花、雪花、灯笼、粒子等）
-- 节日欢迎弹窗（22个中国节日 + 自定义祝福语）
-- 背景音乐播放
-- 自定义字体上传（自动识别字体名称）
-- 特色卡片（分类管理、FA图标/自定义图片图标）
-- 友情链接（支持图标：FA图标/自定义图片、按链接开关显示）
+首批内置 5 套模板：
 
-**📎 附件管理**
-- 按应用 → 平台 → 版本三级管理
-- 拖拽上传 + XHR 进度条
-- 文件自动命名（应用名-版本号）
-- 上传后可编辑版本号、更新日志
-- **安装包详细信息解析**（APK / IPA）：签名信息、版本号、包名 / Bundle ID、证书有效期、权限列表等
-- **OCSP 证书吊销检测**：实时查询苹果 OCSP 服务器，检测 IPA 签名证书是否被吊销（掉签）
-- 公共图片库（分类管理、格式转换压缩、备注、真实文件重命名、一键复制链接）
+| 模板 | 风格 |
+|---|---|
+| 经典 | AppDown 原有清爽浅色渐变与圆角卡片 |
+| 玻璃拟态 | 半透明玻璃、柔光背景、悬浮层次 |
+| 极简白 | 大留白、细边框、内容优先 |
+| 午夜深色 | 深色背景、开发者风格、高亮按钮 |
+| 极光渐变 | 彩色渐变、品牌感更强的玻璃卡片 |
 
-**🔒 安全防护**
-- CSRF 保护 + 预处理语句
-- 登录防爆破（5次锁定15分钟）
-- Session 超时自动登出（2小时）
-- 可选算术验证码
-- 可选爬虫 UA 过滤（独立统计爬虫来源）
-- 安装指纹机制，重装后旧会话自动失效
-- 敏感目录保护（Apache .htaccess + Nginx 规则 + PHP 兜底）
-- 环境检测，安装锁定
+模板系统只覆盖视觉层，继续复用同一份下载、轮播、统计和浏览器检测逻辑，因此切换模板不会改变应用数据或链接。
 
-</td>
-</tr>
-</table>
+如果后台还配置了“自定义代码 → Head CSS”，用户自己的 CSS 会排在模板 CSS 后面，可以继续覆盖内置模板。
+
+### 📱 iOS 分发
+
+- 自动生成企业分发 plist
+- IPA / Bundle ID / 版本信息维护
+- Mobileconfig WebClip 描述文件生成
+- Mobileconfig SSL 签名
+- 全局 / 单应用证书
+- iOS 安装引导模板
+- 证书到期信息与 OCSP 检查
+
+### 🤖 APK 生成器
+
+- URL → Android WebView APK
+- 自定义应用名、图标、启动图、包名、版本号
+- 在线生成 / 导入 Keystore
+- 后台构建任务与进度
+- APK 生成记录与关联应用
+- JDK / Android SDK 自动检测
+
+### 🍎 IPA 生成器
+
+- URL → iOS WKWebView IPA
+- Docker-OSX + macOS + Xcode 构建路线
+- 自定义 Bundle ID、版本号、图标
+- 无签名构建模式
+- 后台构建任务与结果管理
+
+### 📎 附件与版本
+
+- 应用 → 平台 → 版本三级管理
+- APK / IPA 上传与结构校验
+- 安装包信息解析
+- 更新日志和历史版本
+- 图片库与图片分类
+
+### 🔒 安全与备份
+
+- CSRF
+- PDO 预处理语句
+- 登录防爆破
+- Session 超时与修改密码后的旧 Session 失效
+- Apache / Nginx 敏感目录保护
+- Android Keystore 密码 AES-256-GCM 存储
+- Mobileconfig 私钥 AES-256-GCM 存储
+- 私钥不回传浏览器
+- Gradle 构建命令行不携带签名密码
+- v3 加密备份（AES-256-GCM + Argon2id / PBKDF2 fallback）
+- ZIP 路径穿越 / ZIP Bomb / 异常压缩比限制
+- SQLite 自动备份与保留策略
+
+详细安全说明见 [`SECURITY.md`](SECURITY.md)，升级注意事项见 [`UPGRADE.md`](UPGRADE.md)。
 
 ## 🛠 技术栈
 
 | 组件 | 技术 |
-|:---|:---|
-| 后端 | PHP 8.0+（无框架、无 Composer） |
-| 数据库 | SQLite（单文件，零配置） |
-| 前端 | 原生 JS + CSS（无构建步骤） |
-| 管理面板 | 自定义 UI + Chart.js (CDN) |
+|---|---|
+| 后端 | PHP 8.0+ |
+| 数据库 | SQLite |
+| 前端 | 原生 JavaScript + CSS |
+| 后台 | 自定义 UI + Chart.js |
 | 图标 | Font Awesome 7.1.0（本地） |
 | APK 构建 | OpenJDK 17 + Android SDK + Gradle 8.5 |
-| IPA 构建 | Docker-OSX (macOS Sonoma) + Xcode + KVM |
+| IPA 构建 | Docker-OSX + Xcode + KVM |
 
-## 🚀 快速开始
+## 🚀 安装
 
 ### 环境要求
 
-- PHP 8.0+ 且启用 `pdo_sqlite` 和 `fileinfo` 扩展
-- 导入导出功能需启用 `zip` 扩展
-- 安装包解析功能需启用 `zip` 和 `openssl` 扩展
-- OCSP 证书吊销检测需启用 `curl` 和 `openssl` 扩展
-- Mobileconfig 签名需启用 `openssl` 扩展
-- 图片格式转换压缩需启用 `gd` 扩展（支持 WebP/JPEG/PNG/GIF）
+基础运行：
+
+- PHP 8.0+
+- `pdo_sqlite`
+- `fileinfo`
 - Nginx 或 Apache
-- **无需** MySQL、Composer、Node.js
-- **APK 生成功能**（可选）需额外安装 JDK 17 + Android SDK，见下方说明
-- **IPA 生成功能**（可选）需 Linux 宿主机 + KVM 虚拟化 + Docker，见下方说明
 
-### 一键部署
+推荐扩展：
 
-**方式一：Git 克隆**
+- `zip`：APK/IPA 结构解析、导入导出
+- `openssl`：证书、Mobileconfig 签名、备份加密
+- `sodium`：优先使用 Argon2id 备份 KDF
+- `curl`：OCSP 查询
+- `gd`：图片转换和压缩
+
+不需要：
+
+- MySQL
+- Composer
+- Node.js / npm
+- Redis
+
+### 部署代码
+
 ```bash
 cd /www/wwwroot/你的域名
-git clone https://github.com/nljie1103/appdown.git
+git clone https://github.com/nljie1103/appdown.git .
 ```
 
-**方式二：下载压缩包**
+或从 GitHub Release / Code → Download ZIP 下载后解压到网站根目录。
 
-点击页面右上角绿色 **Code** → **Download ZIP**，解压后将所有文件上传到网站根目录。
+### 初始化
 
-### 开始安装
+访问：
 
-1. 浏览器访问 `https://你的域名/install/`
-2. 系统自动检测环境（PHP版本、扩展、目录权限），不通过会红色标示
-3. 设置管理员账号和站点名称
-4. 安装完成自动锁定，无需手动删除文件
+```text
+https://你的域名/install/
+```
 
-> 💡 安装后访问 `https://你的域名/admin/` 进入后台管理
+安装程序会检测环境、初始化 SQLite、创建管理员和 `install.lock`。
 
-### APK 生成环境部署（可选）
+安装后后台：
 
-如需使用「生成应用」功能（URL 转 APK），需要额外安装 JDK 和 Android SDK。
+```text
+https://你的域名/admin/
+```
 
-**方式一：一键部署脚本（推荐）**
+## 🌐 Nginx / 宝塔配置
+
+**Nginx 不读取 `.htaccess`。**
+
+仓库提供：
+
+```text
+nginx-security.conf.example
+```
+
+宝塔用户：
+
+```text
+网站 → 设置 → 伪静态
+```
+
+把该文件中的规则加入当前站点 `server {}` 范围内，然后执行：
+
+```bash
+nginx -t
+nginx -s reload
+```
+
+规则会保护：
+
+- `/data/`
+- `/includes/`
+- `/tools/`
+- `/android-template/`
+- `/ios-template/`
+- `/uploads/certs/`
+- `/uploads/keystores/`
+- 安装锁 / 安装日志
+- `.key/.pem/.p12/.pfx/.jks/.keystore/.bks`
+- 上传目录中的 PHP 文件
+
+升级后建议直接测试：
+
+```text
+https://你的域名/data/app.db
+https://你的域名/uploads/certs/test.key
+https://你的域名/uploads/keystores/test.jks
+https://你的域名/tools/build-worker.php
+```
+
+均应返回 403 或 404。
+
+Apache 用户使用仓库根目录 `.htaccess`，并确保站点允许 `AllowOverride`。
+
+## 🔐 主密钥与迁移
+
+新版会使用：
+
+```text
+data/.secret.key
+```
+
+加密 Android Keystore 密码和 Mobileconfig 私钥。
+
+如果直接手工复制 `app.db` 到另一台服务器，需要同步安全迁移 `.secret.key`；更推荐从后台导出带密码的 `.enc` 完整备份，在目标服务器导入。完整加密备份会在目标服务器重新使用目标主密钥保存 Secrets。
+
+请不要把：
+
+```text
+data/.secret.key
+uploads/certs/
+uploads/keystores/
+```
+
+加入公开仓库或公开下载目录。
+
+## 🤖 APK 构建环境（可选）
+
+推荐：
 
 ```bash
 sudo bash tools/setup-android-env.sh
 ```
 
-脚本会自动完成：安装 OpenJDK 17 → 下载 Android SDK 命令行工具（Google 源失败自动切换腾讯云镜像）→ 安装 Build Tools 和 Platform → 验证环境。
+手动环境至少需要 JDK 17 与 Android SDK。
 
-**方式二：手动安装**
+可通过环境变量指定：
 
 ```bash
-# 1. 安装 JDK 17
-sudo apt install openjdk-17-jdk
-
-# 2. 下载 Android SDK 命令行工具
-sudo mkdir -p /opt/android-sdk/cmdline-tools
-cd /opt/android-sdk/cmdline-tools
-sudo wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-sudo unzip commandlinetools-linux-*.zip
-sudo mv cmdline-tools latest
-
-# 3. 安装 SDK 组件
-sudo /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-  "build-tools;34.0.0" "platforms;android-34"
+export JAVA_HOME=/path/to/jdk
+export ANDROID_HOME=/path/to/android-sdk
 ```
 
-> ⚠️ 构建脚本会自动检测系统已安装的 JDK 和 SDK（包括非标准路径），也可通过 `JAVA_HOME` 和 `ANDROID_HOME` 环境变量手动指定。
+Gradle 发行包会缓存到：
 
-### Gradle 构建依赖（网络受限时）
-
-APK 构建依赖两个 Gradle 文件，构建脚本会自动按 **官方源 → 腾讯云镜像 → 阿里云镜像** 的顺序尝试下载。如果服务器网络受限导致全部失败，可手动下载后放置到指定位置：
-
-| 文件 | 大小 | 作用 | 放置位置 |
-|:---|:---|:---|:---|
-| `gradle-wrapper.jar` | ~43 KB | Gradle 引导程序 | `android-template/gradle/wrapper/gradle-wrapper.jar`（已随仓库提供） |
-| `gradle-8.5-bin.zip` | ~150 MB | Gradle 完整发行包 | `data/gradle-cache/gradle-8.5-bin.zip` |
-
-**`gradle-wrapper.jar`** 已包含在仓库中，无需额外操作。
-
-**`gradle-8.5-bin.zip`** 首次构建时会自动下载并缓存到 `data/gradle-cache/` 目录，后续构建不再重复下载。如自动下载失败，可手动下载后放到该目录：
-
-```bash
-# 下载地址（任选其一）
-# 官方源
-wget -O data/gradle-cache/gradle-8.5-bin.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
-# 腾讯云镜像
-wget -O data/gradle-cache/gradle-8.5-bin.zip https://mirrors.cloud.tencent.com/gradle/gradle-8.5-bin.zip
-# 阿里云镜像
-wget -O data/gradle-cache/gradle-8.5-bin.zip https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.5-bin.zip
+```text
+data/gradle-cache/gradle-8.5-bin.zip
 ```
 
-构建脚本会自动检测 `data/gradle-cache/gradle-8.5-bin.zip`，存在则直接使用本地文件，无需联网。
+构建签名密码不会再通过 `-PksPwd` / `-PksKeyPwd` 进入进程命令行。
 
-### IPA 生成环境部署（可选）
+## 🍎 IPA 构建环境（可选）
 
-如需使用「生成应用」的 IPA 功能（URL 转 IPA），需要 Docker-OSX（在 Linux 上通过 Docker 运行 macOS）。
+需要：
 
-**前提条件：**
-- Linux 宿主机（不支持 Windows / macOS Docker Desktop）
-- CPU 支持硬件虚拟化（VT-x / AMD-V），BIOS 已开启
-- KVM 已安装并可用（`ls /dev/kvm`）
-- 磁盘空间 ≥ 50GB（macOS 镜像约 20GB + Xcode 约 12GB）
-- 内存 ≥ 8GB
+- Linux 宿主机
+- KVM
+- Docker
+- 可运行的 Docker-OSX/macOS
+- Xcode
+- 建议 ≥ 8GB 内存
+- 建议预留 ≥ 50GB 磁盘
 
-**三阶段部署：**
+环境脚本：
 
 ```bash
-# Phase 1: 安装 Docker + 拉取 macOS 镜像 + 创建容器（约 30 分钟）
-# 也可以在后台「系统信息」页面一键触发
 sudo bash tools/setup-ios-env.sh
-
-# Phase 2: 安装 Xcode（需要 Apple ID + 2FA 交互）
-# 方式 A: 后台「系统信息」页面 Web 界面操作（填写 Apple ID → 输入验证码）
-# 方式 B: 终端交互安装
 sudo bash tools/setup-ios-xcode.sh
-
-# Phase 3: 在后台「系统信息」页面点击「验证 Xcode」按钮确认
 ```
 
-> 💡 三个阶段均可通过后台 Web 界面操作。Phase 2 也支持在终端中交互完成。
+后台“系统信息”也提供对应的检测 / 部署入口。
 
-**权限配置（如需通过 Web 后台触发安装/卸载）：**
+如果允许 PHP 用户触发特权脚本，只给**明确脚本路径**最小化 sudo 权限，不要给 `www-data ALL=(ALL) NOPASSWD: ALL`。
+
+## 📂 主要目录
+
+```text
+appdown/
+├── index.html                       # 分发首页渲染内核
+├── api/                             # 公共 API
+│   ├── config.php                   # 首页配置 + 模板 CSS
+│   ├── plist.php
+│   ├── mobileconfig.php
+│   └── track.php
+├── admin/                           # 后台
+│   ├── templates.php                # 分发首页模板选择
+│   ├── apps.php
+│   ├── attachments.php
+│   ├── generate.php
+│   └── api/
+│       └── templates.php            # 模板 API
+├── includes/
+│   ├── landing_templates.php        # 首页模板目录与 CSS
+│   ├── db.php
+│   ├── auth.php
+│   ├── security.php
+│   └── ...
+├── data/                            # SQLite、缓存、主密钥、备份（禁止公网访问）
+├── uploads/
+│   ├── certs/                       # 禁止公网访问
+│   ├── keystores/                   # 禁止公网访问
+│   └── ...
+├── android-template/
+├── ios-template/
+├── tools/
+├── nginx-security.conf.example
+├── SECURITY.md
+├── UPGRADE.md
+└── CHANGELOG.md
+```
+
+## 🔄 更新
+
+Git 部署：
 
 ```bash
-# 给 PHP 用户 sudo 免密权限
-echo 'www-data ALL=(ALL) NOPASSWD: /path/to/tools/setup-ios-env.sh' | sudo tee /etc/sudoers.d/appdown-ios
-echo 'www-data ALL=(ALL) NOPASSWD: /path/to/tools/uninstall-ios-env.sh' | sudo tee -a /etc/sudoers.d/appdown-ios
-
-# 给脚本执行权限
-chmod +x tools/setup-ios-env.sh tools/setup-ios-xcode.sh tools/uninstall-ios-env.sh
+git pull
 ```
 
-## 📂 项目结构
+更新后：
 
-```
-appdown/
-├── .gitignore                  # Git 忽略规则
-├── .htaccess                   # Apache 安全规则（根目录，保护敏感目录/禁止目录列表）
-├── LICENSE                     # MIT 开源协议
-├── README.md                   # 项目说明文档
-├── index.html                  # 前端主页（API 动态加载）
-├── style.css                   # 前端全局样式
-├── privacy.php                 # 隐私政策页
-├── terms.php                   # 服务条款页
-│
-├── api/                        # 公共 API
-│   ├── config.php              #   站点配置 JSON（带文件缓存）
-│   ├── plist.php               #   iOS plist 动态生成（OTA 安装）
-│   ├── mobileconfig.php        #   Mobileconfig 描述文件生成（支持 SSL 签名）
-│   └── track.php               #   访问 / 下载事件追踪（含爬虫 UA 过滤）
-│
-├── install/                    # 安装程序
-│   └── index.php               #   环境检测 + 初始化向导（安装后自动锁定）
-│
-├── ios/                        # iOS 安装引导页
-│   ├── index.php               #   路由（根据模板设置分发）
-│   ├── template-modern.php     #   毛玻璃风格模板
-│   ├── template-classic.php    #   仿 App Store 模板
-│   └── static/                 #   安装教程截图（step1-5）
-│
-├── android/                    # Android 安装引导页
-│   ├── index.php               #   路由（根据模板设置分发）
-│   ├── template-modern.php     #   毛玻璃风格模板
-│   └── template-classic.php    #   仿 App Store 模板
-│
-├── includes/                   # PHP 公共库（禁止 Web 访问）
-│   ├── init.php                #   全局初始化（异常处理、错误处理）
-│   ├── db.php                  #   数据库连接 + 自动迁移
-│   ├── auth.php                #   登录验证 + Session 超时管理
-│   ├── csrf.php                #   CSRF 令牌生成与校验
-│   ├── helpers.php             #   通用工具函数
-│   ├── layout.php              #   后台页面布局模板
-│   ├── upload.php              #   文件上传 + 冲突处理 + 安全删除
-│   └── mobileconfig.php        #   Mobileconfig 生成与签名逻辑
-│
-├── admin/                      # 管理后台
-│   ├── index.php               #   后台首页（重定向到仪表盘）
-│   ├── login.php               #   登录页面
-│   ├── logout.php              #   登出处理
-│   ├── account.php             #   账号管理（修改密码）
-│   ├── dashboard.php           #   统计仪表盘
-│   ├── apps.php                #   应用列表
-│   ├── app-edit.php            #   应用编辑（下载按钮 + 轮播 + iOS + MC 签名）
-│   ├── generate.php            #   生成应用（APK/IPA 构建 + 签名密钥 + MC 生成）
-│   ├── attachments.php         #   附件管理 + 公共图片库
-│   ├── features.php            #   特色卡片管理（分类 + 图标）
-│   ├── links.php               #   友情链接管理（图标）
-│   ├── fonts.php               #   字体管理
-│   ├── settings.php            #   站点设置（基本 / 安全 / MC 证书）
-│   ├── custom-code.php         #   自定义代码 + 特效配置
-│   ├── backup.php              #   数据导入导出
-│   ├── system.php              #   系统信息 + 构建环境管理
-│   ├── assets/                 #   后台静态资源
-│   │   ├── admin.css           #     后台全局样式
-│   │   ├── admin.js            #     后台公共 JS（escapeHTML、Modal 等）
-│   │   └── fa-icons.json       #     FontAwesome 图标列表（图标选择器用）
-│   └── api/                    #   后台 AJAX 接口
-│       ├── account.php         #     账号管理接口
-│       ├── apps.php            #     应用 CRUD
-│       ├── downloads.php       #     下载按钮 CRUD
-│       ├── images.php          #     轮播图 CRUD
-│       ├── attachments.php     #     附件平台分类 CRUD
-│       ├── attachment-files.php#     附件文件上传 / 编辑 / 删除
-│       ├── package-info.php    #     安装包解析（APK/IPA 签名 + OCSP 检测）
-│       ├── features.php        #     特色卡片 + 分类 CRUD
-│       ├── links.php           #     友情链接 CRUD
-│       ├── image-library.php   #     公共图片库 CRUD
-│       ├── fonts.php           #     字体管理 CRUD
-│       ├── settings.php        #     站点设置读写
-│       ├── custom-code.php     #     自定义代码读写
-│       ├── dashboard.php       #     仪表盘统计数据
-│       ├── backup.php          #     导入导出处理
-│       ├── upload.php          #     通用文件上传
-│       ├── reorder.php         #     拖拽排序
-│       ├── generate.php        #     APK/IPA 构建任务 + 生成结果管理
-│       ├── mobileconfig.php    #     Mobileconfig 生成 / 证书管理
-│       ├── keystores.php       #     签名密钥管理（生成 / 导入）
-│       └── system.php          #     构建环境检测 / 安装卸载 / 路径配置
-│
-├── android-template/           # Android WebView 模板项目（Gradle）
-│   ├── .htaccess               #   Apache 目录保护
-│   ├── index.php               #   PHP 目录保护（兜底）
-│   ├── build.gradle            #   项目级 Gradle 配置
-│   ├── settings.gradle         #   Gradle 项目设置
-│   ├── gradle.properties       #   Gradle 属性
-│   ├── gradlew                 #   Gradle Wrapper 启动脚本（含镜像回退）
-│   ├── gradle/wrapper/         #   Gradle Wrapper JAR + 配置
-│   └── app/                    #   应用模块
-│       ├── build.gradle        #     应用级构建配置（版本号通过参数传入）
-│       ├── proguard-rules.pro  #     ProGuard 混淆规则
-│       └── src/main/
-│           ├── AndroidManifest.xml
-│           ├── assets/config.json          # WebView 配置（构建时覆盖）
-│           ├── java/com/webview/app/
-│           │   ├── MainActivity.java       # 主界面（WebView）
-│           │   ├── SplashActivity.java     # 启动页
-│           │   └── WebViewApp.java         # Application 类
-│           └── res/                        # 资源文件（构建时替换）
-│
-├── ios-template/               # iOS WKWebView 模板项目（Xcode/SwiftUI）
-│   ├── .htaccess               #   Apache 目录保护
-│   ├── index.php               #   PHP 目录保护（兜底）
-│   ├── ExportOptions.plist     #   Xcode 导出配置（无签名模式）
-│   ├── WebViewApp.xcodeproj/   #   Xcode 项目文件
-│   └── WebViewApp/             #   应用源码
-│       ├── WebViewAppApp.swift #     SwiftUI App 入口
-│       ├── ContentView.swift   #     主界面（WKWebView）
-│       ├── Info.plist          #     应用信息配置
-│       ├── config.json         #     WebView 配置（构建时覆盖）
-│       └── Assets.xcassets/    #     图标 + 颜色资源
-│
-├── tools/                      # 命令行工具（禁止 Web 访问）
-│   ├── build-worker.php        #   APK 后台构建脚本（CLI）
-│   ├── ios-build-worker.php    #   IPA 后台构建脚本（CLI）
-│   ├── install-android-worker.php  # Android 环境安装工作进程
-│   ├── install-ios-worker.php  #   iOS 环境安装工作进程
-│   ├── xcode-install-worker.php#   Xcode 安装工作进程（Apple ID 交互）
-│   ├── setup-android-env.sh    #   Android 一键环境部署脚本
-│   ├── setup-ios-env.sh        #   iOS 环境 Phase 1：Docker + 容器
-│   ├── setup-ios-xcode.sh      #   iOS 环境 Phase 2：Xcode 安装（交互式）
-│   ├── uninstall-android-env.sh#   Android 环境卸载
-│   └── uninstall-ios-env.sh    #   iOS 环境卸载
-│
-├── static/                     # 静态资源
-│   └── fontawesome-free-7.1.0-web/  # Font Awesome 7.1.0（本地部署）
-│       ├── css/                #     样式文件
-│       ├── js/                 #     脚本文件
-│       ├── metadata/           #     图标元数据
-│       ├── scss/               #     SASS 源码
-│       ├── sprites/            #     SVG 精灵图
-│       ├── sprites-full/       #     SVG 精灵图（完整版）
-│       ├── svgs/               #     单个 SVG 图标
-│       ├── svgs-full/          #     单个 SVG 图标（完整版）
-│       ├── webfonts/           #     Web 字体文件
-│       └── LICENSE.txt         #     FontAwesome 许可证
-│
-├── data/                       # 数据目录（自动创建）
-│   ├── .htaccess               #   Apache 目录保护
-│   ├── index.php               #   PHP 目录保护（兜底）
-│   ├── .gitkeep                #   保持空目录
-│   ├── app.db                  #   SQLite 数据库
-│   ├── config_cache.json       #   配置缓存
-│   └── gradle-cache/           #   Gradle 下载缓存
-│
-└── uploads/                    # 用户上传文件
-    ├── apps/                   #   应用图标
-    ├── images/                 #   公共图片库
-    ├── fonts/                  #   自定义字体
-    ├── apks/                   #   生成的 APK 文件
-    ├── ipas/                   #   生成的 IPA 文件
-    └── keystores/              #   签名密钥文件
+1. 查看 `UPGRADE.md`
+2. 比较新的 `nginx-security.conf.example`
+3. 重新执行 `nginx -t`
+4. 打开后台确认数据库迁移正常
+5. 测试首页、一次 APK/IPA 上传和备份预览
+
+不要删除已有：
+
+```text
+data/
+uploads/
+install/install.lock
 ```
 
-## 🖥 后台功能
+## 🌿 分支说明
 
-| 页面 | 说明 |
-|:---|:---|
-| 📊 仪表盘 | 今日访问/下载量、7天趋势图、来源 TOP10（智能识别）、下载明细 |
-| 📱 应用管理 | 添加/编辑/排序应用，支持自定义图标（FA图标或上传图片） |
-| ✏️ 应用编辑 | 下载按钮（图标可自定义）、轮播截图、iOS安装页配置、MC签名证书 |
-| 🔨 生成应用 | URL转APK/IPA（构建/进度/下载）、APK/IPA管理、签名密钥管理、Mobileconfig生成+证书管理 |
-| 📎 附件管理 | 按平台分类管理安装包，拖拽上传带进度条，上传后可编辑，安装包信息解析，公共图片库（格式转换压缩、真实重命名） |
-| ⭐ 特色卡片 | 首页亮点卡片，分类管理，FA图标/自定义图片图标 |
-| 🔗 友情链接 | 页脚链接管理，支持图标（FA/自定义图片），按链接开关图标显示 |
-| 🔤 字体管理 | 上传自定义字体（自动识别字体名称）或选择系统字体 |
-| ⚙️ 站点设置 | 站名/Logo/公告/统计数字/轮播间隔/登录验证码开关 |
-| 🎭 特效配置 | 11种内置特效（参数可调）、节日欢迎弹窗、背景音乐 |
-| 💻 自定义代码 | head/footer 注入 CSS/JS |
-| 💾 导入导出 | 按数据类别选择性备份，支持 AES-256-GCM 加密，含上传文件 |
-| 🖧 系统信息 | 运行环境检测、Android/iOS构建环境管理、自定义路径配置、一键安装/卸载 |
+| 分支 | 用途 |
+|---|---|
+| `main` | 单用户 / 单分发站版本 |
+| `saas` | 多租户版本：根欢迎页、`/super` 超级后台、`/用户名` 独立分发站 |
 
-## 🔧 安全规则
+开发过程中的 `agent/*` 分支只是临时工作分支，正式发布后会清理，不应作为部署分支使用。
 
-### Apache
+## 📄 License
 
-项目已内置根目录 `.htaccess` 和子目录 `.htaccess`，**Apache 用户无需额外配置**，部署后自动生效。
+MIT License
 
-> 需要 Apache 启用 `mod_rewrite` 模块（绝大多数环境默认已启用）。
+---
 
-### Nginx
-
-**Nginx 不支持 `.htaccess`**，需手动在 server 块中添加以下规则（宝塔面板：网站 → 设置 → 伪静态）：
-
-```nginx
-# 禁止访问数据库和公共库
-location ~* ^/(data|includes)/ {
-    deny all;
-    return 404;
-}
-
-location ~* ^/install/(install\.lock|access\.log)$ {
-    deny all;
-    return 404;
-}
-
-# 禁止访问隐藏文件
-location ~ /\. {
-    deny all;
-    return 404;
-}
-
-# 禁止在上传目录执行PHP
-location ~* ^/uploads/.*\.php$ {
-    deny all;
-    return 404;
-}
-
-# 禁止直接下载签名密钥和证书文件
-location ~* ^/uploads/(keystores|certs)/ {
-    deny all;
-    return 404;
-}
-
-# 禁止访问构建工具目录
-location ~* ^/(tools|android-template|ios-template)/ {
-    deny all;
-    return 404;
-}
-```
-
-## 📡 API 接口
-
-### 公共接口
-
-| 方法 | 路径 | 说明 |
-|:---|:---|:---|
-| GET | `/api/config.php` | 返回完整站点配置 JSON |
-| GET | `/api/plist.php?app=slug` | 动态生成 iOS 安装 plist |
-| GET | `/api/mobileconfig.php?app=slug` | 生成 iOS Mobileconfig 描述文件（支持 SSL 签名） |
-| POST | `/api/track.php` | 记录访问 / 下载事件 |
-
-### 后台接口（需登录 + CSRF）
-
-| 路径 | 方法 | 说明 |
-|:---|:---|:---|
-| `/admin/api/apps.php` | CRUD | 应用管理 |
-| `/admin/api/downloads.php` | CRUD | 下载按钮 |
-| `/admin/api/images.php` | CRUD | 轮播图 |
-| `/admin/api/attachments.php` | CRUD | 附件平台分类 |
-| `/admin/api/attachment-files.php` | POST/PUT/DELETE | 附件文件上传、编辑、删除 |
-| `/admin/api/package-info.php` | GET | 安装包详细信息解析（APK/IPA） |
-| `/admin/api/features.php` | CRUD | 特色卡片 + 分类 |
-| `/admin/api/links.php` | CRUD | 友情链接 |
-| `/admin/api/image-library.php` | CRUD | 公共图片库 |
-| `/admin/api/fonts.php` | CRUD | 字体管理 |
-| `/admin/api/settings.php` | GET/POST | 站点设置 |
-| `/admin/api/custom-code.php` | GET/POST | 自定义代码 |
-| `/admin/api/backup.php` | POST | 数据导入导出 |
-| `/admin/api/upload.php` | POST | 文件上传 |
-| `/admin/api/reorder.php` | POST | 拖拽排序 |
-| `/admin/api/generate.php` | CRUD | APK/IPA 构建任务 / 生成结果管理 |
-| `/admin/api/mobileconfig.php` | CRUD | Mobileconfig 生成 / 证书管理 |
-| `/admin/api/keystores.php` | CRUD | 签名密钥管理（生成 / 导入） |
-| `/admin/api/system.php` | GET/POST | 构建环境检测 / 安装卸载 / 自定义路径 |
-
-## 💡 常见操作
-
-| 操作 | 方法 |
-|:---|:---|
-| 重新安装 | 删除 `install/install.lock` 后访问 `/install/` |
-| 修改上传限制 | 修改 PHP 配置的 `upload_max_filesize` 和 `post_max_size` |
-| 备份数据 | 后台「导入导出」页面，支持选择性导出 + 加密 |
-| 手动备份 | 复制 `data/app.db` 和 `uploads/` 目录 |
-| 开启验证码 | 后台「站点设置 → 安全设置」开启 |
-
-## 📜 开源协议
-
-[MIT](LICENSE) — 自由使用，欢迎 Star ⭐
+如果发现安全问题，请先查看 [`SECURITY.md`](SECURITY.md) 中的报告建议，不要在公开 Issue 中粘贴私钥、证书密码、数据库或敏感日志。
