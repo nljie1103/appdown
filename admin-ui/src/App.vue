@@ -2,9 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  LayoutDashboard, Smartphone, Paperclip, WandSparkles, Palette, PanelsTopLeft,
-  Settings, Code2, ArchiveRestore, ServerCog, UserRoundCog, ExternalLink,
-  Bell, Menu, Sun, Moon, Monitor, ChevronRight, LogOut, CircleHelp, X
+  LayoutDashboard, Smartphone, Paperclip, WandSparkles, KeyRound, FileKey2,
+  Palette, PanelsTopLeft, Type, Settings, Code2, ArchiveRestore, ServerCog,
+  RefreshCcw, UserRoundCog, ExternalLink, Bell, Menu, Sun, Moon, Monitor,
+  ChevronRight, LogOut, CircleHelp, X
 } from 'lucide-vue-next'
 import { useAppStore } from './stores/app'
 
@@ -15,16 +16,22 @@ const themeMenu = ref(false)
 const media = window.matchMedia('(prefers-color-scheme: dark)')
 const systemDark = ref(media.matches)
 
-const groups = [
+type MenuItem = { to: string; label: string; icon: any; capability?: string }
+const groups: Array<{ title: string; items: MenuItem[] }> = [
   { title: '概览', items: [{ to: '/dashboard', label: '仪表盘', icon: LayoutDashboard }] },
   { title: '分发', items: [
     { to: '/apps', label: '应用管理', icon: Smartphone },
     { to: '/attachments', label: '附件管理', icon: Paperclip },
+    { to: '/mobileconfig', label: 'Mobileconfig', icon: FileKey2, capability: 'mobileconfig' },
   ]},
-  { title: '构建', items: [{ to: '/builder', label: '生成应用', icon: WandSparkles }] },
+  { title: '构建', items: [
+    { to: '/builder', label: '生成应用', icon: WandSparkles },
+    { to: '/signing', label: '签名密钥', icon: KeyRound, capability: 'keystores' },
+  ]},
   { title: '外观', items: [
     { to: '/templates', label: '页面模板', icon: Palette },
     { to: '/content', label: '内容组件', icon: PanelsTopLeft },
+    { to: '/fonts', label: '字体管理', icon: Type, capability: 'fonts' },
   ]},
   { title: '设置', items: [
     { to: '/settings', label: '站点设置', icon: Settings },
@@ -33,6 +40,7 @@ const groups = [
   { title: '系统', items: [
     { to: '/backup', label: '导入导出', icon: ArchiveRestore },
     { to: '/system', label: '系统信息', icon: ServerCog },
+    { to: '/update', label: '在线升级', icon: RefreshCcw, capability: 'platform_update' },
     { to: '/account', label: '账户管理', icon: UserRoundCog },
   ]},
 ]
@@ -44,6 +52,7 @@ const publicUrl = computed(() => store.publicPath)
 function onMedia(e: MediaQueryListEvent) { systemDark.value = e.matches }
 function navigate(to: string) { router.push(to); store.sidebarOpen = false }
 function themeName() { return store.theme === 'light' ? '浅色' : store.theme === 'dark' ? '深色' : '跟随系统' }
+function allowed(item: MenuItem) { return !item.capability || !!store.boot?.capabilities?.[item.capability] }
 
 onMounted(async () => {
   media.addEventListener?.('change', onMedia)
@@ -87,7 +96,7 @@ watch(pageTitle, (title) => { document.title = `${title} · AppDown Admin` }, { 
           <div v-for="group in groups" :key="group.title" class="nav-group">
             <div class="nav-title">{{ group.title }}</div>
             <button
-              v-for="item in group.items" :key="item.to"
+              v-for="item in group.items.filter(allowed)" :key="item.to"
               class="nav-item" :class="{ active: route.path === item.to }"
               @click="navigate(item.to)"
             >
@@ -134,9 +143,7 @@ watch(pageTitle, (title) => { document.title = `${title} · AppDown Admin` }, { 
           </div>
         </header>
 
-        <div class="page-container">
-          <RouterView />
-        </div>
+        <div class="page-container"><RouterView /></div>
       </main>
 
       <Transition name="toast">

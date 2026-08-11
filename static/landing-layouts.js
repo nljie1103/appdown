@@ -81,12 +81,27 @@
 
     container.classList.add('adl-layout-root');
 
-    if (currentTemplate === 'glass' || currentTemplate === 'aurora') {
+    if (currentTemplate === 'glass') {
       const hero = el('section', 'adl-hero adl-hero-spotlight');
       const core = el('div', 'adl-hero-core');
       moveInto(core, [logo, heading, notice, summary]);
       hero.appendChild(core);
       container.insertBefore(hero, container.firstChild);
+      return;
+    }
+
+    if (currentTemplate === 'aurora') {
+      const showcase = el('section', 'adl-showcase');
+      const hero = el('div', 'adl-showcase-hero');
+      const brand = el('div', 'adl-showcase-brand');
+      const controls = el('div', 'adl-showcase-controls');
+      moveInto(brand, [logo, heading, notice, summary]);
+      moveInto(controls, [tabs, stats]);
+      hero.append(brand, controls);
+      const stage = el('div', 'adl-showcase-stage');
+      moveInto(stage, [content, features]);
+      showcase.append(hero, stage);
+      container.appendChild(showcase);
       return;
     }
 
