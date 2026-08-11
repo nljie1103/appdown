@@ -36,22 +36,5 @@ new_checks = r'''        'admin/api/generate.php' => ['APPDOWN_TENANT=', 'appdow
         'tools/ios-build-worker.php' => ["appdown_upload_dir() . '/ipas'", "'/data/ios-build/' . \$tenantSlug", '$tenantRoot = realpath(appdown_upload_dir())'],'''
 replace('tests/smoke_saas.php', old_checks, new_checks)
 
-# CI: real ZipArchive + SQLite + mbstring runtime and SaaS integration test.
-replace(
-    '.github/workflows/ci.yml',
-    'sudo apt-get install -y php-cli php-sqlite3 php-zip php-curl php-gd >/dev/null',
-    'sudo apt-get install -y php-cli php-sqlite3 php-zip php-curl php-gd php-mbstring >/dev/null',
-)
-replace(
-    '.github/workflows/ci.yml',
-    "          php -m | grep -qi '^zip$'",
-    "          php -m | grep -qi '^zip$'\n          php -m | grep -qi '^mbstring$'",
-)
-replace(
-    '.github/workflows/ci.yml',
-    "      - name: Run landing template smoke test\n        shell: bash\n        working-directory: src\n        run: php tests/smoke_templates.php",
-    "      - name: Run landing template smoke test\n        shell: bash\n        working-directory: src\n        run: php tests/smoke_templates.php\n\n      - name: Run SaaS tenant isolation and ZipArchive integration test\n        if: ${{ hashFiles('src/tests/smoke_saas.php') != '' }}\n        shell: bash\n        working-directory: src\n        run: php tests/smoke_saas.php",
-)
-
 Path('tools/saas-release-finalize.py').unlink(missing_ok=True)
 print('SaaS release finalizer applied')
