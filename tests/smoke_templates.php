@@ -58,9 +58,9 @@ foreach ($copyItems as $item) {
 mkdir($tmpRoot . '/data', 0700, true);
 file_put_contents($tmpRoot . '/install/install.lock', "template-smoke\n");
 
-// Patch db.php's fixed data path naturally works because the copied includes/
-// directory is now below $tmpRoot.
+// db.php's relative data path naturally points at the copied temporary root.
 require_once $tmpRoot . '/includes/db.php';
+require_once $tmpRoot . '/includes/helpers.php';
 $pdo = get_db();
 set_setting($pdo, 'landing_template', 'midnight');
 set_setting($pdo, 'site_title', 'Template Smoke');
