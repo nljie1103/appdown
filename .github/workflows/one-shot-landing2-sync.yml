@@ -1,0 +1,76 @@
+name: One-shot Landing 2.0 Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-landing2-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch shared landing renderer on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          a='    <link rel="stylesheet" href="static/fontawesome-free-7.1.0-web/css/all.min.css">\n'
+          b=a+'    <link rel="stylesheet" href="static/landing-layouts.css">\n'
+          if 'static/landing-layouts.css' not in s:
+              assert a in s
+              s=s.replace(a,b,1)
+          a='    <script>\n        ((window, document) => {'
+          b='    <script src="static/landing-layouts.js"></script>\n\n'+a
+          if 'static/landing-layouts.js' not in s:
+              assert a in s
+              s=s.replace(a,b,1)
+          a='                        // 2. 渲染所有内容\n                        Renderer.renderAll();\n'
+          b=a+'                        window.AppDownLandingLayouts?.apply(data?.site?.landing_template || \'classic\', { site: data?.site || {}, apps: APP_CONFIG });\n'
+          if 'AppDownLandingLayouts?.apply' not in s:
+              assert a in s
+              s=s.replace(a,b,1)
+          a="""                            } else if (SITE_DATA) {
+                                Renderer.renderFeatures(SITE_DATA.features);
+                            }
+                        });
+"""
+          b="""                            } else if (SITE_DATA) {
+                                Renderer.renderFeatures(SITE_DATA.features);
+                            }
+                            window.AppDownLandingLayouts?.syncActive(newTab);
+                        });
+"""
+          if 'AppDownLandingLayouts?.syncActive' not in s:
+              assert a in s
+              s=s.replace(a,b,1)
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: activate structural landing layouts'
+            git push origin main
+          fi
+      - name: Sync shared landing files to SaaS
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main saas
+          git switch saas
+          git checkout origin/main -- index.html includes/landing_templates.php static/landing-layouts.css static/landing-layouts.js admin/templates.php
+          git add index.html includes/landing_templates.php static/landing-layouts.css static/landing-layouts.js admin/templates.php
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(saas): sync structural landing templates'
+            git push origin saas
+          fi
