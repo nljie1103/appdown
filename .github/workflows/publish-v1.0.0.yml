@@ -1,3 +1,4 @@
+# One-shot publisher for the v1.0.0 release.
 name: Publish AppDown v1.0.0
 
 on:
