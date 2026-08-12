@@ -1,144 +1,52 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { Hammer, RefreshCw, Square, Smartphone, Apple, Trash2, Save, Link2, Download } from '@lucide/vue'
+import { Hammer, RefreshCw, Square, Smartphone, Apple, Trash2, Save, Link2, Download, Zap, Boxes, ShieldCheck, Upload, Wrench, CheckCircle2 } from '@lucide/vue'
 import { del, get, post, put } from '../api'
 import { useAppStore } from '../stores/app'
 
 const store=useAppStore()
+const engine=ref<'template'|'full'>('template')
 const mode=ref<'apk'|'ipa'>('apk')
-const keystores=ref<any[]>([])
-const apps=ref<any[]>([])
-const tasks=ref<any[]>([])
-const artifacts=ref<any[]>([])
-const platformChoices=reactive<Record<number,any[]>>({})
-const active=ref<any>(null)
-let timer:number|undefined
+const keystores=ref<any[]>([]),appleIdentities=ref<any[]>([]),appleProfiles=ref<any[]>([]),apps=ref<any[]>([]),tasks=ref<any[]>([]),artifacts=ref<any[]>([])
+const platformChoices=reactive<Record<number,any[]>>({}),active=ref<any>(null),tbStatus=ref<any>(null),installLog=ref(''),installBusy=ref(false)
+let timer:number|undefined,envTimer:number|undefined
+const apk=reactive({url:'https://',app_name:'AppDown Client',package_name:'org.appdown.client',version_name:'1.0.0',version_code:1,keystore_id:0,icon_url:'',splash_url:'',splash_color:'#FFFFFF',status_bar_color:'#000000',enable_splash:true,splash_duration:1200})
+const ipa=reactive({url:'https://',app_name:'AppDown Client',bundle_id:'org.appdown.client',version_name:'1.0.0',version_code:1,icon_url:'',status_bar_color:'#000000',identity_id:0,profile_id:0})
+const identityUpload=reactive({name:'',password:'',file:null as File|null}),profileUpload=reactive({name:'',file:null as File|null})
+const progress=computed(()=>Number(active.value?.progress||0)),running=computed(()=>active.value&&['pending','building'].includes(active.value.status)),fastReady=computed(()=>!!tbStatus.value?.all_ok),canManageEnv=computed(()=>tbStatus.value?.environment_manageable!==false)
 
-const apk=reactive({action:'build',url:'https://',app_name:'AppDown Client',package_name:'org.appdown.client',version_name:'1.0.0',version_code:1,keystore_id:0,icon_url:'',splash_url:'',splash_color:'#FFFFFF',status_bar_color:'#000000'})
-const ipa=reactive({action:'build_ipa',url:'https://',app_name:'AppDown Client',bundle_id:'org.appdown.client',version_name:'1.0.0',version_code:1,icon_url:'',status_bar_color:'#000000'})
-const progress=computed(()=>Number(active.value?.progress||0))
-const running=computed(()=>active.value&&['pending','building'].includes(active.value.status))
-
-async function loadMeta(){
-  try{
-    [keystores.value,apps.value]=await Promise.all([get('/admin/api/keystores.php'),get('/admin/api/apps.php')])
-    if(!apk.keystore_id&&keystores.value.length)apk.keystore_id=Number(keystores.value[0].id)
-    await Promise.all([loadTasks(),loadArtifacts()])
-  }catch(e:any){store.notify(e?.message||'构建环境数据加载失败','error')}
-}
-async function loadTasks(){
-  try{
-    tasks.value=await get(`/admin/api/generate.php?action=${mode.value==='apk'?'list_tasks':'list_ipa_tasks'}`)
-    const r=tasks.value.find(t=>['pending','building'].includes(t.status))
-    if(r){active.value=r;startPoll(Number(r.id))}
-  }catch(e:any){store.notify(e?.message||'任务列表加载失败','error')}
-}
-async function loadArtifacts(){
-  try{
-    const rows:any[]=await get(`/admin/api/generate.php?action=${mode.value==='apk'?'list_apks':'list_ipas'}`)
-    artifacts.value=rows.map(row=>({...row,_newName:'',_appId:Number(row.app_id||0),_platformId:0,_version:row.version_name||'1.0'}))
-    await Promise.all(artifacts.value.filter(a=>a._appId).map(a=>loadPlatforms(a)))
-  }catch(e:any){store.notify(e?.message||'构建产物加载失败','error')}
-}
-async function build(){
-  try{
-    const payload=mode.value==='apk'?apk:ipa
-    const res:any=await post('/admin/api/generate.php',payload)
-    active.value={id:res.task_id,status:'pending',progress:0,progress_msg:'任务已创建'}
-    store.notify(`${mode.value.toUpperCase()} 构建任务已创建`)
-    startPoll(Number(res.task_id));await loadTasks()
-  }catch(e:any){store.notify(e?.message||'创建构建任务失败','error')}
-}
-function startPoll(id:number){
-  if(timer)clearInterval(timer)
-  const poll=async()=>{
-    try{
-      active.value=await get(`/admin/api/generate.php?action=task_status&id=${id}`)
-      if(!['pending','building'].includes(active.value.status)){
-        if(timer)clearInterval(timer);timer=undefined
-        store.notify(active.value.status==='success'?'构建完成':'构建已结束',active.value.status==='success'?'success':'error')
-        await Promise.all([loadTasks(),loadArtifacts()])
-      }
-    }catch{}
-  }
-  poll();timer=window.setInterval(poll,1500)
-}
-async function cancel(){
-  if(!active.value?.id||!confirm('确定取消当前构建任务？'))return
-  try{await post('/admin/api/generate.php',{action:'cancel_task',task_id:active.value.id});store.notify('已请求取消任务','info');await loadTasks()}catch(e:any){store.notify(e?.message||'取消失败','error')}
-}
-function switchMode(v:'apk'|'ipa'){
-  mode.value=v;active.value=null
-  if(timer)clearInterval(timer);timer=undefined
-  Promise.all([loadTasks(),loadArtifacts()])
-}
-async function loadPlatforms(a:any){
-  const id=Number(a._appId||0)
-  if(!id){platformChoices[a.id]=[];a._platformId=0;return}
-  try{
-    const rows:any[]=await get(`/admin/api/attachments.php?app_id=${id}`)
-    platformChoices[a.id]=rows
-    if(!rows.some(p=>Number(p.id)===Number(a._platformId)))a._platformId=rows.length?Number(rows[0].id):0
-  }catch(e:any){store.notify(e?.message||'附件分类加载失败','error')}
-}
-async function associate(a:any){
-  if(!a._appId||!a._platformId)return store.notify('请选择应用和附件分类','error')
-  const idKey=mode.value==='ipa'?'ipa_id':'apk_id'
-  try{
-    await put('/admin/api/generate.php',{action:'associate',type:mode.value,[idKey]:a.id,app_id:a._appId,platform_id:a._platformId,version:a._version||'1.0'})
-    store.notify('构建产物已加入应用附件库');await loadArtifacts()
-  }catch(e:any){store.notify(e?.message||'关联失败','error')}
-}
-async function renameArtifact(a:any){
-  if(!a._newName?.trim())return store.notify('请输入新文件名','error')
-  const idKey=mode.value==='ipa'?'ipa_id':'apk_id'
-  try{
-    await put('/admin/api/generate.php',{action:'rename',type:mode.value,[idKey]:a.id,new_name:a._newName.trim()})
-    store.notify('文件已重命名');await loadArtifacts()
-  }catch(e:any){store.notify(e?.message||'重命名失败','error')}
-}
-async function removeArtifact(a:any){
-  if(!confirm(`确定删除构建产物「${a.app_name||a.id}」及服务器文件吗？`))return
-  try{await del('/admin/api/generate.php',{id:a.id,type:mode.value});store.notify('构建产物已删除');await Promise.all([loadTasks(),loadArtifacts()])}catch(e:any){store.notify(e?.message||'删除失败','error')}
-}
-
-onMounted(loadMeta)
-onBeforeUnmount(()=>{if(timer)clearInterval(timer)})
+async function loadMeta(){try{const calls:any[]=[get('/admin/api/keystores.php'),get('/admin/api/apps.php')];if(engine.value==='template')calls.push(get('/admin/api/template-builder.php?action=status'),get('/admin/api/ios-signing.php'));const rows:any[]=await Promise.all(calls);keystores.value=rows[0]||[];apps.value=rows[1]||[];if(!apk.keystore_id&&keystores.value.length)apk.keystore_id=Number(keystores.value[0].id);if(engine.value==='template'){tbStatus.value=rows[2];appleIdentities.value=rows[3]?.identities||[];appleProfiles.value=rows[3]?.profiles||[];if(!ipa.identity_id&&appleIdentities.value.length)ipa.identity_id=Number(appleIdentities.value[0].id);if(!ipa.profile_id&&appleProfiles.value.length)ipa.profile_id=Number(appleProfiles.value[0].id)}await Promise.all([loadTasks(),loadArtifacts()])}catch(e:any){store.notify(e?.message||'构建数据加载失败','error')}}
+async function loadTasks(){try{tasks.value=engine.value==='template'?await get(`/admin/api/template-builder.php?action=tasks&platform=${mode.value==='ipa'?'ios':'android'}`):await get(`/admin/api/generate.php?action=${mode.value==='apk'?'list_tasks':'list_ipa_tasks'}`);const r=tasks.value.find((t:any)=>['pending','building'].includes(t.status));if(r){active.value=r;startPoll(Number(r.id))}}catch(e:any){store.notify(e?.message||'任务列表加载失败','error')}}
+async function loadArtifacts(){try{const rows:any[]=await get(`/admin/api/generate.php?action=${mode.value==='apk'?'list_apks':'list_ipas'}`);artifacts.value=rows.map(row=>({...row,_newName:'',_appId:Number(row.app_id||0),_platformId:0,_version:row.version_name||'1.0'}));await Promise.all(artifacts.value.filter(a=>a._appId).map(a=>loadPlatforms(a)))}catch(e:any){store.notify(e?.message||'构建产物加载失败','error')}}
+async function build(){try{let res:any;if(engine.value==='template'){if(!fastReady.value)return store.notify('Template Builder 尚未 Ready','error');res=await post('/admin/api/template-builder.php',mode.value==='apk'?{action:'build',platform:'android',...apk}:{action:'build',platform:'ios',...ipa})}else{res=await post('/admin/api/generate.php',mode.value==='apk'?{action:'build',...apk}:{action:'build_ipa',...ipa})}active.value={id:res.task_id,status:'pending',progress:0,progress_msg:'任务已创建'};store.notify(`${mode.value.toUpperCase()} ${engine.value==='template'?'快速':'完整'}构建任务已创建`);startPoll(Number(res.task_id));await loadTasks()}catch(e:any){store.notify(e?.message||'创建构建任务失败','error')}}
+function startPoll(id:number){if(timer)clearInterval(timer);const poll=async()=>{try{active.value=await get(`/admin/api/generate.php?action=task_status&id=${id}`);if(!['pending','building'].includes(active.value.status)){if(timer)clearInterval(timer);timer=undefined;store.notify(active.value.status==='success'?'构建完成':'构建已结束',active.value.status==='success'?'success':'error');await Promise.all([loadTasks(),loadArtifacts()])}}catch{}};poll();timer=window.setInterval(poll,1500)}
+async function cancel(){if(!active.value?.id||!confirm('确定取消当前构建任务？'))return;try{await post('/admin/api/generate.php',{action:'cancel_task',task_id:active.value.id});store.notify('已请求取消任务','info');await loadTasks()}catch(e:any){store.notify(e?.message||'取消失败','error')}}
+function switchMode(v:'apk'|'ipa'){mode.value=v;active.value=null;if(timer)clearInterval(timer);timer=undefined;Promise.all([loadTasks(),loadArtifacts()])}
+async function switchEngine(v:'template'|'full'){engine.value=v;active.value=null;if(timer)clearInterval(timer);timer=undefined;await loadMeta()}
+async function loadPlatforms(a:any){const id=Number(a._appId||0);if(!id){platformChoices[a.id]=[];a._platformId=0;return}try{const rows:any[]=await get(`/admin/api/attachments.php?app_id=${id}`);platformChoices[a.id]=rows;if(!rows.some(p=>Number(p.id)===Number(a._platformId)))a._platformId=rows.length?Number(rows[0].id):0}catch(e:any){store.notify(e?.message||'附件分类加载失败','error')}}
+async function associate(a:any){if(!a._appId||!a._platformId)return store.notify('请选择应用和附件分类','error');const idKey=mode.value==='ipa'?'ipa_id':'apk_id';try{await put('/admin/api/generate.php',{action:'associate',type:mode.value,[idKey]:a.id,app_id:a._appId,platform_id:a._platformId,version:a._version||'1.0'});store.notify('构建产物已加入应用附件库');await loadArtifacts()}catch(e:any){store.notify(e?.message||'关联失败','error')}}
+async function renameArtifact(a:any){if(!a._newName?.trim())return store.notify('请输入新文件名','error');const idKey=mode.value==='ipa'?'ipa_id':'apk_id';try{await put('/admin/api/generate.php',{action:'rename',type:mode.value,[idKey]:a.id,new_name:a._newName.trim()});store.notify('文件已重命名');await loadArtifacts()}catch(e:any){store.notify(e?.message||'重命名失败','error')}}
+async function removeArtifact(a:any){if(!confirm(`确定删除构建产物「${a.app_name||a.id}」及服务器文件吗？`))return;try{await del('/admin/api/generate.php',{id:a.id,type:mode.value});store.notify('构建产物已删除');await Promise.all([loadTasks(),loadArtifacts()])}catch(e:any){store.notify(e?.message||'删除失败','error')}}
+async function envAction(action:'install'|'uninstall'){if(!canManageEnv.value)return store.notify('SaaS 共享构建环境由平台管理员维护','error');if(action==='uninstall'&&!confirm('只删除 AppDown Template Builder 镜像，不删除 Docker Engine、签名材料和构建产物。继续？'))return;try{await post('/admin/api/template-builder.php',{action});installBusy.value=true;store.notify(action==='install'?'正在安装/更新 Builder 镜像':'正在卸载 Builder 镜像','info');startEnvPoll()}catch(e:any){store.notify(e?.message||'环境操作失败','error')}}
+function startEnvPoll(){if(envTimer)clearInterval(envTimer);const poll=async()=>{try{const r:any=await get('/admin/api/template-builder.php?action=install_log');installLog.value=r.log||'';installBusy.value=r.status==='running';if(!installBusy.value){if(envTimer)clearInterval(envTimer);envTimer=undefined;tbStatus.value=await get('/admin/api/template-builder.php?action=status')}}catch{}};poll();envTimer=window.setInterval(poll,1600)}
+function onIdentityFile(e:Event){identityUpload.file=(e.target as HTMLInputElement)?.files?.[0]||null}function onProfileFile(e:Event){profileUpload.file=(e.target as HTMLInputElement)?.files?.[0]||null}
+async function uploadIdentity(){if(!identityUpload.file)return store.notify('请选择 P12/PFX 文件','error');const fd=new FormData();fd.set('action','upload_identity');fd.set('name',identityUpload.name);fd.set('password',identityUpload.password);fd.set('file',identityUpload.file);try{await post('/admin/api/ios-signing.php',fd);identityUpload.name='';identityUpload.password='';identityUpload.file=null;store.notify('Apple P12 身份已验证并保存');await loadAppleSigning()}catch(e:any){store.notify(e?.message||'P12 上传失败','error')}}
+async function uploadProfile(){if(!profileUpload.file)return store.notify('请选择 .mobileprovision 文件','error');const fd=new FormData();fd.set('action','upload_profile');fd.set('name',profileUpload.name);fd.set('file',profileUpload.file);try{await post('/admin/api/ios-signing.php',fd);profileUpload.name='';profileUpload.file=null;store.notify('Provisioning Profile 已解析并保存');await loadAppleSigning()}catch(e:any){store.notify(e?.message||'Profile 上传失败','error')}}
+async function loadAppleSigning(){const r:any=await get('/admin/api/ios-signing.php');appleIdentities.value=r.identities||[];appleProfiles.value=r.profiles||[];if(!ipa.identity_id&&appleIdentities.value.length)ipa.identity_id=Number(appleIdentities.value[0].id);if(!ipa.profile_id&&appleProfiles.value.length)ipa.profile_id=Number(appleProfiles.value[0].id)}
+async function removeSigning(type:'identity'|'profile',row:any){if(!confirm(`确定删除「${row.name}」？`))return;try{await del('/admin/api/ios-signing.php',{type,id:row.id});await loadAppleSigning();store.notify('签名材料已删除')}catch(e:any){store.notify(e?.message||'删除失败','error')}}
+onMounted(loadMeta);onBeforeUnmount(()=>{if(timer)clearInterval(timer);if(envTimer)clearInterval(envTimer)})
 </script>
 
 <template><div>
-<div class="page-head"><div><h1>生成应用</h1><p>使用现有 PHP Worker 构建 APK / IPA，Vue 实时同步任务，并保留产物重命名、附件关联与删除能力。</p></div><button class="button" @click="loadMeta"><RefreshCw :size="14"/>刷新</button></div>
+<div class="page-head"><div><h1>生成应用</h1><p>默认使用预编译母包快速生成并签名 APK / IPA；完整 Gradle / Xcode 编译保留为高级模式。</p></div><button class="button" @click="loadMeta"><RefreshCw :size="14"/>刷新</button></div>
+<div class="drawer-tabs" style="width:max-content;margin-bottom:10px"><button :class="{active:engine==='template'}" @click="switchEngine('template')"><Zap :size="13" style="display:inline;vertical-align:-2px"/> 快速模板 · 推荐</button><button :class="{active:engine==='full'}" @click="switchEngine('full')"><Boxes :size="13" style="display:inline;vertical-align:-2px"/> 完整编译 · 高级</button></div>
 <div class="drawer-tabs" style="width:max-content;margin-bottom:13px"><button :class="{active:mode==='apk'}" @click="switchMode('apk')"><Smartphone :size="13" style="display:inline;vertical-align:-2px"/> Android APK</button><button :class="{active:mode==='ipa'}" @click="switchMode('ipa')"><Apple :size="13" style="display:inline;vertical-align:-2px"/> iOS IPA</button></div>
-<div class="builder-layout">
- <section class="builder-box"><div class="panel-head"><div><h3>新建 {{mode.toUpperCase()}} 构建</h3><span>提交后由后台 Worker 执行</span></div></div>
-  <div class="form-section" v-if="mode==='apk'">
-   <div class="field"><label>目标 URL</label><input v-model="apk.url" class="input"></div>
-   <div class="field" style="margin-top:9px"><label>应用名称</label><input v-model="apk.app_name" class="input"></div>
-   <div class="field" style="margin-top:9px"><label>Package Name</label><input v-model="apk.package_name" class="input"></div>
-   <div class="form-grid" style="margin-top:9px"><div class="field"><label>版本名</label><input v-model="apk.version_name" class="input"></div><div class="field"><label>Version Code</label><input v-model.number="apk.version_code" type="number" min="1" class="input"></div></div>
-   <div class="field" style="margin-top:9px"><label>签名 Keystore</label><select v-model.number="apk.keystore_id" class="select"><option :value="0">请选择</option><option v-for="k in keystores" :key="k.id" :value="Number(k.id)">{{k.name}} · {{k.alias}}</option></select><small v-if="!keystores.length">还没有可用 Keystore，请先到“签名密钥”创建或导入。</small></div>
-   <div class="field" style="margin-top:9px"><label>图标 URL（可选）</label><input v-model="apk.icon_url" class="input"><small>留空时使用 AppDown 内置默认图标，构建不会因缺少 launcher resource 失败。</small></div>
-   <div class="field" style="margin-top:9px"><label>启动图 URL</label><input v-model="apk.splash_url" class="input"></div>
-   <div class="form-grid" style="margin-top:9px"><div class="field"><label>启动背景</label><input v-model="apk.splash_color" type="color" class="input" style="padding:4px"></div><div class="field"><label>状态栏</label><input v-model="apk.status_bar_color" type="color" class="input" style="padding:4px"></div></div>
-  </div>
-  <div class="form-section" v-else>
-   <div class="card" style="padding:10px 12px;margin-bottom:10px"><b>当前生成未签名 IPA</b><div class="subtle" style="margin-top:3px">Builder 会调用真实 xcodebuild 归档并打包 Payload，但不会伪装成已签名可直接安装的 IPA；签名需在后续签名流程完成。</div></div>
-   <div class="field"><label>目标 URL</label><input v-model="ipa.url" class="input"></div>
-   <div class="field" style="margin-top:9px"><label>应用名称</label><input v-model="ipa.app_name" class="input"></div>
-   <div class="field" style="margin-top:9px"><label>Bundle ID</label><input v-model="ipa.bundle_id" class="input"></div>
-   <div class="form-grid" style="margin-top:9px"><div class="field"><label>版本</label><input v-model="ipa.version_name" class="input"></div><div class="field"><label>Build Number</label><input v-model.number="ipa.version_code" type="number" min="1" class="input"></div></div>
-   <div class="field" style="margin-top:9px"><label>图标 URL（可选）</label><input v-model="ipa.icon_url" class="input"></div>
-   <div class="field" style="margin-top:9px"><label>状态栏颜色</label><input v-model="ipa.status_bar_color" type="color" class="input" style="padding:4px"></div>
-  </div>
-  <div style="padding:0 17px 17px"><button class="button primary" style="width:100%" :disabled="!!running" @click="build"><Hammer :size="14"/>{{running?'当前有任务正在构建':'开始构建'}}</button></div>
- </section>
-
- <section class="builder-box"><div class="panel-head"><div><h3>当前任务</h3><span>每 1.5 秒自动同步后端真实状态</span></div><button v-if="running" class="button small danger" @click="cancel"><Square :size="12"/>取消</button></div><div v-if="active" class="builder-progress"><div class="task-head"><b>#{{active.id}} · {{active.status}}</b><span class="subtle">{{progress}}%</span></div><div class="progress"><div :style="{width:progress+'%'}"></div></div><div class="steps"><div class="step" :class="{done:progress>=5,active:progress<20}"><span class="step-dot">{{progress>=20?'✓':'1'}}</span>准备项目</div><div class="step" :class="{done:progress>=35,active:progress>=20&&progress<55}"><span class="step-dot">{{progress>=55?'✓':'2'}}</span>生成资源</div><div class="step" :class="{done:progress>=70,active:progress>=55&&progress<80}"><span class="step-dot">{{progress>=80?'✓':'3'}}</span>编译</div><div class="step" :class="{done:progress>=90,active:progress>=80&&progress<95}"><span class="step-dot">{{progress>=95?'✓':'4'}}</span>签名</div><div class="step" :class="{done:progress>=100,active:progress>=95&&progress<100}"><span class="step-dot">{{progress>=100?'✓':'5'}}</span>完整性验证</div></div><div class="log-box">状态：{{active.progress_msg || active.status}}\n<span v-if="active.error_msg">错误：{{active.error_msg}}</span><span v-if="active.result_url">\n结果：{{active.result_url}}\n大小：{{active.result_size}}</span></div><a v-if="active.result_url" class="button primary" :href="active.result_url" target="_blank" style="margin-top:10px"><Download :size="13"/>下载构建结果</a></div><div v-else class="empty-state" style="margin:14px"><b>当前没有构建任务</b>提交任务后这里会实时显示进度。</div></section>
-</div>
-
-<section class="panel" style="margin-top:13px"><div class="panel-head"><div><h3>构建产物</h3><span>持久化的 {{mode.toUpperCase()}} 文件，可关联到应用附件库</span></div><span>{{artifacts.length}} 个</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>应用 / 文件</th><th>版本</th><th>大小</th><th>关联附件</th><th>重命名</th><th>操作</th></tr></thead><tbody>
-<tr v-for="a in artifacts" :key="a.id"><td><b>{{a.app_name||'未命名'}}</b><div class="subtle" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">{{mode==='ipa'?a.ipa_url:a.apk_url}}</div></td><td>{{a.version_name||a.version||'—'}}</td><td>{{mode==='ipa'?a.ipa_size:a.apk_size}}</td><td><div style="display:grid;grid-template-columns:130px 130px 90px auto;gap:5px;min-width:480px"><select v-model.number="a._appId" class="select" @change="loadPlatforms(a)"><option :value="0">选择应用</option><option v-for="app in apps" :key="app.id" :value="Number(app.id)">{{app.name}}</option></select><select v-model.number="a._platformId" class="select"><option :value="0">附件分类</option><option v-for="p in (platformChoices[a.id]||[])" :key="p.id" :value="Number(p.id)">{{p.name}}</option></select><input v-model="a._version" class="input" placeholder="版本"><button class="button small" @click="associate(a)"><Link2 :size="12"/>关联</button></div></td><td><div style="display:flex;gap:5px;min-width:190px"><input v-model="a._newName" class="input" placeholder="新文件名"><button class="button small" @click="renameArtifact(a)"><Save :size="12"/></button></div></td><td><div class="page-actions"><a class="button small" :href="mode==='ipa'?a.ipa_url:a.apk_url" target="_blank"><Download :size="12"/></a><button class="button small danger" @click="removeArtifact(a)"><Trash2 :size="12"/></button></div></td></tr>
-<tr v-if="!artifacts.length"><td colspan="6" class="subtle">暂无构建产物</td></tr></tbody></table></div></section>
-
-<section class="panel" style="margin-top:13px"><div class="panel-head"><div><h3>最近任务</h3><span>{{mode.toUpperCase()}} 构建历史</span></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>应用</th><th>标识</th><th>状态</th><th>进度</th><th>更新时间</th><th>结果</th></tr></thead><tbody><tr v-for="t in tasks" :key="t.id"><td>#{{t.id}}</td><td>{{t.app_name||'—'}}</td><td>{{t.package_name||t.bundle_id||'—'}}</td><td><span class="badge" :class="{warning:['pending','building'].includes(t.status),danger:t.status==='failed',muted:t.status==='cancelled'}">{{t.status}}</span></td><td>{{t.progress}}%</td><td>{{t.updated_at}}</td><td><a v-if="t.result_url" :href="t.result_url" target="_blank" class="link-button">下载</a><span v-else>—</span></td></tr><tr v-if="!tasks.length"><td colspan="7" class="subtle">暂无任务</td></tr></tbody></table></div></section>
+<section v-if="engine==='template'" class="panel" style="margin-bottom:13px"><div class="panel-head"><div><h3>Template Builder 2.0</h3><span>同一镜像支持本机原生 amd64 / arm64；日常构建不需要 Android SDK、Gradle、macOS 或 Xcode。</span></div><span class="badge" :class="{danger:!fastReady}">{{fastReady?'Ready':'Not Ready'}}</span></div><div class="form-section"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px"><div class="card" style="padding:11px"><span class="subtle">服务器架构</span><b style="display:block;margin-top:4px">{{tbStatus?.architecture||'—'}}</b></div><div class="card" style="padding:11px"><span class="subtle">安全 Runner</span><b style="display:block;margin-top:4px">{{tbStatus?.bootstrapped?'已 Bootstrap':'未 Bootstrap'}}</b></div><div class="card" style="padding:11px"><span class="subtle">Android 母包</span><b style="display:block;margin-top:4px">{{tbStatus?.android_template?.ok?'Ready':'Missing'}}</b></div><div class="card" style="padding:11px"><span class="subtle">iOS 母包</span><b style="display:block;margin-top:4px">{{tbStatus?.ios_template?.ok?'Ready':'Missing'}}</b></div></div><div v-if="canManageEnv&&tbStatus&&!tbStatus.bootstrapped" class="card" style="padding:12px;margin-top:10px"><b>首次安装需要一次 root Bootstrap</b><div class="subtle" style="margin-top:5px">这是唯一一次宿主机权限配置，用来安装 Docker 和 root-owned 固定 Runner。之后 PHP 只能调用这个固定 Runner，不能执行任意 Docker 命令。</div><code style="display:block;margin-top:8px">sudo bash tools/setup-template-builder.sh</code></div><div v-if="canManageEnv" style="display:flex;gap:7px;margin-top:10px"><button class="button" :disabled="installBusy||!tbStatus?.bootstrapped" @click="envAction('install')"><Wrench :size="13"/>安装 / 更新镜像</button><button class="button danger" :disabled="installBusy||!tbStatus?.bootstrapped" @click="envAction('uninstall')"><Trash2 :size="13"/>卸载镜像</button></div><div v-else class="card" style="padding:10px 12px;margin-top:10px"><b>共享构建环境由平台管理员统一维护</b><div class="subtle" style="margin-top:3px">租户只能使用 Template Builder 和查看 Ready 状态，不能安装、更新或卸载整台服务器共享的 Builder 镜像。</div></div><div v-if="installLog" class="log-box" style="margin-top:10px;max-height:180px;overflow:auto">{{installLog}}</div></div></section>
+<div class="builder-layout"><section class="builder-box"><div class="panel-head"><div><h3>新建 {{mode.toUpperCase()}} {{engine==='template'?'快速':'完整'}}构建</h3><span>{{engine==='template'?'母包 Patch + 重新签名':'从源模板重新编译'}}</span></div></div>
+<div class="form-section" v-if="mode==='apk'"><div class="field"><label>目标 URL</label><input v-model="apk.url" class="input"></div><div class="field" style="margin-top:9px"><label>应用名称</label><input v-model="apk.app_name" class="input"></div><div class="field" style="margin-top:9px"><label>Package Name</label><input v-model="apk.package_name" class="input"></div><div class="form-grid" style="margin-top:9px"><div class="field"><label>版本名</label><input v-model="apk.version_name" class="input"></div><div class="field"><label>Version Code</label><input v-model.number="apk.version_code" type="number" min="1" class="input"></div></div><div class="field" style="margin-top:9px"><label>签名 Keystore</label><select v-model.number="apk.keystore_id" class="select"><option :value="0">请选择</option><option v-for="k in keystores" :key="k.id" :value="Number(k.id)">{{k.name}} · {{k.alias}}</option></select><small v-if="!keystores.length">还没有 Keystore，请先到“签名密钥”创建或导入。</small></div><div class="field" style="margin-top:9px"><label>图标 URL（可选）</label><input v-model="apk.icon_url" class="input"><small>快速模式会替换母包 launcher PNG；留空使用默认图标。</small></div><div v-if="engine==='full'" class="field" style="margin-top:9px"><label>启动图 URL</label><input v-model="apk.splash_url" class="input"></div><div class="form-grid" style="margin-top:9px"><div class="field"><label>启动背景</label><input v-model="apk.splash_color" type="color" class="input" style="padding:4px"></div><div class="field"><label>状态栏</label><input v-model="apk.status_bar_color" type="color" class="input" style="padding:4px"></div></div><div v-if="engine==='template'" class="form-grid" style="margin-top:9px"><div class="field"><label>启动页</label><select v-model="apk.enable_splash" class="select"><option :value="true">启用</option><option :value="false">关闭</option></select></div><div class="field"><label>启动时长 ms</label><input v-model.number="apk.splash_duration" type="number" min="0" max="10000" class="input"></div></div></div>
+<div class="form-section" v-else><div v-if="engine==='full'" class="card" style="padding:10px 12px;margin-bottom:10px"><b>完整 Xcode 模式当前生成未签名 IPA</b><div class="subtle" style="margin-top:3px">用于重新编译 WebView Shell；日常可安装 IPA 请使用“快速模板”并选择 P12 + Provisioning Profile。</div></div><div v-else class="card" style="padding:10px 12px;margin-bottom:10px"><b><ShieldCheck :size="14" style="vertical-align:-2px"/> 快速模式会直接输出已签名 IPA</b><div class="subtle" style="margin-top:3px">Linux 容器内使用 zsign；服务器无需 macOS/Xcode。签名材料在开始构建前会校验 Bundle ID、有效期和证书归属。</div></div><div class="field"><label>目标 URL</label><input v-model="ipa.url" class="input"></div><div class="field" style="margin-top:9px"><label>应用名称</label><input v-model="ipa.app_name" class="input"></div><div class="field" style="margin-top:9px"><label>Bundle ID</label><input v-model="ipa.bundle_id" class="input"></div><div class="form-grid" style="margin-top:9px"><div class="field"><label>版本</label><input v-model="ipa.version_name" class="input"></div><div class="field"><label>Build Number</label><input v-model.number="ipa.version_code" type="number" min="1" class="input"></div></div><div class="field" style="margin-top:9px"><label>图标 URL（可选）</label><input v-model="ipa.icon_url" class="input"><small v-if="engine==='template'">zsign 会在重签时替换 AppIcon；留空保留 AppDown 默认图标。</small></div><div class="field" style="margin-top:9px"><label>状态栏颜色</label><input v-model="ipa.status_bar_color" type="color" class="input" style="padding:4px"></div><template v-if="engine==='template'"><div class="field" style="margin-top:9px"><label>Apple P12 身份</label><select v-model.number="ipa.identity_id" class="select"><option :value="0">请选择</option><option v-for="i in appleIdentities" :key="i.id" :value="Number(i.id)">{{i.name}} · {{i.cert_expires||'有效期未知'}}</option></select></div><div class="field" style="margin-top:9px"><label>Provisioning Profile</label><select v-model.number="ipa.profile_id" class="select"><option :value="0">请选择</option><option v-for="p in appleProfiles" :key="p.id" :value="Number(p.id)">{{p.name}} · {{p.bundle_pattern}} · {{p.profile_type}}</option></select></div></template></div><div style="padding:0 17px 17px"><button class="button primary" style="width:100%" :disabled="!!running||(engine==='template'&&!fastReady)" @click="build"><Hammer :size="14"/>{{running?'当前有任务正在构建':'开始构建'}}</button></div></section>
+<section class="builder-box"><div class="panel-head"><div><h3>当前任务</h3><span>每 1.5 秒同步真实 Worker 状态</span></div><button v-if="running" class="button small danger" @click="cancel"><Square :size="12"/>取消</button></div><div v-if="active" class="builder-progress"><div class="task-head"><b>#{{active.id}} · {{active.status}}</b><span class="subtle">{{progress}}%</span></div><div class="progress"><div :style="{width:progress+'%'}"></div></div><div class="steps"><div class="step" :class="{done:progress>=20,active:progress<20}"><span class="step-dot">{{progress>=20?'✓':'1'}}</span>准备</div><div class="step" :class="{done:progress>=55,active:progress>=20&&progress<55}"><span class="step-dot">{{progress>=55?'✓':'2'}}</span>{{engine==='template'?'Patch 母包':'生成资源'}}</div><div class="step" :class="{done:progress>=85,active:progress>=55&&progress<85}"><span class="step-dot">{{progress>=85?'✓':'3'}}</span>{{engine==='template'?'重新签名':'编译'}}</div><div class="step" :class="{done:progress>=100,active:progress>=85&&progress<100}"><span class="step-dot">{{progress>=100?'✓':'4'}}</span>验证</div></div><div class="log-box">状态：{{active.progress_msg || active.status}}<span v-if="active.error_msg">\n错误：{{active.error_msg}}</span><span v-if="active.result_url">\n结果：{{active.result_url}}\n大小：{{active.result_size}}</span></div><a v-if="active.result_url" class="button primary" :href="active.result_url" target="_blank" style="margin-top:10px"><Download :size="13"/>下载构建结果</a></div><div v-else class="empty-state" style="margin:14px"><b>当前没有构建任务</b>提交任务后这里会显示实时进度。</div></section></div>
+<section v-if="engine==='template'&&mode==='ipa'" class="panel" style="margin-top:13px"><div class="panel-head"><div><h3>Apple 签名材料</h3><span>P12/PFX 与 Provisioning Profile 保存在 data 私有目录，密码使用 AppDown 现有 AES-256-GCM 密钥加密。</span></div></div><div class="form-section" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px"><div class="card" style="padding:13px"><b>导入 P12 / PFX</b><div class="field" style="margin-top:9px"><label>名称</label><input v-model="identityUpload.name" class="input" placeholder="Production Distribution"></div><div class="field" style="margin-top:9px"><label>密码</label><input v-model="identityUpload.password" type="password" class="input"></div><div class="field" style="margin-top:9px"><label>证书文件</label><input type="file" accept=".p12,.pfx" @change="onIdentityFile"></div><button class="button" style="margin-top:10px" @click="uploadIdentity"><Upload :size="13"/>验证并导入</button><div v-for="i in appleIdentities" :key="i.id" style="display:flex;gap:8px;align-items:center;margin-top:9px"><CheckCircle2 :size="14"/><div style="flex:1"><b>{{i.name}}</b><div class="subtle">{{i.cert_subject}} · {{i.cert_expires||'无有效期'}}</div></div><button class="icon-button" @click="removeSigning('identity',i)"><Trash2 :size="13"/></button></div></div><div class="card" style="padding:13px"><b>导入 Provisioning Profile</b><div class="field" style="margin-top:9px"><label>名称（可选）</label><input v-model="profileUpload.name" class="input" placeholder="留空读取 Profile Name"></div><div class="field" style="margin-top:9px"><label>.mobileprovision</label><input type="file" accept=".mobileprovision" @change="onProfileFile"></div><button class="button" style="margin-top:10px" @click="uploadProfile"><Upload :size="13"/>解析并导入</button><div v-for="p in appleProfiles" :key="p.id" style="display:flex;gap:8px;align-items:center;margin-top:9px"><CheckCircle2 :size="14"/><div style="flex:1"><b>{{p.name}}</b><div class="subtle">{{p.bundle_pattern}} · {{p.profile_type}} · {{p.expires_at}}</div></div><button class="icon-button" @click="removeSigning('profile',p)"><Trash2 :size="13"/></button></div></div></div></section>
+<section class="panel" style="margin-top:13px"><div class="panel-head"><div><h3>构建产物</h3><span>所有快速/完整 {{mode.toUpperCase()}} 产物统一管理，可关联到应用附件库。</span></div><span>{{artifacts.length}} 个</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>应用 / 文件</th><th>版本</th><th>大小</th><th>关联附件</th><th>重命名</th><th>操作</th></tr></thead><tbody><tr v-for="a in artifacts" :key="a.id"><td><b>{{a.app_name||'未命名'}}</b><div class="subtle" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">{{mode==='ipa'?a.ipa_url:a.apk_url}}</div></td><td>{{a.version_name||a.version||'—'}}<div v-if="mode==='ipa'&&a.signing_mode" class="subtle">{{a.signing_mode}}</div></td><td>{{mode==='ipa'?a.ipa_size:a.apk_size}}</td><td><div style="display:grid;grid-template-columns:130px 130px 90px auto;gap:5px;min-width:480px"><select v-model.number="a._appId" class="select" @change="loadPlatforms(a)"><option :value="0">选择应用</option><option v-for="app in apps" :key="app.id" :value="Number(app.id)">{{app.name}}</option></select><select v-model.number="a._platformId" class="select"><option :value="0">附件分类</option><option v-for="p in (platformChoices[a.id]||[])" :key="p.id" :value="Number(p.id)">{{p.name}}</option></select><input v-model="a._version" class="input" placeholder="版本"><button class="button small" @click="associate(a)"><Link2 :size="12"/>关联</button></div></td><td><div style="display:flex;gap:5px;min-width:190px"><input v-model="a._newName" class="input" placeholder="新文件名"><button class="button small" @click="renameArtifact(a)"><Save :size="12"/></button></div></td><td><button class="button small danger" @click="removeArtifact(a)"><Trash2 :size="12"/>删除</button></td></tr><tr v-if="!artifacts.length"><td colspan="6" class="subtle">暂无构建产物</td></tr></tbody></table></div></section>
+<section class="panel" style="margin-top:13px"><div class="panel-head"><div><h3>最近任务</h3><span>{{engine==='template'?'快速模板':'完整编译'}} · {{mode.toUpperCase()}}</span></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>应用</th><th>标识</th><th>状态</th><th>进度</th><th>更新时间</th><th>结果</th></tr></thead><tbody><tr v-for="t in tasks" :key="t.id"><td>#{{t.id}}</td><td>{{t.app_name||'—'}}</td><td>{{t.identifier||t.package_name||t.bundle_id||'—'}}</td><td><span class="badge" :class="{warning:['pending','building'].includes(t.status),danger:t.status==='failed',muted:t.status==='cancelled'}">{{t.status}}</span></td><td>{{t.progress}}%</td><td>{{t.updated_at}}</td><td><a v-if="t.result_url" :href="t.result_url" target="_blank" class="link-button">下载</a><span v-else>—</span></td></tr><tr v-if="!tasks.length"><td colspan="7" class="subtle">暂无任务</td></tr></tbody></table></div></section>
 </div></template>
