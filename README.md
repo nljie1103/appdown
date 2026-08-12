@@ -176,19 +176,19 @@ SaaS 分支继续保留：
 - Mobileconfig WebClip
 - Mobileconfig SSL 签名
 - 租户独立证书与私钥
-- URL → Android WebView APK
-- URL → iOS WKWebView IPA
-- Android Keystore 创建 / 导入
-- APK / IPA 构建任务与历史
+- URL → Android WebView APK：默认使用 Template Builder 2.0 母包 Patch + 当前租户 JKS 重签
+- URL → iOS WKWebView IPA：默认使用 Template Builder 2.0 母包 Patch + 当前租户 P12/PFX + Provisioning Profile + zsign 重签
+- Android Keystore 与 Apple P12/PFX / Provisioning Profile 均按租户独立保存
+- APK / IPA 构建任务与历史按租户独立保存
 - APK / IPA 真实 ZIP 结构校验
 
 ### Builder 隔离
 
-构建环境（Android SDK / Gradle / Docker-OSX）可以共享，**业务数据不能共享**：
+Template Builder 2.0 的 Runtime 与固定 Runner 属于平台共享基础设施，由平台管理员统一维护；租户只能使用和查看状态。**租户业务数据与签名材料不能共享**：
 
 ```text
-共享：JDK、Android SDK、Gradle cache、Docker-OSX/Xcode 环境
-独立：租户 SQLite、Keystore、证书、输入图片、APK/IPA 结果、构建日志
+共享（平台维护）：Template Builder Runtime、固定 Runner、JDK、Android SDK、Gradle cache、Docker-OSX/Xcode 环境
+独立（每租户）：SQLite、.secret.key、JKS、P12/PFX、Provisioning Profile、输入图片、APK/IPA 结果、构建日志
 ```
 
 ## 🚀 全新安装
@@ -367,6 +367,7 @@ SaaS 路由与安全规则已经写在根 `.htaccess`。请确保 Apache 启用�
 ```bash
 php tests/smoke_templates.php
 php tests/smoke_saas.php
+php tests/smoke_template_builder.php
 ```
 
 `smoke_saas.php` 会创建临时的两个租户，并实际验证：

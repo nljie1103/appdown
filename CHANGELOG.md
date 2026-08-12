@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — SaaS Builder 2.0
+
+- 租户 Builder 默认新增 Template Builder 2.0 快速路线：Android 使用母 APK + 租户 JKS 重签，iOS 使用母 IPA + 租户 P12/PFX + Provisioning Profile + zsign 重签。
+- 快速 Runtime 支持 linux/amd64 与 linux/arm64；原 Gradle 与 Docker-OSX/Xcode 完整编译路线继续作为高级模式保留。
+- 共享 Runtime / Runner 由平台统一维护；JKS、P12/PFX、Profile、租户数据库、输入文件与构建产物继续按租户隔离。
+- 新增 SaaS Template Builder 隔离 smoke 与永久 Android/iOS 真重签 CI。
+- 修复 iOS 快速签名后验证参数错误和 build number 被二次覆盖的问题。
+
 ## saas-v1.3.1 - 2026-08-12
 
 与单用户版 `v1.3.1` 同步的修复版本。从本版本开始，`main` 与 `saas` 使用相同的数字版本，仅以 Release tag 前缀区分版本线：单用户版为 `vX.Y.Z`，SaaS 版为 `saas-vX.Y.Z`。
