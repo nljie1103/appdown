@@ -59,15 +59,52 @@ jobs:
           set -euo pipefail
           rm -rf /tmp/tb-ios && mkdir -p /tmp/tb-ios/{input,output,secrets}
           cp builder/templates/ios-webview-template.ipa /tmp/tb-ios/input/template.ipa
-          openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=AppDown Synthetic Distribution/O=AppDown CI/C=US" -keyout /tmp/tb-ios/secrets/key.pem -out /tmp/tb-ios/secrets/cert.pem >/dev/null 2>&1
+
+          # zsign's CMS builder expects a leaf identity backed by an issuer chain.
+          # Build a short-lived synthetic CA + code-signing leaf so CI exercises the
+          # same P12-with-chain path used by a real Apple distribution identity.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 30 -sha256 \
+            -subj "/CN=AppDown Synthetic WWDR CA/O=AppDown CI/C=US" \
+            -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign" \
+            -keyout /tmp/tb-ios/secrets/ca.key \
+            -out /tmp/tb-ios/secrets/ca.pem >/dev/null 2>&1
+
+          openssl req -newkey rsa:2048 -nodes -sha256 \
+            -subj "/CN=AppDown Synthetic Distribution/OU=APPDOWNCI/O=AppDown CI/C=US" \
+            -keyout /tmp/tb-ios/secrets/key.pem \
+            -out /tmp/tb-ios/secrets/leaf.csr >/dev/null 2>&1
+          cat >/tmp/tb-ios/secrets/leaf.ext <<'EXT'
+          basicConstraints=critical,CA:FALSE
+          keyUsage=critical,digitalSignature
+          extendedKeyUsage=codeSigning
+          subjectKeyIdentifier=hash
+          authorityKeyIdentifier=keyid,issuer
+          EXT
+          openssl x509 -req -in /tmp/tb-ios/secrets/leaf.csr \
+            -CA /tmp/tb-ios/secrets/ca.pem -CAkey /tmp/tb-ios/secrets/ca.key -CAcreateserial \
+            -days 30 -sha256 -extfile /tmp/tb-ios/secrets/leaf.ext \
+            -out /tmp/tb-ios/secrets/cert.pem >/dev/null 2>&1
+          openssl verify -CAfile /tmp/tb-ios/secrets/ca.pem /tmp/tb-ios/secrets/cert.pem
+
           openssl x509 -in /tmp/tb-ios/secrets/cert.pem -outform DER -out /tmp/tb-ios/secrets/cert.der
           CERT_B64="$(base64 -w0 /tmp/tb-ios/secrets/cert.der)"
           cat >/tmp/tb-ios/secrets/profile.plist <<PLIST
           <?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>Name</key><string>AppDown CI AdHoc</string><key>UUID</key><string>00000000-0000-4000-8000-000000000200</string><key>TeamIdentifier</key><array><string>APPDOWNCI</string></array><key>ExpirationDate</key><date>2030-01-01T00:00:00Z</date><key>ProvisionedDevices</key><array><string>CI-DEVICE</string></array><key>DeveloperCertificates</key><array><data>${CERT_B64}</data></array><key>Entitlements</key><dict><key>application-identifier</key><string>APPDOWNCI.org.appdown.templateci</string><key>com.apple.developer.team-identifier</key><string>APPDOWNCI</string><key>get-task-allow</key><false/></dict></dict></plist>
           PLIST
-          openssl smime -sign -binary -in /tmp/tb-ios/secrets/profile.plist -signer /tmp/tb-ios/secrets/cert.pem -inkey /tmp/tb-ios/secrets/key.pem -outform DER -nodetach -out /tmp/tb-ios/secrets/profile.mobileprovision
-          openssl pkcs12 -export -legacy -out /tmp/tb-ios/secrets/signing.p12 -inkey /tmp/tb-ios/secrets/key.pem -in /tmp/tb-ios/secrets/cert.pem -passout pass:appdown-ci-123
+          openssl smime -sign -binary -in /tmp/tb-ios/secrets/profile.plist \
+            -signer /tmp/tb-ios/secrets/cert.pem -inkey /tmp/tb-ios/secrets/key.pem \
+            -certfile /tmp/tb-ios/secrets/ca.pem -outform DER -nodetach \
+            -out /tmp/tb-ios/secrets/profile.mobileprovision
+          openssl pkcs12 -export -legacy \
+            -out /tmp/tb-ios/secrets/signing.p12 \
+            -inkey /tmp/tb-ios/secrets/key.pem \
+            -in /tmp/tb-ios/secrets/cert.pem \
+            -certfile /tmp/tb-ios/secrets/ca.pem \
+            -passout pass:appdown-ci-123
           printf '%s' 'appdown-ci-123' >/tmp/tb-ios/secrets/p12.pass
+          openssl pkcs12 -legacy -in /tmp/tb-ios/secrets/signing.p12 -passin pass:appdown-ci-123 -info -noout >/dev/null
+
           cat >/tmp/tb-ios/request.json <<'JSON'
           {"platform":"ios","template":"/workspace/input/template.ipa","output":"/workspace/output/result.ipa","url":"https://example.com/appdown-ci","app_name":"AppDown Template CI","bundle_id":"org.appdown.templateci","version_name":"2.0.0","version_code":200,"p12":"/run/secrets/signing.p12","p12_password_file":"/run/secrets/p12.pass","mobileprovision":"/run/secrets/profile.mobileprovision","status_bar_color":"#111111"}
           JSON
