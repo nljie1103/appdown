@@ -5,6 +5,7 @@ import os
 import plistlib
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,7 @@ from pathlib import Path
 APKEDITOR = "/opt/appdown/APKEditor.jar"
 UBER_SIGNER = "/opt/appdown/uber-apk-signer.jar"
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
+LC_CODE_SIGNATURE = 0x1D
 ET.register_namespace("android", ANDROID_NS)
 
 
@@ -99,6 +101,72 @@ def convert_icon(src, dst, size):
         "-gravity", "center", "-extent", f"{size}x{size}",
         str(dst),
     ])
+
+
+def _thin_macho_has_code_signature(data):
+    if len(data) < 28:
+        return False
+    magic = data[:4]
+    if magic == b"\xce\xfa\xed\xfe":
+        endian, header_size = "<", 28
+    elif magic == b"\xfe\xed\xfa\xce":
+        endian, header_size = ">", 28
+    elif magic == b"\xcf\xfa\xed\xfe":
+        endian, header_size = "<", 32
+    elif magic == b"\xfe\xed\xfa\xcf":
+        endian, header_size = ">", 32
+    else:
+        return False
+    if len(data) < header_size:
+        return False
+    ncmds = struct.unpack_from(endian + "I", data, 16)[0]
+    offset = header_size
+    for _ in range(ncmds):
+        if offset + 8 > len(data):
+            return False
+        cmd, cmdsize = struct.unpack_from(endian + "II", data, offset)
+        if cmdsize < 8 or offset + cmdsize > len(data):
+            return False
+        if cmd == LC_CODE_SIGNATURE:
+            return True
+        offset += cmdsize
+    return False
+
+
+def macho_has_code_signature(data):
+    if _thin_macho_has_code_signature(data):
+        return True
+    if len(data) < 8:
+        return False
+    magic = data[:4]
+    fat_types = {
+        b"\xca\xfe\xba\xbe": (">", False),
+        b"\xbe\xba\xfe\xca": ("<", False),
+        b"\xca\xfe\xba\xbf": (">", True),
+        b"\xbf\xba\xfe\xca": ("<", True),
+    }
+    if magic not in fat_types:
+        return False
+    endian, is_64 = fat_types[magic]
+    nfat = struct.unpack_from(endian + "I", data, 4)[0]
+    entry_size = 32 if is_64 else 20
+    cursor = 8
+    found = 0
+    for _ in range(nfat):
+        if cursor + entry_size > len(data):
+            return False
+        if is_64:
+            slice_offset, slice_size = struct.unpack_from(endian + "QQ", data, cursor + 8)
+        else:
+            slice_offset, slice_size = struct.unpack_from(endian + "II", data, cursor + 8)
+        end = slice_offset + slice_size
+        if slice_offset >= len(data) or end > len(data):
+            return False
+        if not _thin_macho_has_code_signature(data[slice_offset:end]):
+            return False
+        found += 1
+        cursor += entry_size
+    return found > 0
 
 
 def patch_android(req, work):
@@ -267,14 +335,14 @@ def patch_ios(req, work):
     profile = require_file(req["mobileprovision"], "provisioning profile")
     password = read_secret(req["p12_password_file"], "PKCS#12 password")
 
+    # Metadata is patched exactly once above. zsign is intentionally used only
+    # for signing (and optional primary-icon replacement), so CFBundleVersion
+    # cannot be accidentally overwritten by its -r convenience option.
     cmd = [
         "zsign",
         "-k", str(p12),
         "-p", password,
         "-m", str(profile),
-        "-b", bundle_id,
-        "-n", app_name,
-        "-r", version_name,
         "-o", str(output),
     ]
     icon = str(req.get("icon") or "")
@@ -284,16 +352,39 @@ def patch_ios(req, work):
     run(cmd)
     require_file(output, "signed IPA")
 
-    run(["zsign", "-c", str(output)])
+    # zsign returns non-zero when signing fails. It has no separate offline IPA
+    # verification flag: -c means "certificate path" and -C performs online
+    # certificate/OCSP checks. Validate the signed artifact itself instead.
     with zipfile.ZipFile(output) as zf:
         names = zf.namelist()
         info_names = [n for n in names if re.match(r"^Payload/[^/]+\.app/Info\.plist$", n)]
         profile_names = [n for n in names if re.match(r"^Payload/[^/]+\.app/embedded\.mobileprovision$", n)]
-        if not info_names or not profile_names:
-            raise BuildError("final IPA missing Info.plist/provisioning profile")
+        codesig_names = [n for n in names if re.match(r"^Payload/[^/]+\.app/_CodeSignature/CodeResources$", n)]
+        config_names = [n for n in names if re.match(r"^Payload/[^/]+\.app/config\.json$", n)]
+        if len(info_names) != 1 or len(profile_names) != 1 or len(codesig_names) != 1 or len(config_names) != 1:
+            raise BuildError("final IPA missing Info.plist/config/provisioning profile/CodeResources")
+
         final_plist = plistlib.loads(zf.read(info_names[0]))
         if final_plist.get("CFBundleIdentifier") != bundle_id:
             raise BuildError("final IPA bundle id verification failed")
+        if str(final_plist.get("CFBundleShortVersionString", "")) != version_name:
+            raise BuildError("final IPA version verification failed")
+        if str(final_plist.get("CFBundleVersion", "")) != build_number:
+            raise BuildError("final IPA build-number verification failed")
+
+        final_cfg = json.loads(zf.read(config_names[0]).decode("utf-8"))
+        if final_cfg.get("url") != url:
+            raise BuildError("final IPA config verification failed")
+
+        executable = str(final_plist.get("CFBundleExecutable") or "").strip()
+        if not executable:
+            raise BuildError("final IPA missing CFBundleExecutable")
+        app_prefix = info_names[0][:-len("Info.plist")]
+        executable_name = app_prefix + executable
+        if executable_name not in names:
+            raise BuildError("final IPA executable missing")
+        if not macho_has_code_signature(zf.read(executable_name)):
+            raise BuildError("final IPA Mach-O missing LC_CODE_SIGNATURE")
     return output
 
 
