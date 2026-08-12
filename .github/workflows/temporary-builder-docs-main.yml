@@ -1,0 +1,111 @@
+name: Temporary Builder Docs Main
+
+on:
+  push:
+    branches: [dev-builder-docs-main]
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev-builder-docs-main
+      - name: Refresh Builder 2.0 docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); text=p.read_text()
+              count=text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old,new,1))
+
+          apk_old='''### 🤖 APK 生成器
+
+- URL → Android WebView APK
+- 自定义应用名、图标、启动图、包名、版本号
+- 在线生成 / 导入 Keystore
+- 后台构建任务与进度
+- APK 生成记录与关联应用
+- JDK / Android SDK 自动检测
+- 模板自带默认 launcher icon；即使不上传自定义图标也可完成 Release APK 构建
+- 永久 CI 会真实运行 Android 环境脚本、Gradle、JKS 签名与 apksigner 验证
+
+### 🍎 IPA 生成器
+
+- URL → iOS WKWebView IPA
+- Docker-OSX + macOS + Xcode 构建路线（仅 x86_64 KVM Linux 宿主机）
+- 工程通过 SSH/SCP 传入 macOS，再把真实 xcodebuild 产出的 IPA 拉回服务器
+- 自定义 Bundle ID、版本号、图标
+- 当前明确为无签名 IPA 构建模式，不把 unsigned IPA 伪装成可直接安装的签名包
+- 永久 CI 另在真实 macOS Runner 上执行 iOS 模板 xcodebuild archive
+- 后台构建任务与结果管理
+'''
+          apk_new='''### ⚡ Template Builder 2.0（默认快速路线）
+
+普通 URL → App 封装默认不再为每个任务重新跑完整 Android / Xcode 编译，而是使用仓库随版本发布的真实预编译母包：
+
+- Android：`template.apk → APKEditor Patch / Rebuild → JKS 重签 → 签名验证`
+- iOS：`template.ipa → Info.plist / config Patch → P12 + mobileprovision + zsign → 已签名 IPA`
+- 支持自定义应用名、URL、图标、包名 / Bundle ID、版本号与构建号
+- Android 继续使用后台创建 / 导入的 Keystore；iOS 新增 P12/PFX 身份与 Provisioning Profile 管理，并校验证书、Profile、Bundle ID 与有效期匹配关系
+- 日常快速构建容器不需要 Android SDK、Gradle、macOS 或 Xcode，可运行于 `linux/amd64` 与 `linux/arm64`
+- 首次只需执行一次 `sudo bash tools/setup-template-builder.sh` 安装固定的 root-owned Runner 并构建运行镜像；PHP 不获得任意 Docker Socket 权限
+- 后台仍保留“完整编译 · 高级”模式：Android 走原 Gradle 工程，iOS 走原 Docker-OSX / Xcode 路线，用于模板源码 / 原生能力发生变化时重新完整编译
+- 永久 `Template Builder 2.0 CI` 会从母包真实执行 Android Patch+JKS 重签与 iOS P12/Profile+zsign 重签；原 AppDown CI 继续真实验证 Gradle APK 与 Xcode archive
+
+详细实现见 `builder/template-builder/README.md`。
+'''
+          replace_once('README.md', apk_old, apk_new)
+
+          replace_once('README.md', '| APK 构建 | OpenJDK 17 + Android SDK + Gradle 8.5 |\n| IPA 构建 | Docker-OSX + Xcode + KVM |', '| 默认 APK/IPA 快速构建 | Template Builder 2.0 Docker Runtime + APKEditor + Uber APK Signer + zsign |\n| Android 完整编译（高级） | OpenJDK 17 + Android SDK + Gradle 8.5 |\n| iOS 完整编译（高级） | Docker-OSX + Xcode + KVM |')
+
+          replace_once('README.md', '## 🤖 APK 构建环境（可选）', '''## ⚡ Template Builder 2.0 快速构建环境（推荐）
+
+默认快速 Builder 需要 Docker，但不需要在宿主机安装 Android SDK、Gradle、macOS 或 Xcode。首次部署执行：
+
+```bash
+sudo bash tools/setup-template-builder.sh
+```
+
+该脚本会构建与当前服务器架构匹配的 Builder Runtime，并安装固定的 root-owned Runner。后台“生成应用”显示 Template Builder Ready 后即可使用快速 APK / IPA 构建。
+
+如只想移除 Template Builder 镜像而保留 Docker、签名材料和构建产物，可使用：
+
+```bash
+sudo bash tools/uninstall-template-builder.sh
+```
+
+## 🤖 Android 完整编译环境（高级，可选）''')
+          replace_once('README.md', '## 🍎 IPA 构建环境（可选）', '## 🍎 iOS 完整编译环境（高级，可选）')
+
+          changelog=Path('CHANGELOG.md')
+          text=changelog.read_text()
+          marker='# Changelog\n\n'
+          if not text.startswith(marker):
+              raise SystemExit('CHANGELOG header mismatch')
+          entry='''## Unreleased — Builder 2.0\n\n- 新增默认 Template Builder 2.0：使用真实预编译 Android APK / iOS IPA 母包进行快速 Patch + 重签，日常构建不再要求 Android SDK/Gradle/macOS/Xcode。\n- Android 快速路线使用 APKEditor + 现有 JKS + Uber APK Signer；iOS 快速路线使用 P12/PFX + Provisioning Profile + zsign，生成已签名 IPA。\n- 保留原 Gradle / Docker-OSX + Xcode 完整编译路线作为高级模式。\n- 新增一次性安全 Bootstrap、固定 root-owned Runner 与多架构 Docker Runtime，PHP 不获得任意 Docker Socket 权限。\n- 修复 iOS 快速签名后错误使用 zsign `-c` 作为校验参数的问题，并避免 `-r` 覆盖 `CFBundleVersion`；改为离线验证最终 IPA 元数据、Profile、CodeResources 与 Mach-O `LC_CODE_SIGNATURE`。\n- 新增永久 Template Builder 2.0 CI，真实执行 Android JKS 重签和 iOS P12/Profile 重签；母包本身继续由真实 Gradle 与 Xcode 流水线验证。\n\n'''
+          if '## Unreleased — Builder 2.0' not in text:
+              changelog.write_text(marker+entry+text[len(marker):])
+          PY
+          git diff --check
+          grep -F 'Template Builder 2.0（默认快速路线）' README.md
+          grep -F '## Unreleased — Builder 2.0' CHANGELOG.md
+      - name: Commit documentation
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md CHANGELOG.md
+          git diff --cached --check
+          git commit -m "docs: document Template Builder 2.0"
+          git push origin HEAD:dev-builder-docs-main
