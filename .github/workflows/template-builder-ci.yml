@@ -1,0 +1,77 @@
+name: Template Builder 2.0 CI
+
+on:
+  push:
+    branches: [main, saas]
+  pull_request:
+    branches: [main, saas]
+
+permissions:
+  contents: read
+
+jobs:
+  fast-template-builder:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate source syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile builder/template-builder/template_builder.py
+          bash -n tools/setup-template-builder.sh tools/uninstall-template-builder.sh tools/template-builder-runner.sh builder/template-builder/entrypoint.sh
+          php -l includes/template_builder.php
+          php -l admin/api/template-builder.php
+          php -l admin/api/ios-signing.php
+          php -l tools/template-builder-worker.php
+          php -l tools/template-builder-env-worker.php
+          php tests/smoke_template_builder.php
+      - name: Require committed mother packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s builder/templates/android-webview-template.apk
+          test -s builder/templates/ios-webview-template.ipa
+          unzip -t builder/templates/android-webview-template.apk >/dev/null
+          unzip -t builder/templates/ios-webview-template.ipa >/dev/null
+      - name: Build Template Builder runtime
+        shell: bash
+        run: docker build -t appdown/template-builder:ci builder/template-builder
+      - name: Android template patch + JKS sign + verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/tb-android && mkdir -p /tmp/tb-android/{input,output,secrets}
+          cp builder/templates/android-webview-template.apk /tmp/tb-android/input/template.apk
+          keytool -genkeypair -keystore /tmp/tb-android/secrets/signing.jks -storepass appdown-ci-123 -keypass appdown-ci-123 -alias appdown -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=AppDown CI,O=AppDown,C=US"
+          printf '%s' 'appdown-ci-123' >/tmp/tb-android/secrets/store.pass
+          printf '%s' 'appdown-ci-123' >/tmp/tb-android/secrets/key.pass
+          cat >/tmp/tb-android/request.json <<'JSON'
+          {"platform":"android","template":"/workspace/input/template.apk","output":"/workspace/output/result.apk","url":"https://example.com/appdown-ci","app_name":"AppDown Template CI","package_name":"org.appdown.templateci","version_name":"2.0.0","version_code":200,"keystore":"/run/secrets/signing.jks","keystore_alias":"appdown","keystore_password_file":"/run/secrets/store.pass","key_password_file":"/run/secrets/key.pass","status_bar_color":"#111111","splash_color":"#FFFFFF","enable_splash":true,"splash_duration":300}
+          JSON
+          docker run --rm --network none -v /tmp/tb-android/request.json:/workspace/request.json:ro -v /tmp/tb-android/input:/workspace/input:ro -v /tmp/tb-android/output:/workspace/output -v /tmp/tb-android/secrets:/run/secrets:ro appdown/template-builder:ci /workspace/request.json
+          test -s /tmp/tb-android/output/result.apk
+          unzip -t /tmp/tb-android/output/result.apk >/dev/null
+      - name: iOS template patch + synthetic P12/profile sign
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/tb-ios && mkdir -p /tmp/tb-ios/{input,output,secrets}
+          cp builder/templates/ios-webview-template.ipa /tmp/tb-ios/input/template.ipa
+          openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=AppDown Synthetic Distribution/O=AppDown CI/C=US" -keyout /tmp/tb-ios/secrets/key.pem -out /tmp/tb-ios/secrets/cert.pem >/dev/null 2>&1
+          openssl x509 -in /tmp/tb-ios/secrets/cert.pem -outform DER -out /tmp/tb-ios/secrets/cert.der
+          CERT_B64="$(base64 -w0 /tmp/tb-ios/secrets/cert.der)"
+          cat >/tmp/tb-ios/secrets/profile.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>Name</key><string>AppDown CI AdHoc</string><key>UUID</key><string>00000000-0000-4000-8000-000000000200</string><key>TeamIdentifier</key><array><string>APPDOWNCI</string></array><key>ExpirationDate</key><date>2030-01-01T00:00:00Z</date><key>ProvisionedDevices</key><array><string>CI-DEVICE</string></array><key>DeveloperCertificates</key><array><data>${CERT_B64}</data></array><key>Entitlements</key><dict><key>application-identifier</key><string>APPDOWNCI.org.appdown.templateci</string><key>com.apple.developer.team-identifier</key><string>APPDOWNCI</string><key>get-task-allow</key><false/></dict></dict></plist>
+          PLIST
+          openssl smime -sign -binary -in /tmp/tb-ios/secrets/profile.plist -signer /tmp/tb-ios/secrets/cert.pem -inkey /tmp/tb-ios/secrets/key.pem -outform DER -nodetach -out /tmp/tb-ios/secrets/profile.mobileprovision
+          openssl pkcs12 -export -legacy -out /tmp/tb-ios/secrets/signing.p12 -inkey /tmp/tb-ios/secrets/key.pem -in /tmp/tb-ios/secrets/cert.pem -passout pass:appdown-ci-123
+          printf '%s' 'appdown-ci-123' >/tmp/tb-ios/secrets/p12.pass
+          cat >/tmp/tb-ios/request.json <<'JSON'
+          {"platform":"ios","template":"/workspace/input/template.ipa","output":"/workspace/output/result.ipa","url":"https://example.com/appdown-ci","app_name":"AppDown Template CI","bundle_id":"org.appdown.templateci","version_name":"2.0.0","version_code":200,"p12":"/run/secrets/signing.p12","p12_password_file":"/run/secrets/p12.pass","mobileprovision":"/run/secrets/profile.mobileprovision","status_bar_color":"#111111"}
+          JSON
+          docker run --rm --network none -v /tmp/tb-ios/request.json:/workspace/request.json:ro -v /tmp/tb-ios/input:/workspace/input:ro -v /tmp/tb-ios/output:/workspace/output -v /tmp/tb-ios/secrets:/run/secrets:ro appdown/template-builder:ci /workspace/request.json
+          test -s /tmp/tb-ios/output/result.ipa
+          unzip -t /tmp/tb-ios/output/result.ipa >/dev/null
+          unzip -l /tmp/tb-ios/output/result.ipa | grep -F embedded.mobileprovision
