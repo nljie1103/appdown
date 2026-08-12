@@ -41,7 +41,9 @@ jobs:
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           chmod +x gradlew
           ./gradlew assembleRelease -PappId=com.appdown.template -PvName=1.0.0 -PvCode=1 --no-daemon
-          cp app/build/outputs/apk/release/app-release.apk /tmp/android-webview-template.apk
+          mapfile -t apks < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print | sort)
+          test "${#apks[@]}" -eq 1
+          cp "${apks[0]}" /tmp/android-webview-template.apk
           test -s /tmp/android-webview-template.apk
           unzip -t /tmp/android-webview-template.apk >/dev/null
           unzip -l /tmp/android-webview-template.apk | grep -F 'res/' | grep -F 'ic_launcher'
