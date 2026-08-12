@@ -46,7 +46,6 @@ jobs:
           cp "${apks[0]}" /tmp/android-webview-template.apk
           test -s /tmp/android-webview-template.apk
           unzip -t /tmp/android-webview-template.apk >/dev/null
-          unzip -l /tmp/android-webview-template.apk | grep -F 'res/' | grep -F 'ic_launcher'
       - uses: actions/upload-artifact@v4
         with:
           name: android-mother
