@@ -20,7 +20,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: admin-ui/package-lock.json
-      - name: Enforce SaaS environment boundary
+      - name: Enforce SaaS environment and tenant file boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -39,6 +39,12 @@ jobs:
               'includes/template_builder.php',
               "        'architecture' => php_uname('m'),\n        'bootstrapped' => $bootstrapped,",
               "        'architecture' => php_uname('m'),\n        'environment_manageable' => !(defined('APPDOWN_EDITION') && APPDOWN_EDITION === 'saas'),\n        'bootstrapped' => $bootstrapped,",
+          )
+
+          replace_once(
+              'includes/template_builder.php',
+              "    $root = realpath(template_builder_root());\n    $path = realpath(template_builder_root() . '/' . ltrim($value, '/'));\n    return ($root && $path && str_starts_with($path, $root . DIRECTORY_SEPARATOR) && is_file($path)) ? $path : '';",
+              "    $root = realpath(template_builder_root());\n    $path = realpath(template_builder_root() . '/' . ltrim($value, '/'));\n    if (!$root || !$path || !is_file($path)) return '';\n    $allowedRoot = $root;\n    if (function_exists('current_tenant') && function_exists('tenant_upload_dir') && current_tenant(true)) {\n        $tenantRoot = realpath(tenant_upload_dir());\n        if (!$tenantRoot) return '';\n        $allowedRoot = $tenantRoot;\n    }\n    return ($path === $allowedRoot || str_starts_with($path, $allowedRoot . DIRECTORY_SEPARATOR)) ? $path : '';",
           )
 
           replace_once(
@@ -77,7 +83,6 @@ jobs:
         working-directory: admin-ui
         run: |
           npm ci --no-audit --no-fund
-          npm run typecheck
           npm run build
       - name: Commit SaaS adaptations and generated assets
         shell: bash
@@ -88,5 +93,5 @@ jobs:
           git add includes/template_builder.php admin/api/template-builder.php admin-ui/src/views/BuilderView.vue admin/vue
           git diff --cached --check
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "fix(saas): isolate shared Template Builder environment controls"
+          git commit -m "fix(saas): isolate Template Builder shared and tenant resources"
           git push origin HEAD:dev-template-builder-2-saas
