@@ -1,0 +1,92 @@
+name: Temporary SaaS Template Builder Sync
+
+on:
+  push:
+    branches: [dev-template-builder-2-saas]
+
+permissions:
+  contents: write
+
+jobs:
+  adapt-build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev-template-builder-2-saas
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+      - name: Enforce SaaS environment boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:80]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'includes/template_builder.php',
+              "        'architecture' => php_uname('m'),\n        'bootstrapped' => $bootstrapped,",
+              "        'architecture' => php_uname('m'),\n        'environment_manageable' => !(defined('APPDOWN_EDITION') && APPDOWN_EDITION === 'saas'),\n        'bootstrapped' => $bootstrapped,",
+          )
+
+          replace_once(
+              'admin/api/template-builder.php',
+              "    $data=get_json_input(); $action=$data['action']??$action;\n    if(in_array($action,['install','uninstall'],true)){",
+              "    $data=get_json_input(); $action=$data['action']??$action;\n    if(in_array($action,['install','uninstall'],true) && defined('APPDOWN_EDITION') && APPDOWN_EDITION==='saas') json_response(['error'=>'SaaS 共享 Template Builder 环境仅允许平台管理员维护'],403);\n    if(in_array($action,['install','uninstall'],true)){",
+          )
+
+          replace_once(
+              'admin-ui/src/views/BuilderView.vue',
+              "const progress=computed(()=>Number(active.value?.progress||0)),running=computed(()=>active.value&&['pending','building'].includes(active.value.status)),fastReady=computed(()=>!!tbStatus.value?.all_ok)",
+              "const progress=computed(()=>Number(active.value?.progress||0)),running=computed(()=>active.value&&['pending','building'].includes(active.value.status)),fastReady=computed(()=>!!tbStatus.value?.all_ok),canManageEnv=computed(()=>tbStatus.value?.environment_manageable!==false)",
+          )
+          replace_once(
+              'admin-ui/src/views/BuilderView.vue',
+              "async function envAction(action:'install'|'uninstall'){if(action==='uninstall'&&!confirm('只删除 AppDown Template Builder 镜像，不删除 Docker Engine、签名材料和构建产物。继续？'))return;",
+              "async function envAction(action:'install'|'uninstall'){if(!canManageEnv.value)return store.notify('SaaS 共享构建环境由平台管理员维护','error');if(action==='uninstall'&&!confirm('只删除 AppDown Template Builder 镜像，不删除 Docker Engine、签名材料和构建产物。继续？'))return;",
+          )
+          replace_once(
+              'admin-ui/src/views/BuilderView.vue',
+              '<div v-if="tbStatus&&!tbStatus.bootstrapped" class="card"',
+              '<div v-if="canManageEnv&&tbStatus&&!tbStatus.bootstrapped" class="card"',
+          )
+          replace_once(
+              'admin-ui/src/views/BuilderView.vue',
+              '<div style="display:flex;gap:7px;margin-top:10px"><button class="button" :disabled="installBusy||!tbStatus?.bootstrapped" @click="envAction(\'install\')"><Wrench :size="13"/>安装 / 更新镜像</button><button class="button danger" :disabled="installBusy||!tbStatus?.bootstrapped" @click="envAction(\'uninstall\')"><Trash2 :size="13"/>卸载镜像</button></div>',
+              '<div v-if="canManageEnv" style="display:flex;gap:7px;margin-top:10px"><button class="button" :disabled="installBusy||!tbStatus?.bootstrapped" @click="envAction(\'install\')"><Wrench :size="13"/>安装 / 更新镜像</button><button class="button danger" :disabled="installBusy||!tbStatus?.bootstrapped" @click="envAction(\'uninstall\')"><Trash2 :size="13"/>卸载镜像</button></div><div v-else class="card" style="padding:10px 12px;margin-top:10px"><b>共享构建环境由平台管理员统一维护</b><div class="subtle" style="margin-top:3px">租户只能使用 Template Builder 和查看 Ready 状态，不能安装、更新或卸载整台服务器共享的 Builder 镜像。</div></div>',
+          )
+          PY
+          php -l includes/template_builder.php
+          php -l admin/api/template-builder.php
+          php -l admin/api/ios-signing.php
+          php -l tools/template-builder-worker.php
+          php tests/smoke_template_builder.php
+      - name: Build SaaS Admin 2.0 assets
+        working-directory: admin-ui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run build
+      - name: Commit SaaS adaptations and generated assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add includes/template_builder.php admin/api/template-builder.php admin-ui/src/views/BuilderView.vue admin/vue
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix(saas): isolate shared Template Builder environment controls"
+          git push origin HEAD:dev-template-builder-2-saas
