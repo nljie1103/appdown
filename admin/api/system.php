@@ -10,6 +10,20 @@ $pdo = get_db();
 $method = get_request_method();
 $action = $_GET['action'] ?? '';
 
+
+function ios_ssh_command(PDO $pdo, string $remoteCommand, int $timeout = 5): string {
+    $port = (int)(get_setting($pdo, 'custom_ios_ssh_port') ?: '50922');
+    if ($port < 1 || $port > 65535) $port = 50922;
+    $root = dirname(__DIR__, 2);
+    $knownHosts = $root . '/data/ios_known_hosts';
+    if (!file_exists($knownHosts)) { @touch($knownHosts); @chmod($knownHosts, 0600); }
+    $identity = $root . '/data/ios_builder_ed25519';
+    $opts = '-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=' . escapeshellarg($knownHosts)
+        . ' -o ConnectTimeout=' . max(1, $timeout) . ' -o BatchMode=yes -p ' . $port;
+    if (is_file($identity) && is_readable($identity)) $opts .= ' -i ' . escapeshellarg($identity) . ' -o IdentitiesOnly=yes';
+    return 'ssh ' . $opts . ' ' . escapeshellarg('user@localhost') . ' ' . escapeshellarg($remoteCommand);
+}
+
 // GET — 查询
 if ($method === 'GET') {
 
@@ -79,6 +93,10 @@ if ($method === 'GET') {
         $iosContainer = get_setting($pdo, 'custom_ios_container') ?: 'ysapp-ios-builder';
         $iosSshPort = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
 
+        // Docker-OSX 仅支持 x86_64 KVM 宿主机
+        $arch = strtolower((string)php_uname('m'));
+        $archOk = in_array($arch, ['x86_64', 'amd64'], true);
+
         // Docker 已安装
         $dockerOut = [];
         @exec('docker --version 2>/dev/null', $dockerOut);
@@ -113,7 +131,7 @@ if ($method === 'GET') {
         $sshOk = false;
         if ($containerRunning) {
             $sshOut = [];
-            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "echo ok" 2>/dev/null', $sshOut);
+            @exec(ios_ssh_command($pdo, 'echo ok', 5) . ' 2>/dev/null', $sshOut, $sshCode);
             $sshOk = (trim($sshOut[0] ?? '') === 'ok');
         }
 
@@ -122,7 +140,7 @@ if ($method === 'GET') {
         $hasXcode = false;
         if ($sshOk) {
             $xcOut = [];
-            @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null | head -1" 2>/dev/null', $xcOut);
+            @exec(ios_ssh_command($pdo, 'xcodebuild -version 2>/dev/null | head -1', 5) . ' 2>/dev/null', $xcOut, $xcCode);
             $xcLine = trim($xcOut[0] ?? '');
             if (strpos($xcLine, 'Xcode') !== false) {
                 $hasXcode = true;
@@ -131,6 +149,7 @@ if ($method === 'GET') {
         }
 
         json_response([
+            'arch'              => ['ok' => $archOk, 'version' => $arch],
             'docker'            => ['ok' => $hasDocker, 'version' => trim($dockerOut[0] ?? '')],
             'docker_running'    => ['ok' => $dockerRunning],
             'kvm'               => ['ok' => $hasKvm],
@@ -138,7 +157,7 @@ if ($method === 'GET') {
             'container_running' => ['ok' => $containerRunning],
             'ssh'               => ['ok' => $sshOk],
             'xcode'             => ['ok' => $hasXcode, 'version' => $xcodeVer],
-            'all_ok'            => $hasDocker && $dockerRunning && $hasKvm && $containerExists && $containerRunning && $sshOk && $hasXcode,
+            'all_ok'            => $archOk && $hasDocker && $dockerRunning && $hasKvm && $containerExists && $containerRunning && $sshOk && $hasXcode,
         ]);
     }
 
@@ -307,7 +326,7 @@ if ($method === 'POST') {
     if ($action === 'verify_ios_xcode') {
         $iosSshPort = get_setting($pdo, 'custom_ios_ssh_port') ?: '50922';
         $xcOut = [];
-        @exec('ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes -p ' . escapeshellarg($iosSshPort) . ' user@localhost "xcodebuild -version 2>/dev/null" 2>/dev/null', $xcOut, $xcCode);
+        @exec(ios_ssh_command($pdo, 'xcodebuild -version 2>/dev/null', 10) . ' 2>/dev/null', $xcOut, $xcCode);
         $xcodeInfo = implode("\n", $xcOut);
         $hasXcode = strpos($xcodeInfo, 'Xcode') !== false;
         json_response([
@@ -376,6 +395,12 @@ if ($method === 'POST') {
             json_response(['error' => 'Xcode 安装正在进行中，请勿重复操作'], 400);
         }
 
+        $sshProbe = [];
+        @exec(ios_ssh_command($pdo, 'echo ok', 10) . ' 2>/dev/null', $sshProbe, $sshProbeCode);
+        if ($sshProbeCode !== 0 || trim($sshProbe[0] ?? '') !== 'ok') {
+            json_response(['error' => 'macOS 容器 SSH 尚未就绪，不能启动 Xcode 安装。请先让 iOS 环境检测中的 SSH 变为正常。'], 400);
+        }
+
         $input = json_decode(file_get_contents('php://input'), true);
         $appleId = trim($input['apple_id'] ?? '');
         $pw = $input['password'] ?? '';
@@ -437,7 +462,7 @@ if ($method === 'POST') {
     if ($action === 'save_env_paths') {
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $allowed = ['custom_java_home', 'custom_android_home', 'custom_ios_ssh_port', 'custom_ios_container',
-                     'custom_docker_data_root', 'custom_docker_mirror', 'custom_docker_osx_image'];
+                     'custom_docker_data_root', 'custom_docker_mirror', 'custom_docker_osx_image', 'custom_xcode_version'];
         foreach ($allowed as $k) {
             if (isset($input[$k])) {
                 $val = trim($input[$k]);
@@ -480,6 +505,12 @@ if ($method === 'POST') {
                 if ($k === 'custom_docker_osx_image' && $val !== '') {
                     if (!preg_match('#^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$#', $val)) {
                         json_response(['error' => '镜像名格式无效，示例: sickcodes/docker-osx:sonoma'], 400);
+                    }
+                }
+                // Xcode 版本只允许常见版本字符；留空表示自动选择
+                if ($k === 'custom_xcode_version' && $val !== '') {
+                    if (strlen($val) > 40 || !preg_match('/^[0-9A-Za-z ._\-]+$/', $val)) {
+                        json_response(['error' => 'Xcode 版本格式无效，例如 15.4 或 12.4'], 400);
                     }
                 }
                 set_setting($pdo, $k, $val);

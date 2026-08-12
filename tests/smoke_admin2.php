@@ -96,8 +96,37 @@ admin2_markers($mobileconfig, [
 $system = admin2_source($root, 'admin-ui/src/views/SystemView.vue');
 admin2_markers($system, [
     '/admin/api/system-overview.php', 'save_env_paths', 'install_ios_xcode', 'submit_ios_2fa',
-    'custom_android_home', 'custom_docker_data_root', 'custom_docker_osx_image',
+    'custom_android_home', 'custom_docker_data_root', 'custom_docker_osx_image', 'custom_xcode_version',
 ], 'SystemView');
+
+$customCode = admin2_source($root, 'admin-ui/src/views/CustomCodeView.vue');
+admin2_markers($customCode, [
+    '全屏樱花', '全屏雪花', '节日灯笼', '粒子背景', '鼠标跟随', '彩带背景',
+    '全站灰色', '右键美化', '禁止查看源码', '背景音乐', '节日欢迎弹窗',
+    'FESTIVALS', 'effects_config', '/admin/api/settings.php',
+], 'CustomCodeView');
+
+$androidDefaultIcon = admin2_source($root, 'android-template/app/src/main/res/mipmap/ic_launcher.xml');
+admin2_markers($androidDefaultIcon, ['<vector', '#2563EB'], 'Android default launcher icon');
+
+$iosWorker = admin2_source($root, 'tools/ios-build-worker.php');
+admin2_markers($iosWorker, ['scp_to_remote', 'scp_from_remote', '/tmp/appdown-build-', 'ios_builder_ed25519'], 'iOS build worker');
+
+$xcodeWorker = admin2_source($root, 'tools/xcode-install-worker.php');
+admin2_markers($xcodeWorker, ['custom_ios_ssh_port', 'custom_xcode_version', 'ios_builder_ed25519', 'StrictHostKeyChecking=accept-new'], 'Xcode install worker');
+
+$iosSetup = admin2_source($root, 'tools/setup-ios-env.sh');
+admin2_markers($iosSetup, ['x86_64', '127.0.0.1:${SSH_PORT}:10022', 'Phase 1 判定失败', 'sickcodes/docker-osx:auto'], 'iOS environment setup');
+
+$interactiveXcode = admin2_source($root, 'tools/setup-ios-xcode.sh');
+admin2_markers($interactiveXcode, ['SSH_PORT="${SSH_PORT:-50922}"', '/usr/local/bin:/opt/homebrew/bin', 'IdentitiesOnly=yes', 'xcodebuild -version'], 'interactive Xcode setup');
+
+$pbx = admin2_source($root, 'ios-template/WebViewApp.xcodeproj/project.pbxproj');
+admin2_markers($pbx, ['objectVersion = 54;', 'compatibilityVersion = "Xcode 12.0";', 'IPHONEOS_DEPLOYMENT_TARGET = 14.0;'], 'iOS Xcode 12 compatible project');
+foreach (['icon-20@2x.png','icon-20@3x.png','icon-29@2x.png','icon-29@3x.png','icon-40@2x.png','icon-40@3x.png','icon-60@2x.png','icon-60@3x.png','icon-76@1x.png','icon-76@2x.png','icon-83.5@2x.png','icon-1024.png'] as $icon) {
+    $iconPath = $root . '/ios-template/WebViewApp/Assets.xcassets/AppIcon.appiconset/' . $icon;
+    admin2_assert(is_file($iconPath) && filesize($iconPath) > 100, 'missing/empty default iOS icon: ' . $icon);
+}
 
 $account = admin2_source($root, 'admin-ui/src/views/AccountView.vue');
 admin2_markers($account, ['新密码长度不能少于 8 位', '两次输入的新密码不一致', 'current_password'], 'AccountView');

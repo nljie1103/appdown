@@ -1,5 +1,5 @@
 name: AppDown CI
-# Final SaaS v1.2.0 validation after removing accidentally tracked admin-ui/node_modules.
+# Admin 2.0 parity, landing templates, server config and real mobile build validation gate.
 
 on:
   push:
@@ -27,6 +27,16 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm -v "$GITHUB_WORKSPACE/src:/app" -w /app php:8.0-cli sh -lc 'find . -type f -name "*.php" -print0 | xargs -0 -n1 php -l'
+
+      - name: Mobile environment shell syntax check
+        shell: bash
+        working-directory: src
+        run: |
+          set -euo pipefail
+          bash -n tools/setup-android-env.sh
+          bash -n tools/setup-ios-env.sh
+          bash -n tools/uninstall-ios-env.sh
+          bash -n tools/setup-ios-xcode.sh
 
       - name: Install runtime test extensions and nginx
         shell: bash
@@ -85,3 +95,65 @@ jobs:
           test -s admin/vue/admin2.css
           find admin/vue -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/admin-vue-after.sha256
           diff -u /tmp/admin-vue-before.sha256 /tmp/admin-vue-after.sha256
+
+  real-android-apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 "https://github.com/${GITHUB_REPOSITORY}/archive/${GITHUB_SHA}.tar.gz" -o /tmp/appdown.tar.gz
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          tar -xzf /tmp/appdown.tar.gz --strip-components=1 -C "$GITHUB_WORKSPACE/src"
+
+      - name: Install AppDown Android environment
+        shell: bash
+        working-directory: src
+        run: sudo bash tools/setup-android-env.sh
+
+      - name: Build and verify signed APK with no custom icon
+        shell: bash
+        working-directory: src/android-template
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          keytool -genkeypair -keystore /tmp/appdown-ci.jks -storepass appdown-ci-123 -keypass appdown-ci-123 -alias appdown -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=AppDown CI,O=AppDown,C=US"
+          export APPDOWN_KS_FILE=/tmp/appdown-ci.jks
+          export APPDOWN_KS_STORE_PASSWORD=appdown-ci-123
+          export APPDOWN_KS_ALIAS=appdown
+          export APPDOWN_KS_KEY_PASSWORD=appdown-ci-123
+          chmod +x gradlew
+          ./gradlew assembleRelease -PappId=com.appdown.ci -PvName=1.3.1 -PvCode=131 --no-daemon
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.appdown.ci'"
+          unzip -t "$APK" >/dev/null
+
+  real-ios-template:
+    runs-on: macos-latest
+    steps:
+      - name: Fetch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 "https://github.com/${GITHUB_REPOSITORY}/archive/${GITHUB_SHA}.tar.gz" -o /tmp/appdown.tar.gz
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          tar -xzf /tmp/appdown.tar.gz --strip-components=1 -C "$GITHUB_WORKSPACE/src"
+
+      - name: Archive real unsigned iOS app with Xcode
+        shell: bash
+        working-directory: src/ios-template
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -project WebViewApp.xcodeproj -scheme WebViewApp -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/appdown.xcarchive archive CODE_SIGNING_ALLOWED=NO
+          APP_PATH="$(find /tmp/appdown.xcarchive/Products/Applications -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          rm -rf /tmp/appdown-ipa && mkdir -p /tmp/appdown-ipa/Payload
+          cp -R "$APP_PATH" /tmp/appdown-ipa/Payload/
+          cd /tmp/appdown-ipa
+          /usr/bin/zip -qry /tmp/appdown-ci.ipa Payload
+          unzip -t /tmp/appdown-ci.ipa >/dev/null

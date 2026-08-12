@@ -30,6 +30,20 @@ $customScript = $argv[2] ?? '';
 
 $pdo = get_db();
 
+
+$dataDir = realpath(__DIR__ . '/../data');
+$sshKey = $dataDir ? ($dataDir . '/ios_builder_ed25519') : '';
+if ($sshKey && !file_exists($sshKey)) {
+    $keyCmd = 'ssh-keygen -q -t ed25519 -N ' . escapeshellarg('') . ' -f ' . escapeshellarg($sshKey) . ' 2>&1';
+    exec($keyCmd, $keyOut, $keyCode);
+    if ($keyCode !== 0) {
+        file_put_contents($logFile, "[错误] 无法创建 iOS Builder SSH 密钥: " . implode("\n", $keyOut) . "\n");
+        exit(1);
+    }
+    @chmod($sshKey, 0600);
+    @chmod($sshKey . '.pub', 0644);
+}
+
 try {
     // 标记为运行中
     set_setting($pdo, 'ios_install_status', 'running');
@@ -67,6 +81,7 @@ try {
             $envParts[] = $envName . '=' . escapeshellarg($val);
         }
     }
+    if ($sshKey) $envParts[] = 'IOS_SSH_KEY=' . escapeshellarg($sshKey);
     $envPrefix = $envParts ? implode(' ', $envParts) . ' ' : '';
 
     if ($isRoot) {
