@@ -42,8 +42,13 @@ if (!file_exists($knownHosts)) {
     @chmod($knownHosts, 0600);
 }
 // 首次连接仅接受“新主机”；后续主机密钥变化会被拒绝，替代 StrictHostKeyChecking=no。
+$identity = $projectRoot . '/data/ios_builder_ed25519';
 $SSH_OPTS = '-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=' . escapeshellarg($knownHosts) .
     ' -o ConnectTimeout=10 -o BatchMode=yes -p ' . (int)$SSH_PORT;
+if (is_file($identity) && is_readable($identity)) $SSH_OPTS .= ' -i ' . escapeshellarg($identity) . ' -o IdentitiesOnly=yes';
+$SCP_OPTS = '-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=' . escapeshellarg($knownHosts) .
+    ' -o ConnectTimeout=10 -o BatchMode=yes -P ' . (int)$SSH_PORT;
+if (is_file($identity) && is_readable($identity)) $SCP_OPTS .= ' -i ' . escapeshellarg($identity) . ' -o IdentitiesOnly=yes';
 
 function ssh_exec(string $command): array {
     global $SSH_OPTS, $SSH_USER, $SSH_HOST;
@@ -51,6 +56,24 @@ function ssh_exec(string $command): array {
     $output = [];
     exec($fullCmd, $output, $retCode);
     return ['output' => $output, 'code' => $retCode];
+}
+
+function scp_to_remote(string $localDir, string $remoteDir): array {
+    global $SCP_OPTS, $SSH_USER, $SSH_HOST;
+    $prep = ssh_exec('rm -rf ' . escapeshellarg($remoteDir) . ' && mkdir -p ' . escapeshellarg($remoteDir));
+    if ($prep['code'] !== 0) return $prep;
+    $cmd = 'scp ' . $SCP_OPTS . ' -r ' . escapeshellarg(rtrim($localDir, '/') . '/.') . ' ' . escapeshellarg($SSH_USER . '@' . $SSH_HOST . ':' . $remoteDir . '/') . ' 2>&1';
+    $out = [];
+    exec($cmd, $out, $code);
+    return ['output' => $out, 'code' => $code];
+}
+
+function scp_from_remote(string $remoteFile, string $localFile): array {
+    global $SCP_OPTS, $SSH_USER, $SSH_HOST;
+    $cmd = 'scp ' . $SCP_OPTS . ' ' . escapeshellarg($SSH_USER . '@' . $SSH_HOST . ':' . $remoteFile) . ' ' . escapeshellarg($localFile) . ' 2>&1';
+    $out = [];
+    exec($cmd, $out, $code);
+    return ['output' => $out, 'code' => $code];
 }
 
 try {
@@ -92,7 +115,7 @@ try {
     $localBuildDir = $projectRoot . '/data/ios-build/' . $tenantSlug . '_task_' . $taskId;
     if (is_dir($localBuildDir)) recursive_delete($localBuildDir);
     recursive_copy($templateDir, $localBuildDir);
-    $remoteBuildDir = '/mnt/build/' . $tenantSlug . '_task_' . $taskId;
+    $remoteBuildDir = '/tmp/appdown-build-' . $tenantSlug . '-' . $taskId;
 
     update_task($pdo, $taskId, ['progress' => 15, 'progress_msg' => '写入应用配置...']);
     $config = [
@@ -133,7 +156,14 @@ try {
         foreach ($sizes as $filename => $size) resize_image($iconPath, $iconSetDir . '/' . $filename, $size, $size);
     }
 
-    update_task($pdo, $taskId, ['progress' => 30, 'progress_msg' => '正在编译IPA（可能需要几分钟）...']);
+    update_task($pdo, $taskId, ['progress' => 28, 'progress_msg' => '通过 SSH 复制工程到 macOS...']);
+    $transfer = scp_to_remote($localBuildDir, $remoteBuildDir);
+    if ($transfer['code'] !== 0) {
+        fail_task($pdo, $taskId, "工程传输到 macOS 失败\n" . implode("\n", $transfer['output']));
+        exit(1);
+    }
+
+    update_task($pdo, $taskId, ['progress' => 30, 'progress_msg' => '正在编译未签名 IPA（可能需要几分钟）...']);
     $xcodeCmd = "cd $remoteBuildDir && " .
         "xcodebuild -project WebViewApp.xcodeproj -scheme WebViewApp " .
         "-configuration Release -destination 'generic/platform=iOS' " .
@@ -172,7 +202,8 @@ try {
         $status = proc_get_status($proc);
         if (!$status['running']) break;
         if (time() - $startTime > $timeout) {
-            proc_terminate($proc, 9); fclose($pipes[1]); fclose($pipes[2]); proc_close($proc);
+            proc_terminate($proc, 9);
+            fclose($pipes[1]); fclose($pipes[2]); proc_close($proc);
             fail_task($pdo, $taskId, "构建超时（超过 {$timeout} 秒），已终止");
             exit(1);
         }
@@ -182,7 +213,8 @@ try {
             $cancelStmt->execute([$taskId]);
             $cancelRow = $cancelStmt->fetch();
             if (!$cancelRow || $cancelRow['status'] === 'failed') {
-                proc_terminate($proc, 9); fclose($pipes[1]); fclose($pipes[2]); proc_close($proc);
+                proc_terminate($proc, 9);
+                fclose($pipes[1]); fclose($pipes[2]); proc_close($proc);
                 fwrite(STDERR, "Task $taskId cancelled by user\n");
                 exit(0);
             }
@@ -208,7 +240,7 @@ try {
         exit(1);
     }
 
-    update_task($pdo, $taskId, ['progress' => 90, 'progress_msg' => '复制到目标目录...']);
+    update_task($pdo, $taskId, ['progress' => 90, 'progress_msg' => '复制到租户目标目录...']);
     $ipaDir = appdown_upload_dir() . '/ipas';
     if (!is_dir($ipaDir)) mkdir($ipaDir, 0755, true);
     $safeName = preg_replace('/[^\w\x{4e00}-\x{9fff}\-]/u', '_', $params['app_name']);
@@ -216,13 +248,15 @@ try {
     $version = $params['version_name'] ?? '1.0.0';
     $ipaFilename = resolve_filename_collision($ipaDir, $safeName . '-' . $version, 'ipa');
     $localIpaPath = $localBuildDir . '/build/app.ipa';
-    $destPath = $ipaDir . '/' . $ipaFilename;
-    if (!file_exists($localIpaPath)) {
-        fail_task($pdo, $taskId, 'IPA 文件未找到（共享卷同步可能延迟）');
+    if (!is_dir(dirname($localIpaPath))) mkdir(dirname($localIpaPath), 0755, true);
+    $transferBack = scp_from_remote($remoteBuildDir . '/build/app.ipa', $localIpaPath);
+    if ($transferBack['code'] !== 0 || !is_file($localIpaPath)) {
+        fail_task($pdo, $taskId, "从 macOS 拉取 IPA 失败\n" . implode("\n", $transferBack['output']));
         exit(1);
     }
+    $destPath = $ipaDir . '/' . $ipaFilename;
     if (!copy($localIpaPath, $destPath)) {
-        fail_task($pdo, $taskId, 'IPA 复制到目标目录失败');
+        fail_task($pdo, $taskId, 'IPA 复制到租户目标目录失败');
         exit(1);
     }
 
@@ -289,7 +323,8 @@ function recursive_copy(string $src, string $dst): void {
     $dir = opendir($src);
     while (($file = readdir($dir)) !== false) {
         if ($file === '.' || $file === '..') continue;
-        $srcPath = $src . '/' . $file; $dstPath = $dst . '/' . $file;
+        $srcPath = $src . '/' . $file;
+        $dstPath = $dst . '/' . $file;
         if (is_dir($srcPath)) recursive_copy($srcPath, $dstPath); else copy($srcPath, $dstPath);
     }
     closedir($dir);
@@ -298,7 +333,9 @@ function recursive_copy(string $src, string $dst): void {
 function recursive_delete(string $dir): void {
     if (!is_dir($dir)) return;
     $items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
-    foreach ($items as $item) { if ($item->isDir()) rmdir($item->getPathname()); else unlink($item->getPathname()); }
+    foreach ($items as $item) {
+        if ($item->isDir()) rmdir($item->getPathname()); else unlink($item->getPathname());
+    }
     rmdir($dir);
 }
 
@@ -306,14 +343,22 @@ function resize_image(string $src, string $dst, int $w, int $h): void {
     $info = @getimagesize($src);
     if (!$info) { copy($src, $dst); return; }
     $srcImg = match ($info['mime']) {
-        'image/png' => @imagecreatefrompng($src), 'image/jpeg' => @imagecreatefromjpeg($src),
-        'image/gif' => @imagecreatefromgif($src), 'image/webp' => @imagecreatefromwebp($src), default => null,
+        'image/png' => @imagecreatefrompng($src),
+        'image/jpeg' => @imagecreatefromjpeg($src),
+        'image/gif' => @imagecreatefromgif($src),
+        'image/webp' => @imagecreatefromwebp($src),
+        default => null,
     };
     if (!$srcImg) { copy($src, $dst); return; }
-    $dstImg = imagecreatetruecolor($w, $h); imagealphablending($dstImg, false); imagesavealpha($dstImg, true);
-    $transparent = imagecolorallocatealpha($dstImg, 0, 0, 0, 127); imagefill($dstImg, 0, 0, $transparent);
+    $dstImg = imagecreatetruecolor($w, $h);
+    imagealphablending($dstImg, false);
+    imagesavealpha($dstImg, true);
+    $transparent = imagecolorallocatealpha($dstImg, 0, 0, 0, 127);
+    imagefill($dstImg, 0, 0, $transparent);
     imagecopyresampled($dstImg, $srcImg, 0, 0, 0, 0, $w, $h, imagesx($srcImg), imagesy($srcImg));
-    imagepng($dstImg, $dst); imagedestroy($srcImg); imagedestroy($dstImg);
+    imagepng($dstImg, $dst);
+    imagedestroy($srcImg);
+    imagedestroy($dstImg);
 }
 
 function format_size(int $bytes): string {
