@@ -15,6 +15,24 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install AppDown Android environment
         run: sudo bash tools/setup-android-env.sh
+      - name: Prepare patchable launcher resources
+        working-directory: android-template
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick >/dev/null
+          rm -f app/src/main/res/mipmap/ic_launcher.xml
+          for spec in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            density="${spec%%:*}"
+            size="${spec##*:}"
+            dir="app/src/main/res/mipmap-${density}"
+            mkdir -p "$dir"
+            convert -size "${size}x${size}" xc:'#2563EB' \
+              -fill white -gravity center -pointsize "$(( size / 3 ))" -font DejaVu-Sans-Bold \
+              -annotate +0+0 'A' "$dir/ic_launcher.png"
+            file "$dir/ic_launcher.png" | grep -F 'PNG image data'
+          done
       - name: Build unsigned Android mother APK
         working-directory: android-template
         run: |
@@ -26,6 +44,7 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk /tmp/android-webview-template.apk
           test -s /tmp/android-webview-template.apk
           unzip -t /tmp/android-webview-template.apk >/dev/null
+          unzip -l /tmp/android-webview-template.apk | grep -F 'res/' | grep -F 'ic_launcher'
       - uses: actions/upload-artifact@v4
         with:
           name: android-mother
