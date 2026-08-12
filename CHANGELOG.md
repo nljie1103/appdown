@@ -1,5 +1,21 @@
 # Changelog
 
+## saas-v1.3.1 - 2026-08-12
+
+与单用户版 `v1.3.1` 同步的修复版本。从本版本开始，`main` 与 `saas` 使用相同的数字版本，仅以 Release tag 前缀区分版本线：单用户版为 `vX.Y.Z`，SaaS 版为 `saas-vX.Y.Z`。
+
+- 恢复 Admin 2.0 完整内置美化特效可视化管理，并保留 Head / Footer CSS 与 JavaScript 高级自定义能力。
+- Android Builder 增加内置默认 launcher 图标；即使未上传自定义图标也可完成 Release APK 构建。
+- 永久 CI 新增真实 Android Release APK 编译、JKS 签名与 `apksigner verify`，并继续保留 PHP 8.0、Vue/Vite、Nginx 与 smoke 全量检查。
+- iOS Builder 改为通过 SSH/SCP 将 Xcode 工程真实传入 macOS、构建后再拉回 IPA，不再依赖宿主机与 Docker-OSX 之间不存在的 `/mnt/build` 共享目录。
+- SaaS iOS Worker 继续强制 `APPDOWN_TENANT` 租户上下文；输入图片、临时构建目录、最终 IPA 与公开 URL 均保持当前租户隔离。
+- iOS SSH 使用持久化 `known_hosts`、`StrictHostKeyChecking=accept-new`、后台配置端口与可选专用 Ed25519 key，避免重建容器后静默信任错误主机。
+- Docker-OSX 环境安装增加 x86_64、KVM、Docker、容器运行和 SSH 真就绪检查；不再在 SSH 尚未可用时把环境标记为完成。
+- Xcode 安装器同时兼容 Intel Homebrew `/usr/local/bin` 与 Apple Silicon 常见 `/opt/homebrew/bin`，并支持后台指定 Xcode 版本；Docker-OSX `:auto` 的 Catalina 环境留空时默认选择 Xcode 12.4。
+- iOS 模板工程调整为 Xcode 12 兼容格式和 iOS 14 最低版本，并补齐完整默认 AppIcon；较新 Xcode 仍可继续编译该工程。
+- Builder 界面明确标注当前生成的是未签名 IPA，避免把未签名归档误认为可直接安装的已签名包。
+- iOS 环境卸载默认保留 Docker 与镜像，避免误删可能被服务器其他业务共享的 Docker 资源。
+
 ## saas-v1.2.0 - 2026-08-11
 
 SaaS 租户 Admin 2.0 与分发首页模板 2.0 正式发布。
