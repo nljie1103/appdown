@@ -92,6 +92,7 @@ function template_builder_status(PDO $pdo): array {
     $iosTemplate = template_builder_root() . '/builder/templates/ios-webview-template.ipa';
     return [
         'architecture' => php_uname('m'),
+        'environment_manageable' => !(defined('APPDOWN_EDITION') && APPDOWN_EDITION === 'saas'),
         'bootstrapped' => $bootstrapped,
         'runner_ok' => $runnerOk,
         'runner_message' => $runnerText,
@@ -208,5 +209,12 @@ function template_builder_resolve_project_file(string $value): string {
     if (str_contains($value, '..')) return '';
     $root = realpath(template_builder_root());
     $path = realpath(template_builder_root() . '/' . ltrim($value, '/'));
-    return ($root && $path && str_starts_with($path, $root . DIRECTORY_SEPARATOR) && is_file($path)) ? $path : '';
+    if (!$root || !$path || !is_file($path)) return '';
+    $allowedRoot = $root;
+    if (function_exists('current_tenant') && function_exists('tenant_upload_dir') && current_tenant(true)) {
+        $tenantRoot = realpath(tenant_upload_dir());
+        if (!$tenantRoot) return '';
+        $allowedRoot = $tenantRoot;
+    }
+    return ($path === $allowedRoot || str_starts_with($path, $allowedRoot . DIRECTORY_SEPARATOR)) ? $path : '';
 }

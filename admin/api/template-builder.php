@@ -29,6 +29,7 @@ if ($method === 'GET') {
 csrf_validate();
 if ($method === 'POST') {
     $data=get_json_input(); $action=$data['action']??$action;
+    if(in_array($action,['install','uninstall'],true) && defined('APPDOWN_EDITION') && APPDOWN_EDITION==='saas') json_response(['error'=>'SaaS 共享 Template Builder 环境仅允许平台管理员维护'],403);
     if(in_array($action,['install','uninstall'],true)){
         if(get_setting($pdo,'template_builder_install_status','idle')==='running')json_response(['error'=>'环境管理任务正在运行'],409);
         $runner=template_builder_runner();
