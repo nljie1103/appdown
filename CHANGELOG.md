@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Builder 2.0
+
+- 新增默认 Template Builder 2.0：使用真实预编译 Android APK / iOS IPA 母包进行快速 Patch + 重签，日常构建不再要求 Android SDK/Gradle/macOS/Xcode。
+- Android 快速路线使用 APKEditor + 现有 JKS + Uber APK Signer；iOS 快速路线使用 P12/PFX + Provisioning Profile + zsign，生成已签名 IPA。
+- 保留原 Gradle / Docker-OSX + Xcode 完整编译路线作为高级模式。
+- 新增一次性安全 Bootstrap、固定 root-owned Runner 与多架构 Docker Runtime，PHP 不获得任意 Docker Socket 权限。
+- 修复 iOS 快速签名后错误使用 zsign `-c` 作为校验参数的问题，并避免 `-r` 覆盖 `CFBundleVersion`；改为离线验证最终 IPA 元数据、Profile、CodeResources 与 Mach-O `LC_CODE_SIGNATURE`。
+- 新增永久 Template Builder 2.0 CI，真实执行 Android JKS 重签和 iOS P12/Profile 重签；母包本身继续由真实 Gradle 与 Xcode 流水线验证。
+
 ## v1.3.1 - 2026-08-12
 
 已知问题修复与真实构建链验证版本。
